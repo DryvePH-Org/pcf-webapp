@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 export default async function ApprovalsPage() {
   const user = await requireUser("/approvals");
   const supabase = await createClient();

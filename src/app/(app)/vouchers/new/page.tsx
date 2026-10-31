@@ -7,8 +7,6 @@ import type { CategoryOption, FundOption } from "@/components/vouchers/types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 export default async function NewVoucherPage() {
   await requireUser("/vouchers/new");
   const supabase = await createClient();

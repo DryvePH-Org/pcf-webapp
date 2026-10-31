@@ -23,8 +23,6 @@ import { formatDateTime } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-export const instant = false;
-
 const HISTORY_LIMIT = 20;
 
 type CashCountRow = {

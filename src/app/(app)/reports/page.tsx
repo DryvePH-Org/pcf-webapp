@@ -26,8 +26,6 @@ import { formatPHP } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-export const instant = false;
-
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const CASH_COUNT_LIMIT = 100;
 

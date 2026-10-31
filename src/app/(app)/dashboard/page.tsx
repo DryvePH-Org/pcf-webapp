@@ -31,8 +31,6 @@ import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { isVoucherStatus } from "@/lib/voucher-status";
 
-export const instant = false;
-
 function varianceClass(value: number) {
   return value === 0
     ? "text-emerald-600 dark:text-emerald-400"

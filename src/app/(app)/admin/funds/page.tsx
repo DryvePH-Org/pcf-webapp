@@ -3,8 +3,6 @@ import type { FundRow } from "@/components/admin/types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 export default async function AdminFundsPage() {
   await requireUser("/admin/funds");
   const supabase = await createClient();

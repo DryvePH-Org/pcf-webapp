@@ -22,8 +22,6 @@ import { canPerform } from "@/lib/permissions";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 const ELIGIBLE_STATUSES = ["released", "approved", "rejected"] as const;
 
 export default async function ReplenishmentsPage() {

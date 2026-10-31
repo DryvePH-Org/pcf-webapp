@@ -3,8 +3,6 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { getCurrentUser } from "@/lib/auth";
 
-export const instant = false;
-
 export default async function AppLayout({
   children,
 }: {

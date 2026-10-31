@@ -43,3 +43,11 @@ next-env.d.ts
 
 # editor / agent local settings
 .qoder/settings.local.json
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example

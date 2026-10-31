@@ -5,8 +5,6 @@ import { getCurrentUser } from "@/lib/auth";
 
 import { LoginForm } from "./login-form";
 
-export const instant = false;
-
 const HIGHLIGHTS = [
   { icon: ReceiptText, text: "Receipt-backed petty cash vouchers" },
   { icon: ShieldCheck, text: "Cash released now, reviewed afterwards" },

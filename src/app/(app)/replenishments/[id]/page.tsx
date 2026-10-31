@@ -27,8 +27,6 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

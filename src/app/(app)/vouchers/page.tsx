@@ -26,8 +26,6 @@ import {
 } from "@/lib/voucher-status";
 import type { VoucherListRow } from "@/components/vouchers/types";
 
-export const instant = false;
-
 const PAGE_SIZE = 20;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 

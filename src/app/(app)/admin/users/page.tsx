@@ -5,8 +5,6 @@ import { formatDate } from "@/lib/dates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export const instant = false;
-
 export default async function AdminUsersPage() {
   const currentUser = await requireUser("/admin/users");
   const supabase = await createClient();
