@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, MonitorDown } from "lucide-react";
 
 import { signOut } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
+import { useInstallPrompt } from "@/lib/pwa";
 import { cn } from "@/lib/utils";
 
 function initialsOf(name: string) {
@@ -35,6 +36,7 @@ export function UserMenu({
   compact?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const { available: canInstall, promptInstall } = useInstallPrompt();
 
   return (
     <DropdownMenu>
@@ -78,6 +80,15 @@ export function UserMenu({
             </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        {canInstall ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => promptInstall()}>
+              <MonitorDown />
+              Install app
+            </DropdownMenuItem>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
