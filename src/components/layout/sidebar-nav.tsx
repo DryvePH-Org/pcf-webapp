@@ -22,7 +22,7 @@ export function SidebarNav({
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex print:hidden">
       <Link
         href="/dashboard"
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-5"

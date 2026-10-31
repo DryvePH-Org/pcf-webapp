@@ -12,6 +12,13 @@ import {
   setUserActiveSchema,
   updateUserRoleSchema,
 } from '@/lib/validators/user';
+import {
+  createVoucherSchema,
+  noReceiptReasonSchema,
+  receiptPathSchema,
+  voucherReasonSchema,
+} from '@/lib/validators/voucher';
+import { isVoucherStatus } from '@/lib/voucher-status';
 
 const validFund = {
   name: 'Main Petty Cash',
@@ -104,6 +111,109 @@ describe('category schemas', () => {
     expect(setCategoryActiveSchema.safeParse({ id, isActive: false }).success).toBe(
       true,
     );
+  });
+});
+
+describe('voucher schemas', () => {
+  const validVoucher = {
+    fund_id: '00000000-0000-4000-8000-000000000001',
+    voucher_date: '2026-10-31',
+    payee: 'Ana Cruz',
+    particulars: 'Printer paper and ink',
+    amount: '1250.50',
+    category_id: '00000000-0000-4000-8000-000000000002',
+    no_receipt_reason: '',
+  };
+
+  it('accepts a valid voucher', () => {
+    expect(createVoucherSchema.safeParse(validVoucher).success).toBe(true);
+  });
+
+  it('rejects invalid dates, empty text, and bad ids', () => {
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, voucher_date: '10/31/2026' })
+        .success,
+    ).toBe(false);
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, payee: '   ' }).success,
+    ).toBe(false);
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, particulars: '' }).success,
+    ).toBe(false);
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, fund_id: 'main' }).success,
+    ).toBe(false);
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, category_id: '' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects zero, negative, and over-precise amounts', () => {
+    for (const amount of ['0', '0.00', '-1', '10.001', '1,000']) {
+      expect(
+        createVoucherSchema.safeParse({ ...validVoucher, amount }).success,
+        amount,
+      ).toBe(false);
+    }
+  });
+
+  it('validates receipt paths and reason text', () => {
+    const path = '00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000003/a.jpg';
+    expect(
+      receiptPathSchema.safeParse({ voucher_id: validVoucher.fund_id, receipt_path: path })
+        .success,
+    ).toBe(true);
+    expect(
+      receiptPathSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        receipt_path: '../secrets/a.jpg',
+      }).success,
+    ).toBe(false);
+    expect(
+      receiptPathSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        receipt_path: `${path}.pdf`,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      voucherReasonSchema.parse({
+        voucher_id: validVoucher.fund_id,
+        reason: '  Receipt missing  ',
+      }).reason,
+    ).toBe('Receipt missing');
+    expect(
+      voucherReasonSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        reason: '   ',
+      }).success,
+    ).toBe(false);
+    expect(
+      voucherReasonSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        reason: 'x'.repeat(301),
+      }).success,
+    ).toBe(false);
+
+    expect(
+      noReceiptReasonSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        reason: 'Small purchase',
+      }).success,
+    ).toBe(true);
+    expect(
+      noReceiptReasonSchema.safeParse({
+        voucher_id: validVoucher.fund_id,
+        reason: ' ',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('knows the release-first statuses', () => {
+    expect(isVoucherStatus('released')).toBe(true);
+    expect(isVoucherStatus('rejected')).toBe(true);
+    expect(isVoucherStatus('submitted')).toBe(false);
+    expect(isVoucherStatus('approved')).toBe(true);
   });
 });
 

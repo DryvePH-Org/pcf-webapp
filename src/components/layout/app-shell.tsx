@@ -24,7 +24,7 @@ export function AppShell({
       <SidebarNav groups={groups} user={user} />
 
       <div className="flex min-h-svh flex-col lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden print:hidden">
           <Link
             href="/dashboard"
             className="flex items-center gap-2 font-semibold"
@@ -37,7 +37,7 @@ export function AppShell({
           <UserMenu user={user} compact />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-10 lg:pb-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-10 lg:pb-10 print:max-w-none print:p-0">
           {children}
         </main>
       </div>

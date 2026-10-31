@@ -9,7 +9,7 @@ export const instant = false;
 
 const HIGHLIGHTS = [
   { icon: ReceiptText, text: "Receipt-backed petty cash vouchers" },
-  { icon: ShieldCheck, text: "Approval before cash is released" },
+  { icon: ShieldCheck, text: "Cash released now, reviewed afterwards" },
   { icon: Wallet, text: "Live imprest balance you can verify" },
 ];
 
