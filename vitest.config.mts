@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 
@@ -8,6 +9,11 @@ if (existsSync('.env.local')) {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+    },
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
