@@ -49,6 +49,7 @@ function createVoucherValidationError(input: z.ZodError): CreateVoucherResult {
 function revalidateVoucher(id: string) {
   revalidatePath("/vouchers");
   revalidatePath(`/vouchers/${id}`);
+  revalidatePath("/approvals");
   revalidatePath("/dashboard");
 }
 

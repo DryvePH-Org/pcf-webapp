@@ -21,6 +21,7 @@ import {
   voidVoucher,
 } from "@/actions/vouchers";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { ReceiptUploader } from "@/components/vouchers/receipt-uploader";
 import { Button } from "@/components/ui/button";
@@ -31,8 +32,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/lib/action-result";
 import { formatPHP } from "@/lib/money";
 import { canPerform, type Role } from "@/lib/permissions";
@@ -341,86 +340,6 @@ function describeState(status: VoucherStatus) {
     case "void":
       return "Void. The record is kept for audit.";
   }
-}
-
-function ReasonDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  label,
-  placeholder,
-  confirmLabel,
-  destructive = false,
-  pending,
-  defaultValue = "",
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: string;
-  label: string;
-  placeholder?: string;
-  confirmLabel: string;
-  destructive?: boolean;
-  pending: boolean;
-  defaultValue?: string;
-  onSubmit: (reason: string) => void;
-}) {
-  const [reason, setReason] = useState(defaultValue);
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <ResponsiveDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      description={description}
-    >
-      <div className="space-y-2">
-        <Label htmlFor="voucher-reason">{label}</Label>
-        <Textarea
-          id="voucher-reason"
-          value={reason}
-          rows={3}
-          placeholder={placeholder}
-          disabled={pending}
-          aria-invalid={Boolean(error)}
-          onChange={(event) => {
-            setReason(event.target.value);
-            setError(null);
-          }}
-        />
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      </div>
-      <div className="-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => onOpenChange(false)}
-          disabled={pending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant={destructive ? "destructive" : "default"}
-          disabled={pending}
-          onClick={() => {
-            const trimmed = reason.trim();
-            if (!trimmed) {
-              setError("A reason is required.");
-              return;
-            }
-            onSubmit(trimmed);
-          }}
-        >
-          {pending ? "Working..." : confirmLabel}
-        </Button>
-      </div>
-    </ResponsiveDialog>
-  );
 }
 
 function AttachReceiptDialog({
