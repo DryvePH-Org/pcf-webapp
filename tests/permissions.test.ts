@@ -31,13 +31,15 @@ describe('canAccessRoute', () => {
     ['custodian', '/audit', false],
     ['custodian', '/admin/users', false],
     ['approver', '/approvals', true],
-    ['approver', '/vouchers', false],
+    ['approver', '/vouchers', true],
+    ['approver', '/vouchers/new', false],
     ['approver', '/replenishments', false],
     ['approver', '/admin/funds', false],
     ['accounting', '/replenishments', true],
     ['accounting', '/reports', true],
     ['accounting', '/audit', true],
-    ['accounting', '/vouchers', false],
+    ['accounting', '/vouchers', true],
+    ['accounting', '/vouchers/new', false],
     ['accounting', '/cash-count', false],
     ['accounting', '/admin/categories', false],
   ])('%s on %s → %s', (role, pathname, expected) => {
@@ -46,7 +48,17 @@ describe('canAccessRoute', () => {
 
   it('matches nested routes but not sibling prefixes', () => {
     expect(canAccessRoute('custodian', '/vouchers/abc/receipt')).toBe(true);
+    expect(canAccessRoute('approver', '/vouchers/abc/receipt')).toBe(true);
     expect(canAccessRoute('custodian', '/vouchers-archive')).toBe(false);
+  });
+
+  it('keeps voucher creation restricted while the list stays readable', () => {
+    for (const role of ['admin', 'custodian'] as const) {
+      expect(canAccessRoute(role, '/vouchers/new')).toBe(true);
+    }
+    for (const role of ['approver', 'accounting'] as const) {
+      expect(canAccessRoute(role, '/vouchers/new')).toBe(false);
+    }
   });
 
   it('denies unknown routes to every role', () => {

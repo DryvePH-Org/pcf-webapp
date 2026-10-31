@@ -16,7 +16,8 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 const ROUTE_RULES: readonly { prefix: string; roles: readonly Role[] }[] = [
   { prefix: "/admin", roles: ["admin"] },
-  { prefix: "/vouchers", roles: ["admin", "custodian"] },
+  { prefix: "/vouchers/new", roles: ["admin", "custodian"] },
+  { prefix: "/vouchers", roles: ALL_ROLES },
   { prefix: "/approvals", roles: ["admin", "approver"] },
   { prefix: "/replenishments", roles: ["admin", "custodian", "accounting"] },
   { prefix: "/cash-count", roles: ["admin", "custodian"] },
