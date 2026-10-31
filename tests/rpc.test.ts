@@ -72,7 +72,7 @@ async function balance() {
   };
 }
 
-describe.skipIf(!enabled)('Phase 1 database contract', () => {
+describe.skipIf(!enabled)('Voucher workflow contract', () => {
   beforeAll(async () => {
     anon = newClient();
 
@@ -145,12 +145,12 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
     expect(error?.message).toMatch(/per-transaction limit/);
   });
 
-  it('requires a receipt or a no-receipt reason before submission', async () => {
+  it('requires a receipt or a no-receipt reason before release', async () => {
     const id = await makeVoucher('custodian', 25, false);
     expect((await getVoucher(id)).pcv_number).toMatch(/^PCV-\d{4}-\d{4}$/);
 
-    const { error: submitWithout } = await clients.custodian.rpc('submit_voucher', { p_id: id });
-    expect(submitWithout?.message).toMatch(/receipt|reason/i);
+    const { error: releaseWithout } = await clients.custodian.rpc('release_voucher', { p_id: id });
+    expect(releaseWithout?.message).toMatch(/receipt|reason/i);
 
     const { data: edited, error: editError } = await clients.custodian
       .from('vouchers')
@@ -160,9 +160,11 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
     expect(editError).toBeNull();
     expect(edited).toHaveLength(1);
 
-    const { error: submitError } = await clients.custodian.rpc('submit_voucher', { p_id: id });
-    expect(submitError).toBeNull();
-    expect((await getVoucher(id)).status).toBe('submitted');
+    const { error: releaseError } = await clients.custodian.rpc('release_voucher', { p_id: id });
+    expect(releaseError).toBeNull();
+    const released = await getVoucher(id);
+    expect(released.status).toBe('released');
+    expect(released.released_at).not.toBeNull();
   });
 
   it('denies direct status writes but allows descriptive edits on drafts', async () => {
@@ -182,23 +184,36 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
     expect(editError).toBeNull();
     expect(edited).toHaveLength(1);
     expect(edited![0].particulars).toBe(`${runTag} edited particulars`);
+
+    // Released vouchers are financial records: descriptive edits stop working.
+    const releasedId = await makeVoucher('custodian', 15);
+    expect((await clients.custodian.rpc('release_voucher', { p_id: releasedId })).error).toBeNull();
+    const { data: locked } = await clients.custodian
+      .from('vouchers')
+      .update({ particulars: `${runTag} not allowed` })
+      .eq('id', releasedId)
+      .select('id');
+    expect(locked).toEqual([]);
   });
 
-  it('blocks self-approval even for admins', async () => {
+  it('reviews released vouchers and blocks self-approval even for admins', async () => {
     const id = await makeVoucher('admin', 20);
-    expect((await clients.admin.rpc('submit_voucher', { p_id: id })).error).toBeNull();
+    expect((await clients.admin.rpc('release_voucher', { p_id: id })).error).toBeNull();
 
     const { error: selfApproval } = await clients.admin.rpc('approve_voucher', { p_id: id });
     expect(selfApproval?.message).toMatch(/cannot approve a voucher you prepared/);
 
     const { error: approved } = await clients.approver.rpc('approve_voucher', { p_id: id });
     expect(approved).toBeNull();
-    expect((await getVoucher(id)).status).toBe('approved');
+    const row = await getVoucher(id);
+    expect(row.status).toBe('approved');
+    expect(row.approved_at).not.toBeNull();
   });
 
-  it('returns rejected vouchers to the custodian for editing', async () => {
+  it('flags a released voucher without removing its cash', async () => {
     const id = await makeVoucher('custodian', 30);
-    expect((await clients.custodian.rpc('submit_voucher', { p_id: id })).error).toBeNull();
+    expect((await clients.custodian.rpc('release_voucher', { p_id: id })).error).toBeNull();
+    const before = await balance();
 
     const { error: noReason } = await clients.approver.rpc('reject_voucher', {
       p_id: id,
@@ -208,39 +223,47 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
 
     const { error: rejectError } = await clients.approver.rpc('reject_voucher', {
       p_id: id,
-      p_reason: 'Attach the receipt',
+      p_reason: 'Attach the missing receipt',
     });
     expect(rejectError).toBeNull();
 
     const rejected = await getVoucher(id);
     expect(rejected.status).toBe('rejected');
-    expect(rejected.reject_reason).toBe('Attach the receipt');
+    expect(rejected.reject_reason).toBe('Attach the missing receipt');
+
+    // The money is already out, so the imprest equation must not move.
+    const after = await balance();
+    expect(after.expectedCash).toBeCloseTo(before.expectedCash, 2);
+    expect(after.releasedTotal).toBeCloseTo(before.releasedTotal, 2);
 
     const { data: edited } = await clients.custodian
       .from('vouchers')
       .update({ no_receipt_reason: 'Receipt was lost' })
       .eq('id', id)
       .select('id');
-    expect(edited).toHaveLength(1);
+    expect(edited).toEqual([]);
 
-    expect((await clients.custodian.rpc('submit_voucher', { p_id: id })).error).toBeNull();
-    expect((await getVoucher(id)).status).toBe('submitted');
+    expect((await clients.approver.rpc('approve_voucher', { p_id: id })).error).toBeNull();
+    const reapproved = await getVoucher(id);
+    expect(reapproved.status).toBe('approved');
+    expect(reapproved.reject_reason).toBeNull();
   });
 
-  it('runs release and replenishment through the full cycle', async () => {
+  it('releases before approval and closes replenishment without waiting for reviews', async () => {
     const before = await balance();
     const id = await makeVoucher('custodian', 50);
-    expect((await clients.custodian.rpc('submit_voucher', { p_id: id })).error).toBeNull();
+    expect((await clients.custodian.rpc('release_voucher', { p_id: id })).error).toBeNull();
     expect((await clients.approver.rpc('approve_voucher', { p_id: id })).error).toBeNull();
 
-    const draftId = await makeVoucher('custodian', 10);
-    const { error: wrongState } = await clients.custodian.rpc('release_voucher', { p_id: draftId });
-    expect(wrongState?.message).toMatch(/cannot be released from status draft/);
+    const unreviewedId = await makeVoucher('custodian', 25);
+    expect((await clients.custodian.rpc('release_voucher', { p_id: unreviewedId })).error).toBeNull();
 
-    expect((await clients.custodian.rpc('release_voucher', { p_id: id })).error).toBeNull();
+    const { error: releaseAgain } = await clients.custodian.rpc('release_voucher', { p_id: id });
+    expect(releaseAgain?.message).toMatch(/cannot be released from status approved/);
+
     const afterRelease = await balance();
-    expect(afterRelease.expectedCash).toBeCloseTo(before.expectedCash - 50, 2);
-    expect(afterRelease.releasedTotal).toBeCloseTo(before.releasedTotal + 50, 2);
+    expect(afterRelease.expectedCash).toBeCloseTo(before.expectedCash - 75, 2);
+    expect(afterRelease.releasedTotal).toBeCloseTo(before.releasedTotal + 75, 2);
 
     const { data: replId, error: replError } = await clients.custodian.rpc(
       'create_replenishment',
@@ -291,21 +314,33 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
         })
       ).error,
     ).toBeNull();
+
+    const { data: repl2 } = await clients.custodian
+      .from('replenishments')
+      .select('total')
+      .eq('id', repl2Id)
+      .single();
+    const replTotal = Number(repl2!.total);
+
+    // Close without reviewing every voucher: accounting alone can restore the fund.
     expect((await clients.accounting.rpc('close_replenishment', { p_id: repl2Id })).error).toBeNull();
 
     const closed = await getVoucher(id);
     expect(closed.status).toBe('closed');
     closedVoucherId = closed.id;
 
+    const closedUnreviewed = await getVoucher(unreviewedId);
+    expect(closedUnreviewed.status).toBe('closed');
+
     const afterClose = await balance();
-    expect(afterClose.expectedCash).toBeCloseTo(afterRelease.expectedCash + 50, 2);
+    expect(afterClose.expectedCash).toBeCloseTo(afterRelease.expectedCash + replTotal, 2);
     expect(afterClose.expectedCash + afterClose.releasedTotal).toBeCloseTo(
       afterClose.fundAmount,
       2,
     );
 
-    const { error: resubmitClosed } = await clients.custodian.rpc('submit_voucher', { p_id: id });
-    expect(resubmitClosed?.message).toMatch(/cannot be submitted from status closed/);
+    const { error: releaseClosed } = await clients.custodian.rpc('release_voucher', { p_id: id });
+    expect(releaseClosed?.message).toMatch(/cannot be released from status closed/);
   });
 
   it('refuses to create an empty replenishment', async () => {
@@ -328,24 +363,25 @@ describe.skipIf(!enabled)('Phase 1 database contract', () => {
     expect(voidError).toBeNull();
     expect((await getVoucher(draftId)).status).toBe('void');
 
-    const submittedId = await makeVoucher('custodian', 12);
-    expect((await clients.custodian.rpc('submit_voucher', { p_id: submittedId })).error).toBeNull();
+    const releasedId = await makeVoucher('custodian', 12);
+    expect((await clients.custodian.rpc('release_voucher', { p_id: releasedId })).error).toBeNull();
 
-    const { error: ownSubmitted } = await clients.custodian.rpc('void_voucher', {
-      p_id: submittedId,
+    const { error: ownReleased } = await clients.custodian.rpc('void_voucher', {
+      p_id: releasedId,
       p_reason: 'Wrong payee',
     });
-    expect(ownSubmitted?.message).toMatch(/draft or rejected/);
+    expect(ownReleased?.message).toMatch(/custodians can only void drafts/i);
 
     const { error: adminVoid } = await clients.admin.rpc('void_voucher', {
-      p_id: submittedId,
+      p_id: releasedId,
       p_reason: 'Cancelled by admin',
     });
     expect(adminVoid).toBeNull();
-    expect((await getVoucher(submittedId)).status).toBe('void');
+    expect((await getVoucher(releasedId)).status).toBe('void');
 
+    const approverVoidId = await makeVoucher('custodian', 5);
     const { error: approverVoid } = await clients.approver.rpc('void_voucher', {
-      p_id: submittedId,
+      p_id: approverVoidId,
       p_reason: 'Not mine to void',
     });
     expect(approverVoid?.message).toMatch(/Not authorized/);

@@ -25,7 +25,7 @@ A web app that replaces the manual petty cash process:
 
 - A fixed **imprest fund** (example: ₱10,000) is held by a **custodian**.
 - Every expense is recorded as a **petty cash voucher (PCV)** with a receipt photo.
-- An **approver** approves before cash is released.
+- The custodian releases cash **immediately**; an **approver** reviews the voucher afterwards.
 - The system always shows the live check: **cash on hand + released vouchers = fund amount**.
 - When cash runs low, the custodian bundles released vouchers into a **replenishment request**. **Accounting** reviews it and the fund is restored.
 - Every action is logged in an **audit trail**.
@@ -35,16 +35,16 @@ A web app that replaces the manual petty cash process:
 | Role | Can do |
 |---|---|
 | `admin` | Manage users, funds, categories. View everything. Override void. |
-| `custodian` | Create and submit vouchers, attach receipts, release cash, count cash, request replenishment. |
-| `approver` | Approve or reject submitted vouchers. Cannot approve a voucher they prepared. |
+| `custodian` | Create vouchers, attach receipts, release cash, count cash, request replenishment. |
+| `approver` | Review released vouchers and approve or flag them. Cannot review a voucher they prepared. |
 | `accounting` | Review replenishment requests, view reports and audit trail. |
 
 Employees who ask for cash do **not** need accounts in the MVP. The custodian records the employee as the `payee`.
 
 ### Voucher states
 
-`draft → submitted → approved → released → closed`
-Side states: `rejected` (returns to editable, can resubmit), `void` (terminal, needs reason).
+`draft → released → approved → closed`
+Side states: `rejected` (flagged after release; cash stays counted, custodian or admin corrects or voids it), `void` (terminal, needs reason).
 
 ### Replenishment states
 
@@ -212,7 +212,7 @@ create table vouchers (
   category_id uuid not null references categories(id),
   status voucher_status not null default 'draft',
   receipt_path text,                             -- storage path
-  no_receipt_reason text,                        -- required if receipt_path is null at submit
+  no_receipt_reason text,                        -- required if receipt_path is null at release
   prepared_by uuid not null references profiles(id),
   approved_by uuid references profiles(id),
   approved_at timestamptz,
@@ -257,10 +257,18 @@ select
   f.id as fund_id,
   f.name,
   f.amount as fund_amount,
-  coalesce(sum(v.amount) filter (where v.status = 'released'), 0) as released_vouchers_total,
-  f.amount - coalesce(sum(v.amount) filter (where v.status = 'released'), 0) as expected_cash,
-  (f.amount - coalesce(sum(v.amount) filter (where v.status = 'released'), 0))
-     < f.amount * f.low_balance_pct / 100.0 as is_low
+  coalesce(sum(v.amount) filter (
+    where v.status in ('released', 'approved', 'rejected')
+      and v.released_at is not null
+  ), 0) as released_vouchers_total,
+  f.amount - coalesce(sum(v.amount) filter (
+    where v.status in ('released', 'approved', 'rejected')
+      and v.released_at is not null
+  ), 0) as expected_cash,
+  (f.amount - coalesce(sum(v.amount) filter (
+    where v.status in ('released', 'approved', 'rejected')
+      and v.released_at is not null
+  ), 0)) < f.amount * f.low_balance_pct / 100.0 as is_low
 from funds f
 left join vouchers v on v.fund_id = f.id
 group by f.id;
@@ -285,15 +293,14 @@ All are `security definer`, set `search_path = public`, check `app_role()`, chec
 | Function | Allowed role | From → To | Extra rules |
 |---|---|---|---|
 | `create_voucher(...)` | custodian, admin | → `draft` | Assigns `pcv_number`. `amount <= fund.per_txn_limit`. |
-| `submit_voucher(id)` | custodian, admin | `draft` or `rejected` → `submitted` | Needs `receipt_path` OR `no_receipt_reason`. |
-| `approve_voucher(id)` | approver, admin | `submitted` → `approved` | `auth.uid() <> prepared_by`. Sets `approved_by`, `approved_at`. |
-| `reject_voucher(id, reason)` | approver, admin | `submitted` → `rejected` | Reason required. |
-| `release_voucher(id)` | custodian, admin | `approved` → `released` | Fails if `amount > expected_cash`. Sets `released_at`. |
+| `release_voucher(id)` | custodian (own), admin | `draft` → `released` | Needs `receipt_path` OR `no_receipt_reason`. Fails if `amount > expected_cash`. Sets `released_at`. |
+| `approve_voucher(id)` | approver, admin | `released` or `rejected` → `approved` | `auth.uid() <> prepared_by`. Sets `approved_by`, `approved_at`, clears the flag. |
+| `reject_voucher(id, reason)` | approver, admin | `released` or `approved` → `rejected` | Reason required. Cash stays counted; it is a flag, not a reversal. |
 | `void_voucher(id, reason)` | custodian (own draft/rejected), admin (any not `closed`) | → `void` | Reason required. |
-| `create_replenishment(fund_id)` | custodian, admin | → `draft` | Collects all `released` vouchers with `replenishment_id is null`. Fails if none. Sets `total`. |
+| `create_replenishment(fund_id)` | custodian, admin | → `draft` | Collects all `released`, `approved`, or `rejected` vouchers with `replenishment_id is null`. Fails if none. Sets `total`. |
 | `submit_replenishment(id)` | custodian, admin | `draft` → `submitted` | |
 | `review_replenishment(id, approve, note)` | accounting, admin | `submitted` → `approved` or `rejected` | If rejected, unlink vouchers (`replenishment_id = null`). |
-| `close_replenishment(id)` | accounting, admin | `approved` → `closed` | Sets all linked vouchers to `closed`. This restores expected cash to the fund amount. |
+| `close_replenishment(id)` | accounting, admin | `approved` → `closed` | Sets all linked vouchers to `closed`, whether or not the approver reviewed them. This restores expected cash to the fund amount. |
 | `record_cash_count(fund_id, counted, note)` | custodian, admin | n/a | Snapshots `expected_cash` from the view. |
 
 ---
@@ -407,16 +414,16 @@ Tasks
   - Compress in the browser before upload: `maxSizeMB: 0.2`, `maxWidthOrHeight: 1600`, JPEG.
   - Upload to `receipts/{fund_id}/{voucher_id}/{uuid}.jpg`. Show preview and a replace option while in `draft` or `rejected`.
 - [ ] Client and server zod validation. Amount must be greater than 0 and at most the fund's per-transaction limit.
-- [ ] `/vouchers/new`: create as `draft` (calls `create_voucher`). Buttons: **Save draft** and **Submit** (calls `submit_voucher`).
+- [ ] `/vouchers/new`: create as `draft` (calls `create_voucher`). Buttons: **Save draft** and **Save and release cash** (calls `release_voucher`).
 - [ ] `/vouchers`: list with status filter chips, search (PCV number, payee), date range. Table on desktop, cards on mobile. Paginate (20 per page).
-- [ ] `/vouchers/[id]`: full detail, receipt viewer (signed URL, tap to zoom), status timeline (prepared, approved, released), and action buttons by role and state.
+- [ ] `/vouchers/[id]`: full detail, receipt viewer (signed URL, tap to zoom), status timeline (prepared, released, reviewed), and action buttons by role and state.
 - [ ] `StatusBadge` component with one color per status.
 - [ ] **Print view** for a PCV (`@media print` CSS): A5/A4 voucher layout with PCV number, date, payee, particulars, amount, category, and signature lines for Prepared by, Approved by, Received by.
 
 Acceptance
 - A custodian can create a voucher from a phone with a camera receipt under about 250 KB.
 - Amount over the limit is blocked.
-- Submitting with neither receipt nor reason is blocked.
+- Releasing with neither receipt nor reason is blocked.
 - Print preview looks like a real petty cash voucher.
 
 ---
@@ -426,17 +433,17 @@ Acceptance
 **Goal:** approvers can clear the queue fast on mobile or desktop.
 
 Tasks
-- [ ] `/approvals`: list of `submitted` vouchers, oldest first.
+- [ ] `/approvals`: list of `released` vouchers awaiting review, oldest first.
   - Mobile: card list. Tap a card to open the detail as a full-screen sheet with receipt, then **Approve** and **Reject** buttons fixed at the bottom.
   - Desktop: two-pane layout. Queue on the left, selected voucher detail and receipt on the right.
-- [ ] Reject requires a reason (dialog). Approve uses a confirm dialog.
+- [ ] Flagging requires a reason (dialog). Approve uses a confirm dialog.
 - [ ] Block self-approval in the UI and in the RPC.
-- [ ] Show rejected vouchers to the custodian with the reason. They can edit and resubmit.
+- [ ] Show flagged vouchers to the custodian with the reason. Cash stays counted; the custodian asks an admin to void or correct it.
 - [ ] Dashboard badge showing the pending approvals count.
 
 Acceptance
 - An approver cannot approve their own voucher (error shown).
-- Rejected voucher returns to the custodian, editable, with the reason visible.
+- A flagged voucher stays counted against the fund, with the reason visible to the custodian and admin.
 
 ---
 
@@ -445,12 +452,12 @@ Acceptance
 **Goal:** the imprest equation is always visible and verifiable.
 
 Tasks
-- [ ] On an `approved` voucher, the custodian sees **Release cash**. Confirm dialog shows amount and payee. Calls `release_voucher`.
+- [ ] On a `draft` voucher, the custodian sees **Release cash**. Confirm dialog shows amount and payee. Calls `release_voucher`.
 - [ ] `BalanceCard` component (used on the dashboard): fund amount, expected cash on hand, released vouchers total, and a progress bar. Show the equation `cash + vouchers = fund`. Show a **low balance warning** when `is_low`.
 - [ ] `/cash-count`: custodian enters the physical cash counted. Show expected cash, then the variance in green (zero) or red (non-zero). Require a note when variance is not zero. Save with `record_cash_count`. Show the history table.
 - [ ] Dashboard (role-aware):
-  - custodian: balance card, vouchers to release, drafts, rejected items, last cash count.
-  - approver: pending approvals, recent decisions.
+  - custodian: balance card, drafts to release, flagged vouchers, last cash count.
+  - approver: released vouchers awaiting review, recent decisions.
   - accounting: submitted replenishments, monthly spend.
   - admin: all of the above, compact.
 
@@ -466,7 +473,7 @@ Acceptance
 **Goal:** close the loop and restore the fund.
 
 Tasks
-- [ ] `/replenishments`: list with status badges. Button **New replenishment** (custodian): calls `create_replenishment`, which bundles all unlinked `released` vouchers.
+- [ ] `/replenishments`: list with status badges. Button **New replenishment** (custodian): calls `create_replenishment`, which bundles all unlinked `released`, `approved`, and flagged (`rejected`) vouchers.
 - [ ] `/replenishments/[id]`:
   - Summary: request number, total, voucher count, status.
   - Table of included vouchers (cards on mobile) with receipt thumbnails.
@@ -547,7 +554,7 @@ Acceptance
 Do **not** build these until asked.
 
 1. **Google Drive archive:** a monthly job moves receipts older than N months from Supabase Storage to Google Drive via a service account, stores the Drive link in the database, and keeps the voucher record intact. Build only if storage is nearly full.
-2. **Email notifications** (Resend): voucher submitted, approved or rejected, replenishment ready, low balance.
+2. **Email notifications** (Resend): voucher released, approved or flagged, replenishment ready, low balance.
 3. **Employee request flow:** employees submit a cash request that the custodian converts into a voucher.
 4. **Messenger or Telegram bot** for submitting requests.
 5. **Multiple funds** with fund-specific custodians and permissions.
@@ -579,7 +586,7 @@ Design **mobile-first**. Breakpoints use Tailwind defaults. The key switch is at
 - `ResponsiveList<T>`: props `columns`, `renderCard`, `rows`. Renders a table on `lg+` and cards below.
 - `ResponsiveDialog`: modal on desktop, bottom sheet on mobile.
 - `MoneyText`: formats PHP, right-aligned and tabular numbers in tables.
-- `StatusBadge`: consistent colors (draft gray, submitted blue, approved teal, released purple, closed green, rejected red, void dark gray).
+- `StatusBadge`: consistent colors (draft gray, released purple, approved teal, closed green, rejected red, void dark gray).
 
 ### UX rules
 
@@ -618,13 +625,14 @@ Design **mobile-first**. Breakpoints use Tailwind defaults. The key switch is at
 - Self-approval is blocked.
 - Release is blocked when the amount exceeds expected cash.
 - Direct client `update` of `status` is denied by RLS.
-- Balance equation holds after a sequence of create, approve, release, replenish, close.
+- Balance equation holds after a sequence of create, release, approve, replenish, close.
+- Flagging a released voucher leaves `expected_cash` unchanged.
 - PCV numbers are unique and sequential under concurrent creation.
 
 ### End-to-end happy path (Playwright)
-1. Custodian logs in and creates a voucher with a receipt, then submits.
-2. Approver logs in and approves it.
-3. Custodian releases the cash. Balance card drops by the amount.
+1. Custodian logs in, creates a voucher with a receipt, and releases the cash immediately. The balance card drops by the amount.
+2. Approver logs in afterwards and approves the released voucher.
+3. The approver flags a second released voucher; its cash stays counted.
 4. Custodian records a cash count. Variance is zero.
 5. Custodian creates and submits a replenishment.
 6. Accounting approves and closes it. Balance returns to the full fund.
