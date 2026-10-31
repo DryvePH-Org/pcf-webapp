@@ -20,7 +20,7 @@ Prerequisites: Node 22+, pnpm 12+, Supabase CLI.
 pnpm install
 cp .env.example .env.local   # then fill in the values
 supabase login
-supabase link --project-ref vnjilvzipoykqwtihkce
+supabase link --project-ref qjfbeaeqeorpllvfrgpg
 pnpm dev
 ```
 
