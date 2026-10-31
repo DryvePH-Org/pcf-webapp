@@ -9,6 +9,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { AuditDiffTable } from "@/components/audit/audit-diff-table";
 import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
 import { MoneyText } from "@/components/shared/money-text";
@@ -25,6 +26,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AUDIT_ACTION_LABELS,
+  buildAuditDiff,
+  isAuditAction,
+} from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
@@ -116,6 +123,55 @@ export default async function VoucherDetailPage({
     voidReason: voucher.void_reason,
     preparedByName,
   });
+
+  const canSeeHistory = user.role === "admin" || user.role === "accounting";
+  let auditEntries: {
+    id: number;
+    actionLabel: string;
+    actorName: string;
+    createdAt: string;
+    diffRows: ReturnType<typeof buildAuditDiff>;
+  }[] = [];
+  if (canSeeHistory) {
+    const { data: auditData, error: auditError } = await supabase
+      .from("audit_log")
+      .select("id, action, actor_id, old_data, new_data, created_at")
+      .eq("entity_type", "vouchers")
+      .eq("entity_id", voucher.id)
+      .order("created_at", { ascending: false });
+    if (auditError) throw new Error(auditError.message);
+
+    const actorIds = [
+      ...new Set(
+        auditData
+          .map((entry) => entry.actor_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    const actorNames = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const { data: actorProfiles, error: actorError } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", actorIds);
+      if (actorError) throw new Error(actorError.message);
+      for (const profile of actorProfiles) {
+        actorNames.set(profile.id, profile.full_name);
+      }
+    }
+
+    auditEntries = auditData.map((entry) => ({
+      id: entry.id,
+      actionLabel: isAuditAction(entry.action)
+        ? AUDIT_ACTION_LABELS[entry.action]
+        : entry.action,
+      actorName: entry.actor_id
+        ? (actorNames.get(entry.actor_id) ?? "—")
+        : "System",
+      createdAt: entry.created_at,
+      diffRows: buildAuditDiff(entry.old_data, entry.new_data),
+    }));
+  }
 
   return (
     <>
@@ -260,41 +316,60 @@ export default async function VoucherDetailPage({
               viewer={{ id: user.id, role: user.role }}
             />
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Timeline</CardTitle>
-                <CardDescription>
-                  Prepared, released, then reviewed.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ol className="space-y-4">
-                  {events.map((event) => {
-                    const Icon = event.icon;
-                    return (
-                      <li key={event.key} className="flex gap-3">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                          <Icon className="size-4" />
-                        </span>
-                        <div className="min-w-0 space-y-0.5">
-                          <p className="text-sm font-medium">{event.label}</p>
-                          {event.at ? (
-                            <p className="text-xs text-muted-foreground">
-                              {formatDateTime(event.at)}
-                            </p>
-                          ) : null}
-                          {event.detail ? (
-                            <p className="text-xs text-muted-foreground">
-                              {event.detail}
-                            </p>
-                          ) : null}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </CardContent>
-            </Card>
+            {canSeeHistory ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Activity</CardTitle>
+                  <CardDescription>
+                    The summary timeline, or the full audit history.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="timeline">
+                    <TabsList>
+                      <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                      <TabsTrigger value="history">History</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="timeline" className="pt-4">
+                      <Timeline events={events} />
+                    </TabsContent>
+                    <TabsContent value="history" className="space-y-4 pt-4">
+                      {auditEntries.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No audit entries yet.
+                        </p>
+                      ) : (
+                        auditEntries.map((entry) => (
+                          <div key={entry.id} className="space-y-2">
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                              <p className="font-medium">
+                                {entry.actionLabel} by {entry.actorName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDateTime(entry.createdAt)}
+                              </p>
+                            </div>
+                            <AuditDiffTable rows={entry.diffRows} />
+                          </div>
+                        ))
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Timeline</CardTitle>
+                  <CardDescription>
+                    Prepared, released, then reviewed.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Timeline events={events} />
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
@@ -318,6 +393,40 @@ export default async function VoucherDetailPage({
         />
       </div>
     </>
+  );
+}
+
+function Timeline({
+  events,
+}: {
+  events: ReturnType<typeof buildTimeline>;
+}) {
+  return (
+    <ol className="space-y-4">
+      {events.map((event) => {
+        const Icon = event.icon;
+        return (
+          <li key={event.key} className="flex gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Icon className="size-4" />
+            </span>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-sm font-medium">{event.label}</p>
+              {event.at ? (
+                <p className="text-xs text-muted-foreground">
+                  {formatDateTime(event.at)}
+                </p>
+              ) : null}
+              {event.detail ? (
+                <p className="text-xs text-muted-foreground">
+                  {event.detail}
+                </p>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

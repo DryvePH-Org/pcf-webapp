@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ReceiptText, Search } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyText } from "@/components/shared/money-text";
 import {
@@ -89,6 +90,25 @@ export default async function VouchersPage({
 
   if (error) throw new Error(error.message);
 
+  let csvQuery = supabase
+    .from("vouchers")
+    .select(
+      "pcv_number, voucher_date, payee, particulars, amount, status, category_id, fund_id",
+    );
+  if (status) csvQuery = csvQuery.eq("status", status);
+  if (q) {
+    const safe = q.replace(/[,%()"\\]/g, " ").trim();
+    if (safe) {
+      csvQuery = csvQuery.or(`pcv_number.ilike.%${safe}%,payee.ilike.%${safe}%`);
+    }
+  }
+  if (from) csvQuery = csvQuery.gte("voucher_date", from);
+  if (to) csvQuery = csvQuery.lte("voucher_date", to);
+  const { data: csvData, error: csvError } = await csvQuery
+    .order("voucher_date", { ascending: false })
+    .limit(5000);
+  if (csvError) throw new Error(csvError.message);
+
   const [categoriesResult, fundsResult] = await Promise.all([
     supabase.from("categories").select("id, name"),
     supabase.from("funds").select("id, name"),
@@ -102,6 +122,19 @@ export default async function VouchersPage({
   const fundNames = new Map(
     fundsResult.data.map((fund) => [fund.id, fund.name]),
   );
+
+  const csvRows = csvData.map((voucher) => [
+    voucher.pcv_number,
+    voucher.voucher_date,
+    voucher.payee,
+    voucher.particulars,
+    categoryNames.get(voucher.category_id) ?? "—",
+    fundNames.get(voucher.fund_id) ?? "—",
+    voucher.amount,
+    isVoucherStatus(voucher.status)
+      ? VOUCHER_STATUS_LABELS[voucher.status]
+      : voucher.status,
+  ]);
 
   const rows: VoucherListRow[] = data.map((voucher) => ({
     id: voucher.id,
@@ -196,12 +229,29 @@ export default async function VouchersPage({
         title="Vouchers"
         description="Every petty cash voucher, newest first."
         actions={
-          canPerform(user.role, "voucher.create") ? (
-            <Button nativeButton={false} render={<Link href="/vouchers/new" />}>
-              <ReceiptText />
-              New voucher
-            </Button>
-          ) : null
+          <>
+            <CsvExportButton
+              filename="vouchers.csv"
+              header={[
+                "PCV Number",
+                "Date",
+                "Payee",
+                "Particulars",
+                "Category",
+                "Fund",
+                "Amount",
+                "Status",
+              ]}
+              rows={csvRows}
+              label="Export CSV"
+            />
+            {canPerform(user.role, "voucher.create") ? (
+              <Button nativeButton={false} render={<Link href="/vouchers/new" />}>
+                <ReceiptText />
+                New voucher
+              </Button>
+            ) : null}
+          </>
         }
       />
 
