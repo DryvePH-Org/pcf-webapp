@@ -37,11 +37,32 @@ Environment variables:
 
 ### Database
 
-Migrations live in `supabase/migrations` (added in Phase 1). Apply them with:
+Migrations live in `supabase/migrations`. Apply them with:
 
 ```bash
 supabase db push
 ```
+
+Seed the development project (fund, categories, and one test user per role):
+
+```bash
+supabase db query --linked -f supabase/seed.sql
+```
+
+The seed creates `admin@pcf.local`, `custodian@pcf.local`,
+`approver@pcf.local`, and `accounting@pcf.local` with the development-only
+password `Phase1-Dev-Passw0rd`. Remove or rotate these accounts before
+production.
+
+`src/lib/database.types.ts` is generated from the linked project:
+
+```bash
+supabase gen types typescript --linked --schema public > src/lib/database.types.ts
+```
+
+The RPC and RLS integration suite (`tests/rpc.test.ts`) writes test records to
+the linked project, so it only runs when `RUN_DB_TESTS=true` is set in
+`.env.local`. CI leaves it skipped.
 
 ## Scripts
 
@@ -72,3 +93,8 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, and tests on every push to
   `react-hook-form` instead.
 - The Supabase publishable key (`sb_publishable_...`) is used in place of the
   legacy anon key; `@supabase/ssr` accepts it.
+- Voucher and replenishment state changes go through `security definer` RPCs;
+  the only direct client write allowed on `vouchers` is editing descriptive
+  fields on your own draft/rejected rows, guarded by a column trigger.
+- Replenishment request numbers use a Postgres sequence (the plan only
+  requires uniqueness); PCV numbers use `fund_counters` per fund and year.
