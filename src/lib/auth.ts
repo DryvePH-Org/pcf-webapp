@@ -42,3 +42,8 @@ export async function requireUser(pathname: string): Promise<CurrentUser> {
   if (!canAccessRoute(user.role, pathname)) redirect("/dashboard");
   return user;
 }
+
+export async function getAdminUser(): Promise<CurrentUser | null> {
+  const user = await getCurrentUser();
+  return user?.role === "admin" ? user : null;
+}

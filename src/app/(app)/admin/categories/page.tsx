@@ -1,25 +1,26 @@
-import { Tags } from "lucide-react";
-
-import { PageHeader } from "@/components/layout/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
+import { CategoriesManager } from "@/components/admin/categories-manager";
+import type { CategoryRow } from "@/components/admin/types";
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 export const instant = false;
 
 export default async function AdminCategoriesPage() {
   await requireUser("/admin/categories");
+  const supabase = await createClient();
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Categories"
-        description="Expense categories used on vouchers and reports."
-      />
-      <EmptyState
-        icon={Tags}
-        title="Category settings"
-        description="Adding and archiving categories will be available here."
-      />
-    </div>
-  );
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, name, is_active")
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  const categories: CategoryRow[] = data.map((category) => ({
+    id: category.id,
+    name: category.name,
+    is_active: category.is_active,
+  }));
+
+  return <CategoriesManager categories={categories} />;
 }
