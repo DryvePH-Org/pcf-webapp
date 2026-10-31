@@ -44,12 +44,25 @@ Employees who ask for cash do **not** need accounts in the MVP. The custodian re
 ### Voucher states
 
 `draft → released → approved → closed`
-Side states: `rejected` (flagged after release; cash stays counted, custodian or admin corrects or voids it), `void` (terminal, needs reason).
+
+Side states: `rejected` (flagged after release; cash stays counted; an admin voids it or it can still be approved once the issue is resolved), `void` (terminal, needs reason).
 
 ### Replenishment states
 
 `draft → submitted → approved → closed`
 Side state: `rejected` (vouchers return to the pool).
+
+### Workflow decision record (2026-10-31)
+
+The original draft assumed cash was released only after approval. We changed to **release-first** because cash is often needed immediately and the approver is not always available.
+
+- The only voucher flow is `draft → released (cash out) → approved → closed`. There is no submit step; `submitted` is unused for vouchers.
+- The custodian releases cash first. The approver reviews the receipt and particulars afterwards.
+- **Approve** confirms the review. **Flag** (voucher `status = rejected`) records a problem without reversing the cash. The UI label is **Flag**, not Reject.
+- A flagged voucher stays counted against the fund, with its reason visible to the custodian and admin. It cannot be edited or re-receipted after release; an admin voids it, or the approver can approve it once the issue is resolved.
+- Self-approval is blocked in the RPC and hidden in the UI.
+- Accounting can review and close a replenishment without waiting for voucher reviews. Closing marks the linked vouchers `closed` and restores expected cash to the fund amount.
+- Replenishment review still uses its own `draft → submitted → approved → closed` flow; that `submitted` status is unchanged.
 
 ---
 
@@ -144,7 +157,7 @@ Create as numbered migrations in `/supabase/migrations`.
 
 ```sql
 create type user_role as enum ('admin','custodian','approver','accounting');
-create type voucher_status as enum ('draft','submitted','approved','released','closed','rejected','void');
+create type voucher_status as enum ('draft','submitted','approved','released','closed','rejected','void');  -- 'submitted' is legacy and unused
 create type replenishment_status as enum ('draft','submitted','approved','rejected','closed');
 
 create or replace function public.app_role() returns user_role
@@ -295,8 +308,8 @@ All are `security definer`, set `search_path = public`, check `app_role()`, chec
 | `create_voucher(...)` | custodian, admin | → `draft` | Assigns `pcv_number`. `amount <= fund.per_txn_limit`. |
 | `release_voucher(id)` | custodian (own), admin | `draft` → `released` | Needs `receipt_path` OR `no_receipt_reason`. Fails if `amount > expected_cash`. Sets `released_at`. |
 | `approve_voucher(id)` | approver, admin | `released` or `rejected` → `approved` | `auth.uid() <> prepared_by`. Sets `approved_by`, `approved_at`, clears the flag. |
-| `reject_voucher(id, reason)` | approver, admin | `released` or `approved` → `rejected` | Reason required. Cash stays counted; it is a flag, not a reversal. |
-| `void_voucher(id, reason)` | custodian (own draft/rejected), admin (any not `closed`) | → `void` | Reason required. |
+| `reject_voucher(id, reason)` | approver, admin | `released` or `approved` → `rejected` | This is the **Flag** action. Reason required. Cash stays counted; it is not a reversal. |
+| `void_voucher(id, reason)` | custodian (own draft), admin (any not `closed` and not in a replenishment) | → `void` | Reason required. |
 | `create_replenishment(fund_id)` | custodian, admin | → `draft` | Collects all `released`, `approved`, or `rejected` vouchers with `replenishment_id is null`. Fails if none. Sets `total`. |
 | `submit_replenishment(id)` | custodian, admin | `draft` → `submitted` | |
 | `review_replenishment(id, approve, note)` | accounting, admin | `submitted` → `approved` or `rejected` | If rejected, unlink vouchers (`replenishment_id = null`). |
@@ -312,7 +325,7 @@ Enable RLS on **every** table.
 - `profiles`: authenticated users can `select`. Only `admin` can `insert`/`update` (except a user updating their own `full_name`).
 - `funds`, `categories`: authenticated `select`. Only `admin` writes.
 - `vouchers`: authenticated `select`. Direct `insert`/`update`/`delete` are **denied**. Only RPCs write.
-  - Exception: custodians may `update` non-status fields (`payee`, `particulars`, `amount`, `category_id`, `receipt_path`, `no_receipt_reason`, `voucher_date`) while status is `draft` or `rejected` and `prepared_by = auth.uid()`. Enforce with a trigger that blocks changes to protected columns.
+  - Exception: custodians may `update` non-status fields (`payee`, `particulars`, `amount`, `category_id`, `receipt_path`, `no_receipt_reason`, `voucher_date`) while status is `draft` and `prepared_by = auth.uid()`. Enforce with a trigger that blocks changes to protected columns. Released and flagged vouchers are immutable; resolve a flag by voiding it or approving it, not by editing.
 - `replenishments`, `cash_counts`: authenticated `select`. Writes only through RPCs.
 - `audit_log`: `select` for `admin` and `accounting` only. No `insert`/`update`/`delete` policy for any client (triggers write it).
 
@@ -412,7 +425,7 @@ Tasks
   - Mobile: opens the camera (`<input type="file" accept="image/*" capture="environment">`).
   - Desktop: file picker and drag-and-drop.
   - Compress in the browser before upload: `maxSizeMB: 0.2`, `maxWidthOrHeight: 1600`, JPEG.
-  - Upload to `receipts/{fund_id}/{voucher_id}/{uuid}.jpg`. Show preview and a replace option while in `draft` or `rejected`.
+  - Upload to `receipts/{fund_id}/{voucher_id}/{uuid}.jpg`. Show preview and a replace option while in `draft` (released and flagged vouchers are immutable).
 - [ ] Client and server zod validation. Amount must be greater than 0 and at most the fund's per-transaction limit.
 - [ ] `/vouchers/new`: create as `draft` (calls `create_voucher`). Buttons: **Save draft** and **Save and release cash** (calls `release_voucher`).
 - [ ] `/vouchers`: list with status filter chips, search (PCV number, payee), date range. Table on desktop, cards on mobile. Paginate (20 per page).
@@ -434,11 +447,11 @@ Acceptance
 
 Tasks
 - [ ] `/approvals`: list of `released` vouchers awaiting review, oldest first.
-  - Mobile: card list. Tap a card to open the detail as a full-screen sheet with receipt, then **Approve** and **Reject** buttons fixed at the bottom.
+  - Mobile: card list. Tap a card to open the detail as a full-screen sheet with receipt, then **Approve** and **Flag** buttons fixed at the bottom.
   - Desktop: two-pane layout. Queue on the left, selected voucher detail and receipt on the right.
 - [ ] Flagging requires a reason (dialog). Approve uses a confirm dialog.
 - [ ] Block self-approval in the UI and in the RPC.
-- [ ] Show flagged vouchers to the custodian with the reason. Cash stays counted; the custodian asks an admin to void or correct it.
+- [ ] Show flagged vouchers to the custodian with the reason. Cash stays counted. Flagged vouchers are immutable; an admin voids one, or the approver approves it once the issue is resolved.
 - [ ] Dashboard badge showing the pending approvals count.
 
 Acceptance
@@ -452,7 +465,7 @@ Acceptance
 **Goal:** the imprest equation is always visible and verifiable.
 
 Tasks
-- [ ] On a `draft` voucher, the custodian sees **Release cash**. Confirm dialog shows amount and payee. Calls `release_voucher`.
+- [ ] On a `draft` voucher, the custodian sees **Release cash**. Confirm dialog shows amount and payee. Calls `release_voucher`. (Delivered in Phase 4 under the release-first decision; this phase keeps the balance in sync with it.)
 - [ ] `BalanceCard` component (used on the dashboard): fund amount, expected cash on hand, released vouchers total, and a progress bar. Show the equation `cash + vouchers = fund`. Show a **low balance warning** when `is_low`.
 - [ ] `/cash-count`: custodian enters the physical cash counted. Show expected cash, then the variance in green (zero) or red (non-zero). Require a note when variance is not zero. Save with `record_cash_count`. Show the history table.
 - [ ] Dashboard (role-aware):
@@ -586,7 +599,7 @@ Design **mobile-first**. Breakpoints use Tailwind defaults. The key switch is at
 - `ResponsiveList<T>`: props `columns`, `renderCard`, `rows`. Renders a table on `lg+` and cards below.
 - `ResponsiveDialog`: modal on desktop, bottom sheet on mobile.
 - `MoneyText`: formats PHP, right-aligned and tabular numbers in tables.
-- `StatusBadge`: consistent colors (draft gray, released purple, approved teal, closed green, rejected red, void dark gray).
+- `StatusBadge`: consistent colors (draft gray, released purple, approved teal, closed green, rejected/flagged red, void dark gray).
 
 ### UX rules
 

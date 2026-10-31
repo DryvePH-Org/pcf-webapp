@@ -14,3 +14,15 @@ export function todayInAppTz() {
   return formatInTimeZone(new Date(), APP_TIMEZONE, "yyyy-MM-dd");
 }
 
+export function monthStartInAppTz() {
+  return formatInTimeZone(new Date(), APP_TIMEZONE, "yyyy-MM-01");
+}
+
+export function formatMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  return formatInTimeZone(
+    new Date(Date.UTC(year, month - 1, 1, 12)),
+    APP_TIMEZONE,
+    "MMMM yyyy",
+  );
+}

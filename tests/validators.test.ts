@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { cashCountSchema } from '@/lib/validators/cash-count';
 import {
   createCategorySchema,
   renameCategorySchema,
@@ -86,6 +87,42 @@ describe('fundFormSchema', () => {
         confirmAmountChange: true,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('cashCountSchema', () => {
+  const validCount = {
+    fund_id: '00000000-0000-4000-8000-000000000001',
+    counted: '10000.00',
+    note: '',
+  };
+
+  it('accepts a zero or positive count and trims the note', () => {
+    expect(cashCountSchema.safeParse(validCount).success).toBe(true);
+    expect(cashCountSchema.safeParse({ ...validCount, counted: '0' }).success).toBe(
+      true,
+    );
+    expect(
+      cashCountSchema.parse({ ...validCount, note: '  Short by one bay  ' }).note,
+    ).toBe('Short by one bay');
+  });
+
+  it('rejects negative, over-precise, and malformed amounts', () => {
+    for (const counted of ['-1', '10.001', '1,000', '', 'abc']) {
+      expect(cashCountSchema.safeParse({ ...validCount, counted }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('rejects a missing fund and an overlong note', () => {
+    expect(
+      cashCountSchema.safeParse({ ...validCount, fund_id: 'main' }).success,
+    ).toBe(false);
+    expect(
+      cashCountSchema.safeParse({ ...validCount, note: 'x'.repeat(301) })
+        .success,
+    ).toBe(false);
   });
 });
 
