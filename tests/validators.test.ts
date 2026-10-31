@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { cashCountSchema } from '@/lib/validators/cash-count';
 import {
+  createReplenishmentSchema,
+  replenishmentReviewSchema,
+} from '@/lib/validators/replenishment';
+import {
   createCategorySchema,
   renameCategorySchema,
   setCategoryActiveSchema,
@@ -122,6 +126,59 @@ describe('cashCountSchema', () => {
     expect(
       cashCountSchema.safeParse({ ...validCount, note: 'x'.repeat(301) })
         .success,
+    ).toBe(false);
+  });
+});
+
+describe('replenishment schemas', () => {
+  const validReview = {
+    replenishment_id: '00000000-0000-4000-8000-000000000003',
+    approve: true,
+    note: '',
+  };
+
+  it('accepts a valid fund and an approval without a note', () => {
+    expect(
+      createReplenishmentSchema.safeParse({
+        fund_id: '00000000-0000-4000-8000-000000000001',
+      }).success,
+    ).toBe(true);
+    expect(replenishmentReviewSchema.safeParse(validReview).success).toBe(true);
+    expect(
+      createReplenishmentSchema.safeParse({ fund_id: 'main' }).success,
+    ).toBe(false);
+  });
+
+  it('requires a note when rejecting', () => {
+    const result = replenishmentReviewSchema.safeParse({
+      ...validReview,
+      approve: false,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['note']);
+    }
+    expect(
+      replenishmentReviewSchema.safeParse({
+        ...validReview,
+        approve: false,
+        note: 'Totals do not match',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('trims the note and rejects an overlong one', () => {
+    const parsed = replenishmentReviewSchema.parse({
+      ...validReview,
+      approve: false,
+      note: '  Please re-check  ',
+    });
+    expect(parsed.note).toBe('Please re-check');
+    expect(
+      replenishmentReviewSchema.safeParse({
+        ...validReview,
+        note: 'x'.repeat(301),
+      }).success,
     ).toBe(false);
   });
 });
