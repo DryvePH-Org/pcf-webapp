@@ -31,15 +31,16 @@ const rawSchema = z.object({
 
 export function buildScanPrompt(categoryNames: string[], today: string) {
   return [
-    "You read photos of Philippine receipts and invoices for a petty cash voucher.",
+    "You read photos of Philippine petty cash documents: a filled-in paper petty cash voucher (often handwritten, with signatures), or a store receipt or invoice.",
     "Return ONLY a JSON object with this shape:",
     '{"payee": string|null, "date": "YYYY-MM-DD"|null, "items": [{"description": string, "amount": number, "category": string|null}], "total": number|null}',
     "Rules:",
-    "- payee is the store or supplier name printed on the receipt.",
-    `- date is the receipt date as YYYY-MM-DD. Today is ${today}; use it to resolve a missing year. Use null if unreadable.`,
-    "- items lists each purchased line with its peso amount (the line total, not the unit price). If only a total is readable, return one item describing the purchase briefly.",
-    "- Do not invent items. Skip VAT, change, cash tendered and discount lines unless they are the only amount.",
-    `- category must be exactly one of: ${categoryNames.map((name) => JSON.stringify(name)).join(", ")}; use null if none fits.`,
+    '- payee is who received the money: the "Paid to" / "Payee" / "Received by" name on a voucher, or the store or supplier name on a receipt. Never use the signature of an approver or custodian.',
+    `- date is the voucher or receipt date as YYYY-MM-DD. Today is ${today}; use it to resolve a missing year. Philippine dates are usually month/day/year. Use null if unreadable.`,
+    "- items lists each line of the particulars table with its peso amount (the line total, not the unit price). Combine quantity and description into the description. If only a total is readable, return one item describing the purchase briefly.",
+    "- Read handwriting carefully. If an amount or word is unclear, still give your best reading; never invent lines that are not on the page.",
+    "- Ignore voucher numbers, signatures, stamps, VAT, change, cash tendered and discount lines unless they are the only amount.",
+    `- category must be exactly one of: ${categoryNames.map((name) => JSON.stringify(name)).join(", ")}; use null if none fits. If the form has its own account or category column, match it to the closest option.`,
     "- amount is a plain number with no currency symbol or thousands separators.",
   ].join("\n");
 }
