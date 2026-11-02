@@ -5,6 +5,7 @@ export type FundRow = {
   name: string;
   amount: string;
   per_txn_limit: string;
+  approval_threshold: string;
   low_balance_pct: number;
   custodian_id: string | null;
   custodian_name: string | null;

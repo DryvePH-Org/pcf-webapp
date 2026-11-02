@@ -6,6 +6,7 @@ import {
   FileText,
   Flag,
   PackageCheck,
+  Send,
   Wallet,
 } from "lucide-react";
 
@@ -75,7 +76,7 @@ export default async function VoucherDetailPage({
       .maybeSingle(),
     supabase
       .from("funds")
-      .select("name")
+      .select("name, approval_threshold")
       .eq("id", voucher.fund_id)
       .maybeSingle(),
     supabase
@@ -97,6 +98,7 @@ export default async function VoucherDetailPage({
     : null;
   const categoryName = categoryResult.data?.name ?? "—";
   const fundName = fundResult.data?.name ?? "—";
+  const approvalThreshold = fundResult.data?.approval_threshold ?? 3000;
   const status: VoucherStatus = isVoucherStatus(voucher.status)
     ? voucher.status
     : "draft";
@@ -111,6 +113,8 @@ export default async function VoucherDetailPage({
 
   const events = buildTimeline({
     createdAt: voucher.created_at,
+    submittedAt: voucher.submitted_at,
+    returnedReason: status === "draft" ? voucher.reject_reason : null,
     releasedAt: voucher.released_at,
     approvedAt: voucher.approved_at,
     approvedByName,
@@ -306,6 +310,9 @@ export default async function VoucherDetailPage({
                 payee: voucher.payee,
                 amount: String(voucher.amount),
                 status,
+                released_at: voucher.released_at,
+                approval_threshold: String(approvalThreshold),
+                needs_approval: Number(voucher.amount) >= Number(approvalThreshold),
                 prepared_by: voucher.prepared_by,
                 receipt_path: voucher.receipt_path,
                 no_receipt_reason: voucher.no_receipt_reason,
@@ -445,6 +452,8 @@ function particularsSummary(particulars: string) {
 
 function buildTimeline({
   createdAt,
+  submittedAt,
+  returnedReason,
   releasedAt,
   approvedAt,
   approvedByName,
@@ -456,6 +465,8 @@ function buildTimeline({
   preparedByName,
 }: {
   createdAt: string;
+  submittedAt: string | null;
+  returnedReason: string | null;
   releasedAt: string | null;
   approvedAt: string | null;
   approvedByName: string | null;
@@ -482,17 +493,53 @@ function buildTimeline({
     },
   ];
 
+  // Approved before the cash went out (or before it was released at all).
+  const preApproved = Boolean(
+    approvedAt && (!releasedAt || approvedAt < releasedAt),
+  );
+
+  if (returnedReason) {
+    events.push({
+      key: "returned",
+      label: "Returned by the approver",
+      detail: returnedReason,
+      icon: Flag,
+    });
+  }
+
+  if (submittedAt) {
+    events.push({
+      key: "submitted",
+      label: "Submitted for approval",
+      at: submittedAt,
+      detail: "No cash goes out until an approver approves it.",
+      icon: Send,
+    });
+  }
+
+  if (preApproved) {
+    events.push({
+      key: "pre-approved",
+      label: "Approved before release",
+      at: approvedAt,
+      detail: approvedByName ? `by ${approvedByName}` : undefined,
+      icon: CircleCheck,
+    });
+  }
+
   if (releasedAt) {
     events.push({
       key: "released",
       label: "Cash released",
       at: releasedAt,
-      detail: "Cash left the fund and the approver was notified.",
+      detail: preApproved
+        ? "Cash left the fund after approval."
+        : "Cash left the fund and the approver was notified.",
       icon: Wallet,
     });
   }
 
-  if (approvedAt) {
+  if (approvedAt && !preApproved) {
     events.push({
       key: "approved",
       label: "Reviewed and approved",

@@ -7,6 +7,7 @@ import {
 
 const STATUS_CLASSES: Record<VoucherStatus, string> = {
   draft: "bg-muted text-muted-foreground",
+  submitted: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
   released: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
   approved: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
   closed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",

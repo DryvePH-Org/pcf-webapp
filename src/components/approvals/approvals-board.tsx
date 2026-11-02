@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CircleCheck, ExternalLink, Flag } from "lucide-react";
+import { CircleCheck, ExternalLink, Flag, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { approveVoucher, flagVoucher } from "@/actions/vouchers";
+import { approveVoucher, flagVoucher, returnVoucher } from "@/actions/vouchers";
 import type { ApprovalItem } from "@/components/approvals/types";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { MoneyText } from "@/components/shared/money-text";
@@ -33,7 +33,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatPHP } from "@/lib/money";
 
-type DialogState = { kind: "approve" | "flag"; id: string };
+type DialogState = { kind: "approve" | "flag" | "return"; id: string };
 
 export function ApprovalsBoard({
   items,
@@ -112,7 +112,7 @@ export function ApprovalsBoard({
                       {item.payee}
                     </span>
                     <span className="block text-xs text-muted-foreground">
-                      Released {formatReleased(item.released_at)}
+                      {waitingLabel(item)}
                     </span>
                   </button>
                 </li>
@@ -127,8 +127,9 @@ export function ApprovalsBoard({
               <CardHeader>
                 <CardTitle>Review voucher</CardTitle>
                 <CardDescription>
-                  The cash is already out of the fund. Approve the record, or
-                  flag it with a reason.
+                  {selected.kind === "pre"
+                    ? "No cash has gone out yet. Approve it so the custodian can release the money, or return it with a reason."
+                    : "The cash is already out of the fund. Approve the record, or flag it with a reason."}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -153,10 +154,15 @@ export function ApprovalsBoard({
                 <Button
                   variant="outline"
                   disabled={pending || selected.prepared_by === viewerId}
-                  onClick={() => setDialog({ kind: "flag", id: selected.id })}
+                  onClick={() =>
+                    setDialog({
+                      kind: selected.kind === "pre" ? "return" : "flag",
+                      id: selected.id,
+                    })
+                  }
                 >
-                  <Flag />
-                  Flag
+                  {selected.kind === "pre" ? <Undo2 /> : <Flag />}
+                  {selected.kind === "pre" ? "Return" : "Flag"}
                 </Button>
                 <Button
                   variant="ghost"
@@ -187,7 +193,7 @@ export function ApprovalsBoard({
                   {item.payee}
                 </span>
               </span>
-              <StatusBadge status="released" />
+              <StatusBadge status={item.kind === "pre" ? "submitted" : "released"} />
             </span>
             <span className="flex items-end justify-between gap-3 text-sm">
               <span className="text-muted-foreground">
@@ -197,7 +203,7 @@ export function ApprovalsBoard({
               <MoneyText value={item.amount} className="font-medium" />
             </span>
             <span className="block text-xs text-muted-foreground">
-              Released {formatReleased(item.released_at)} · Tap to review
+              {waitingLabel(item)} · Tap to review
             </span>
           </button>
         ))}
@@ -236,10 +242,15 @@ export function ApprovalsBoard({
                 className="w-full"
                 variant="outline"
                 disabled={pending || sheetItem.prepared_by === viewerId}
-                onClick={() => setDialog({ kind: "flag", id: sheetItem.id })}
+                onClick={() =>
+                  setDialog({
+                    kind: sheetItem.kind === "pre" ? "return" : "flag",
+                    id: sheetItem.id,
+                  })
+                }
               >
-                <Flag />
-                Flag
+                {sheetItem.kind === "pre" ? <Undo2 /> : <Flag />}
+                {sheetItem.kind === "pre" ? "Return" : "Flag"}
               </Button>
             </SheetFooter>
           </SheetContent>
@@ -254,10 +265,17 @@ export function ApprovalsBoard({
           }}
           title="Approve this voucher?"
           description={
-            <>
-              {formatPHP(dialogItem.amount)} to {dialogItem.payee}. The cash was
-              already released; approving records your review.
-            </>
+            dialogItem.kind === "pre" ? (
+              <>
+                {formatPHP(dialogItem.amount)} to {dialogItem.payee}. No cash
+                has gone out yet; approving lets the custodian release it.
+              </>
+            ) : (
+              <>
+                {formatPHP(dialogItem.amount)} to {dialogItem.payee}. The cash
+                was already released; approving records your review.
+              </>
+            )
           }
           confirmLabel="Approve"
           pending={pending}
@@ -265,7 +283,32 @@ export function ApprovalsBoard({
             run(
               dialogItem.id,
               () => approveVoucher(dialogItem.id),
-              "Voucher approved.",
+              dialogItem.kind === "pre"
+                ? "Approved. The custodian can now release the cash."
+                : "Voucher approved.",
+            )
+          }
+        />
+      ) : null}
+
+      {dialogItem && dialog?.kind === "return" ? (
+        <ReasonDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+          title="Return this voucher"
+          description="No cash has gone out. It goes back to the custodian as a draft with your reason."
+          label="What needs to change?"
+          placeholder="Example: the amount does not match the quotation."
+          confirmLabel="Return voucher"
+          destructive
+          pending={pending}
+          onSubmit={(reason) =>
+            run(
+              dialogItem.id,
+              () => returnVoucher({ voucher_id: dialogItem.id, reason }),
+              "Voucher returned to the custodian.",
             )
           }
         />
@@ -315,7 +358,7 @@ function ApprovalSummary({ item }: { item: ApprovalItem }) {
             className="font-heading text-xl font-semibold"
           />
           <p className="text-xs text-muted-foreground">
-            Released {formatReleased(item.released_at)}
+            {waitingLabel(item)}
           </p>
         </div>
       </div>
@@ -325,8 +368,10 @@ function ApprovalSummary({ item }: { item: ApprovalItem }) {
         <Detail label="Category" value={item.category_name} />
         <Detail label="Prepared by" value={item.prepared_by_name} />
         <Detail
-          label="Cash released"
-          value={item.released_at ? formatDateTime(item.released_at) : "—"}
+          label={item.kind === "pre" ? "Submitted" : "Cash released"}
+          value={formatReleased(
+            item.kind === "pre" ? item.submitted_at : item.released_at,
+          )}
         />
       </dl>
 
@@ -357,4 +402,10 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function formatReleased(value: string | null) {
   return value ? formatDateTime(value) : "—";
+}
+
+function waitingLabel(item: ApprovalItem) {
+  return item.kind === "pre"
+    ? `Submitted ${formatReleased(item.submitted_at)}`
+    : `Released ${formatReleased(item.released_at)}`;
 }

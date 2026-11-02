@@ -30,6 +30,7 @@ const emptyValues: FundFormValues = {
   name: "",
   amount: "",
   per_txn_limit: "",
+  approval_threshold: "3000.00",
   low_balance_pct: 25,
   custodian_id: "none",
 };
@@ -54,6 +55,7 @@ export function FundFormDialog({
           name: fund.name,
           amount: fund.amount,
           per_txn_limit: fund.per_txn_limit,
+          approval_threshold: fund.approval_threshold,
           low_balance_pct: fund.low_balance_pct,
           custodian_id: fund.custodian_id ?? "none",
         }
@@ -170,6 +172,28 @@ export function FundFormDialog({
                   {errors.per_txn_limit.message}
                 </p>
               ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fund-approval">Approval needed from</Label>
+              <Input
+                id="fund-approval"
+                inputMode="decimal"
+                placeholder="3000.00"
+                {...form.register("approval_threshold")}
+                aria-invalid={Boolean(errors.approval_threshold)}
+              />
+              {errors.approval_threshold ? (
+                <p className="text-xs text-destructive">
+                  {errors.approval_threshold.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Vouchers at or above this amount need an approver&apos;s OK
+                  before cash is released. Smaller ones are released first and
+                  reviewed after.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

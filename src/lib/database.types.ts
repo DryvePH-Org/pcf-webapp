@@ -156,6 +156,7 @@ export type Database = {
       funds: {
         Row: {
           amount: number
+          approval_threshold: number
           created_at: string
           custodian_id: string | null
           id: string
@@ -166,6 +167,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          approval_threshold?: number
           created_at?: string
           custodian_id?: string | null
           id?: string
@@ -176,6 +178,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approval_threshold?: number
           created_at?: string
           custodian_id?: string | null
           id?: string
@@ -344,6 +347,7 @@ export type Database = {
           released_at: string | null
           replenishment_id: string | null
           status: Database["public"]["Enums"]["voucher_status"]
+          submitted_at: string | null
           updated_at: string
           void_reason: string | null
           voucher_date: string
@@ -366,6 +370,7 @@ export type Database = {
           released_at?: string | null
           replenishment_id?: string | null
           status?: Database["public"]["Enums"]["voucher_status"]
+          submitted_at?: string | null
           updated_at?: string
           void_reason?: string | null
           voucher_date?: string
@@ -388,6 +393,7 @@ export type Database = {
           released_at?: string | null
           replenishment_id?: string | null
           status?: Database["public"]["Enums"]["voucher_status"]
+          submitted_at?: string | null
           updated_at?: string
           void_reason?: string | null
           voucher_date?: string
@@ -505,11 +511,20 @@ export type Database = {
         Args: { p_roles: Database["public"]["Enums"]["user_role"][] }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      requires_pre_approval: {
+        Args: { p_amount: number; p_fund_id: string }
+        Returns: boolean
+      }
+      return_voucher: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       review_replenishment: {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
         Returns: undefined
       }
       submit_replenishment: { Args: { p_id: string }; Returns: undefined }
+      submit_voucher: { Args: { p_id: string }; Returns: undefined }
       void_voucher: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined

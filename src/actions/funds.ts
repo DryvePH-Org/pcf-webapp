@@ -33,6 +33,7 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
     name: values.name,
     amount: toMoneyNumber(values.amount),
     per_txn_limit: toMoneyNumber(values.per_txn_limit),
+    approval_threshold: toMoneyNumber(values.approval_threshold),
     low_balance_pct: values.low_balance_pct,
     custodian_id: custodian_id === "none" ? null : custodian_id,
   };

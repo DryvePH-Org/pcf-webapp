@@ -67,6 +67,13 @@ export function FundsManager({
       cell: (fund) => <MoneyText value={fund.per_txn_limit} />,
     },
     {
+      key: "approval",
+      header: "Approval from",
+      headerClassName: "text-right",
+      className: "text-right",
+      cell: (fund) => <MoneyText value={fund.approval_threshold} />,
+    },
+    {
       key: "low",
       header: "Low-balance alert",
       headerClassName: "text-right",
@@ -137,6 +144,12 @@ export function FundsManager({
                   <dt className="text-muted-foreground">Per transaction</dt>
                   <dd>
                     <MoneyText value={fund.per_txn_limit} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Approval from</dt>
+                  <dd>
+                    <MoneyText value={fund.approval_threshold} />
                   </dd>
                 </div>
                 <div>

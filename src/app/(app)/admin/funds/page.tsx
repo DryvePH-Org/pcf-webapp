@@ -11,7 +11,7 @@ export default async function AdminFundsPage() {
     supabase
       .from("funds")
       .select(
-        "id, name, amount, per_txn_limit, low_balance_pct, custodian_id, is_active",
+        "id, name, amount, per_txn_limit, approval_threshold, low_balance_pct, custodian_id, is_active",
       )
       .order("created_at"),
     supabase
@@ -34,6 +34,7 @@ export default async function AdminFundsPage() {
     name: fund.name,
     amount: String(fund.amount),
     per_txn_limit: String(fund.per_txn_limit),
+    approval_threshold: String(fund.approval_threshold),
     low_balance_pct: fund.low_balance_pct,
     custodian_id: fund.custodian_id,
     custodian_name: fund.custodian_id

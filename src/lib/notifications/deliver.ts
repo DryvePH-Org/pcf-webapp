@@ -13,6 +13,9 @@ export type Recipient = {
 };
 
 export type NotificationEvent =
+  | "voucher.submitted"
+  | "voucher.pre_approved"
+  | "voucher.returned"
   | "voucher.released"
   | "voucher.approved"
   | "voucher.flagged"

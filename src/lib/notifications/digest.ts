@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notify, recipientsByRole } from "./deliver";
 
 export type DigestStats = {
+  awaitingApproval: number;
+  readyToRelease: number;
   pendingReviews: number;
   oldestReviewHours: number | null;
   flagged: number;
@@ -29,6 +31,18 @@ type Item = { text: string; path: string };
 export function digestItemsFor(role: Role, stats: DigestStats): Item[] {
   const items: Item[] = [];
 
+  const approval = () =>
+    stats.awaitingApproval > 0 &&
+    items.push({
+      text: `${plural(stats.awaitingApproval, "voucher")} waiting for your approval before cash is released`,
+      path: "/approvals",
+    });
+  const ready = () =>
+    stats.readyToRelease > 0 &&
+    items.push({
+      text: `${plural(stats.readyToRelease, "approved voucher")} ready for you to release the cash`,
+      path: "/vouchers",
+    });
   const review = () =>
     stats.pendingReviews > 0 &&
     items.push({
@@ -74,9 +88,11 @@ export function digestItemsFor(role: Role, stats: DigestStats): Item[] {
 
   switch (role) {
     case "approver":
+      approval();
       review();
       break;
     case "custodian":
+      ready();
       flagged();
       drafts();
       low();
@@ -87,6 +103,7 @@ export function digestItemsFor(role: Role, stats: DigestStats): Item[] {
       low();
       break;
     case "admin":
+      approval();
       review();
       flagged();
       drafts();
@@ -100,7 +117,7 @@ export function digestItemsFor(role: Role, stats: DigestStats): Item[] {
 
 async function loadStats(): Promise<DigestStats> {
   const admin = createAdminClient();
-  const vouchersWith = async (status: "released" | "rejected" | "draft") => {
+  const vouchersWith = async (status: "submitted" | "released" | "rejected" | "draft") => {
     const { count } = await admin
       .from("vouchers")
       .select("id", { count: "exact", head: true })
@@ -115,8 +132,22 @@ async function loadStats(): Promise<DigestStats> {
     return count ?? 0;
   };
 
-  const [pendingReviews, flagged, drafts, submittedRequests, approvedRequests] =
-    await Promise.all([
+  const [
+    awaitingApproval,
+    readyToRelease,
+    pendingReviews,
+    flagged,
+    drafts,
+    submittedRequests,
+    approvedRequests,
+  ] = await Promise.all([
+      vouchersWith("submitted"),
+      admin
+        .from("vouchers")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved")
+        .is("released_at", null)
+        .then(({ count }) => count ?? 0),
       vouchersWith("released"),
       vouchersWith("rejected"),
       vouchersWith("draft"),
@@ -138,6 +169,8 @@ async function loadStats(): Promise<DigestStats> {
     .eq("is_low", true);
 
   return {
+    awaitingApproval,
+    readyToRelease,
     pendingReviews,
     oldestReviewHours: oldest?.released_at
       ? (Date.now() - new Date(oldest.released_at).getTime()) / 3_600_000

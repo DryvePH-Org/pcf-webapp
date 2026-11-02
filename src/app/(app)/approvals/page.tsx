@@ -15,11 +15,10 @@ export default async function ApprovalsPage() {
   const { data: vouchers, error } = await supabase
     .from("vouchers")
     .select(
-      "id, pcv_number, voucher_date, payee, particulars, amount, category_id, fund_id, receipt_path, no_receipt_reason, prepared_by, released_at",
+      "id, pcv_number, voucher_date, payee, particulars, amount, category_id, fund_id, receipt_path, no_receipt_reason, prepared_by, released_at, submitted_at, status",
     )
-    .eq("status", "released")
+    .in("status", ["submitted", "released"])
     .neq("prepared_by", user.id)
-    .order("released_at", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
@@ -65,7 +64,9 @@ export default async function ApprovalsPage() {
     }),
   );
 
-  const items: ApprovalItem[] = vouchers.map((voucher) => ({
+  const mapped: ApprovalItem[] = vouchers.map((voucher) => ({
+    kind: voucher.status === "submitted" ? "pre" : "post",
+    submitted_at: voucher.submitted_at,
     id: voucher.id,
     pcv_number: voucher.pcv_number,
     voucher_date: voucher.voucher_date,
@@ -81,13 +82,26 @@ export default async function ApprovalsPage() {
     no_receipt_reason: voucher.no_receipt_reason,
   }));
 
+  // Requests that block cash come first; each group is oldest first.
+  const waitingSince = (item: ApprovalItem) =>
+    item.kind === "pre" ? item.submitted_at : item.released_at;
+  const items = [...mapped].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "pre" ? -1 : 1;
+    return (waitingSince(a) ?? "").localeCompare(waitingSince(b) ?? "");
+  });
+  const preCount = items.filter((item) => item.kind === "pre").length;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Approvals"
-        description="Released cash awaiting review, oldest first. Approving confirms the receipt now that the cash is out."
+        description="Large vouchers need your approval before any cash goes out. Smaller ones are already released and just need a review. Oldest first."
         actions={
-          <Badge variant="secondary">{items.length} waiting</Badge>
+          <Badge variant={preCount > 0 ? "default" : "secondary"}>
+            {preCount > 0
+              ? `${preCount} to approve · ${items.length - preCount} to review`
+              : `${items.length} waiting`}
+          </Badge>
         }
       />
 
@@ -95,7 +109,7 @@ export default async function ApprovalsPage() {
         <EmptyState
           icon={ClipboardCheck}
           title="Queue clear"
-          description="Released vouchers appear here for review. Flag one when the receipt or particulars need correcting."
+          description="Large vouchers appear here for approval before release, and released vouchers appear here for review."
         />
       ) : (
         <ApprovalsBoard items={items} viewerId={user.id} />

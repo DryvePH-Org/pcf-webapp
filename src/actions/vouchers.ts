@@ -10,7 +10,10 @@ import {
   notifyLowBalance,
   notifyVoucherApproved,
   notifyVoucherFlagged,
+  notifyVoucherPreApproved,
   notifyVoucherReleased,
+  notifyVoucherReturned,
+  notifyVoucherSubmitted,
   notifyVoucherVoided,
 } from "@/lib/notifications/events";
 import { queueNotification } from "@/lib/notifications/deliver";
@@ -194,7 +197,7 @@ export async function releaseVoucher(id: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("vouchers")
-    .select("fund_id")
+    .select("fund_id, status")
     .eq("id", id)
     .maybeSingle();
   const wasLow = before ? await fundIsLow(supabase, before.fund_id) : true;
@@ -203,7 +206,11 @@ export async function releaseVoucher(id: string): Promise<ActionResult> {
   if (error) return actionError(error.message);
 
   const nowLow = before ? await fundIsLow(supabase, before.fund_id) : false;
-  queueNotification("voucher.released", () => notifyVoucherReleased(id, user.id));
+  // A pre-approved voucher has already been reviewed, so approvers aren't
+  // asked to review it again.
+  if (before?.status !== "approved") {
+    queueNotification("voucher.released", () => notifyVoucherReleased(id, user.id));
+  }
   if (before && nowLow && !wasLow) {
     const fundId = before.fund_id;
     queueNotification("fund.low_balance", () => notifyLowBalance(fundId));
@@ -218,11 +225,57 @@ export async function approveVoucher(id: string): Promise<ActionResult> {
   if (!user) return actionError("Sign in to review vouchers.");
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("vouchers")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
   const { error } = await supabase.rpc("approve_voucher", { p_id: id });
   if (error) return actionError(error.message);
 
-  queueNotification("voucher.approved", () => notifyVoucherApproved(id, user.id));
+  if (before?.status === "submitted") {
+    queueNotification("voucher.pre_approved", () =>
+      notifyVoucherPreApproved(id, user.id),
+    );
+  } else {
+    queueNotification("voucher.approved", () => notifyVoucherApproved(id, user.id));
+  }
   revalidateVoucher(id);
+  return { ok: true };
+}
+
+export async function submitVoucher(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to submit vouchers.");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("submit_voucher", { p_id: id });
+  if (error) return actionError(error.message);
+
+  queueNotification("voucher.submitted", () => notifyVoucherSubmitted(id, user.id));
+  revalidateVoucher(id);
+  return { ok: true };
+}
+
+export async function returnVoucher(
+  input: z.input<typeof voucherReasonSchema>,
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to review vouchers.");
+
+  const parsed = voucherReasonSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("return_voucher", {
+    p_id: parsed.data.voucher_id,
+    p_reason: parsed.data.reason,
+  });
+  if (error) return actionError(error.message);
+
+  const returnedId = parsed.data.voucher_id;
+  queueNotification("voucher.returned", () => notifyVoucherReturned(returnedId, user.id));
+  revalidateVoucher(returnedId);
   return { ok: true };
 }
 

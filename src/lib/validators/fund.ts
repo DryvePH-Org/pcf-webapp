@@ -18,6 +18,7 @@ export const fundFormSchema = z
     name: z.string().trim().min(1, "Fund name is required").max(80),
     amount: moneyField,
     per_txn_limit: moneyField,
+    approval_threshold: moneyField,
     low_balance_pct: z
       .number({ error: "Enter a whole number" })
       .int("Enter a whole number")

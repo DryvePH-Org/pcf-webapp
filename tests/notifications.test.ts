@@ -4,6 +4,8 @@ import { digestItemsFor, type DigestStats } from "@/lib/notifications/digest";
 import { escapeHtml, renderEmail } from "@/lib/notifications/layout";
 
 const quiet: DigestStats = {
+  awaitingApproval: 0,
+  readyToRelease: 0,
   pendingReviews: 0,
   oldestReviewHours: null,
   flagged: 0,

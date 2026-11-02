@@ -29,6 +29,7 @@ const validFund = {
   name: 'Main Petty Cash',
   amount: '10000.00',
   per_txn_limit: '1000.00',
+  approval_threshold: '3000.00',
   low_balance_pct: 25,
   custodian_id: 'none',
 };
@@ -306,7 +307,8 @@ describe('voucher schemas', () => {
   it('knows the release-first statuses', () => {
     expect(isVoucherStatus('released')).toBe(true);
     expect(isVoucherStatus('rejected')).toBe(true);
-    expect(isVoucherStatus('submitted')).toBe(false);
+    expect(isVoucherStatus('submitted')).toBe(true);
+    expect(isVoucherStatus('nonsense')).toBe(false);
     expect(isVoucherStatus('approved')).toBe(true);
   });
 });

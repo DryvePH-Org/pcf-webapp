@@ -54,7 +54,7 @@ export default async function DashboardPage() {
   let draftsQuery = supabase
     .from("vouchers")
     .select("id, pcv_number, payee, amount, voucher_date", { count: "exact" })
-    .eq("status", "draft");
+    .or("status.eq.draft,and(status.eq.approved,released_at.is.null)");
   if (!isAdmin) {
     draftsQuery = draftsQuery.eq("prepared_by", user.id);
   }
@@ -116,12 +116,13 @@ export default async function DashboardPage() {
     canApprove
       ? supabase
           .from("vouchers")
-          .select("id, pcv_number, payee, amount, released_at", {
+          .select("id, pcv_number, payee, amount, released_at, status", {
             count: "exact",
           })
-          .eq("status", "released")
+          .in("status", ["submitted", "released"])
           .neq("prepared_by", user.id)
-          .order("released_at", { ascending: true })
+          .order("status", { ascending: true })
+          .order("created_at", { ascending: true })
           .limit(5)
       : null,
     canApprove
@@ -151,6 +152,7 @@ export default async function DashboardPage() {
           .gte("voucher_date", monthStart)
           .lte("voucher_date", today)
           .in("status", ["released", "approved", "rejected", "closed"])
+          .not("released_at", "is", null)
       : null,
   ]);
 
@@ -316,13 +318,14 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Pending approvals</CardTitle>
               <CardDescription>
-                Released vouchers waiting for review, oldest first.
+                Large vouchers to approve before release, then released
+                vouchers to review. Oldest first.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {pending.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nothing waiting for review.
+                  Nothing waiting for approval or review.
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -340,9 +343,11 @@ export default async function DashboardPage() {
                         </Link>
                         <p className="truncate text-sm text-muted-foreground">
                           {voucher.payee}
-                          {voucher.released_at
-                            ? ` · released ${formatDate(voucher.released_at)}`
-                            : ""}
+                          {voucher.status === "submitted"
+                            ? " · needs approval before release"
+                            : voucher.released_at
+                              ? ` · released ${formatDate(voucher.released_at)}`
+                              : ""}
                         </p>
                       </div>
                       <MoneyText

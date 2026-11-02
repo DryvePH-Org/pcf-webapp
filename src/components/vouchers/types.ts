@@ -4,6 +4,7 @@ export type FundOption = {
   id: string;
   name: string;
   per_txn_limit: string;
+  approval_threshold: string;
 };
 
 export type CategoryOption = {

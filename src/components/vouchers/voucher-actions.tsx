@@ -8,6 +8,8 @@ import {
   Flag,
   Paperclip,
   PenLine,
+  Send,
+  Undo2,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,8 +18,10 @@ import {
   approveVoucher,
   flagVoucher,
   releaseVoucher,
+  returnVoucher,
   setNoReceiptReason,
   setVoucherReceipt,
+  submitVoucher,
   voidVoucher,
 } from "@/actions/vouchers";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -38,7 +42,15 @@ import { canPerform, type Role } from "@/lib/permissions";
 import { uploadReceipt } from "@/lib/receipts";
 import type { VoucherStatus } from "@/lib/voucher-status";
 
-type DialogKind = "release" | "approve" | "flag" | "void" | "receipt" | "reason";
+type DialogKind =
+  | "release"
+  | "submit"
+  | "approve"
+  | "return"
+  | "flag"
+  | "void"
+  | "receipt"
+  | "reason";
 
 export function VoucherActions({
   voucher,
@@ -50,6 +62,9 @@ export function VoucherActions({
     payee: string;
     amount: string;
     status: VoucherStatus;
+    released_at: string | null;
+    approval_threshold: string;
+    needs_approval: boolean;
     prepared_by: string;
     receipt_path: string | null;
     no_receipt_reason: string | null;
@@ -63,28 +78,39 @@ export function VoucherActions({
 
   const own = voucher.prepared_by === viewer.id;
   const isDraft = voucher.status === "draft";
+  const isSubmitted = voucher.status === "submitted";
+  // Approved before release: the cash has not gone out yet.
+  const preApproved = voucher.status === "approved" && !voucher.released_at;
+  const isReleased = Boolean(voucher.released_at);
   const hasProof =
     Boolean(voucher.receipt_path) || Boolean(voucher.no_receipt_reason?.trim());
+  const custodianSide =
+    own || viewer.role === "admin"
+      ? canPerform(viewer.role, "voucher.release")
+      : false;
+  const canSubmit =
+    isDraft && voucher.needs_approval && custodianSide && canPerform(viewer.role, "voucher.submit");
   const canRelease =
-    isDraft &&
-    canPerform(viewer.role, "voucher.release") &&
-    (viewer.role === "admin" || own);
+    ((isDraft && !voucher.needs_approval) || preApproved) && custodianSide;
   const canAttach =
     isDraft &&
     own &&
     (viewer.role === "custodian" || viewer.role === "admin");
   const canApprove =
-    (voucher.status === "released" || voucher.status === "rejected") &&
+    (isSubmitted || voucher.status === "released" || voucher.status === "rejected") &&
     canPerform(viewer.role, "voucher.approve") &&
     !own;
+  const canReturn =
+    isSubmitted && canPerform(viewer.role, "voucher.reject") && !own;
   const canFlag =
     (voucher.status === "released" || voucher.status === "approved") &&
+    isReleased &&
     canPerform(viewer.role, "voucher.reject");
   const canVoid =
     voucher.status !== "closed" &&
     !voucher.replenishment_id &&
     canPerform(viewer.role, "voucher.void") &&
-    (viewer.role === "admin" || (own && isDraft));
+    (viewer.role === "admin" || (own && (isDraft || isSubmitted)));
 
   const close = () => setDialog(null);
 
@@ -111,7 +137,13 @@ export function VoucherActions({
   }
 
   const hasActions =
-    canRelease || canAttach || canApprove || canFlag || canVoid;
+    canSubmit ||
+    canRelease ||
+    canAttach ||
+    canApprove ||
+    canReturn ||
+    canFlag ||
+    canVoid;
 
   if (!hasActions) return null;
 
@@ -120,10 +152,27 @@ export function VoucherActions({
       <Card>
         <CardHeader>
           <CardTitle>Actions</CardTitle>
-          <CardDescription>{describeState(voucher.status)}</CardDescription>
+          <CardDescription>
+            {describeState(voucher, { preApproved, own })}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
+            {canSubmit ? (
+              <Button
+                disabled={!hasProof || pending}
+                title={
+                  hasProof
+                    ? undefined
+                    : "Attach a receipt or add a reason first."
+                }
+                onClick={() => setDialog("submit")}
+              >
+                <Send />
+                Submit for approval
+              </Button>
+            ) : null}
+
             {canRelease ? (
               <Button
                 disabled={!hasProof || pending}
@@ -143,6 +192,17 @@ export function VoucherActions({
               <Button disabled={pending} onClick={() => setDialog("approve")}>
                 <CircleCheck />
                 Approve
+              </Button>
+            ) : null}
+
+            {canReturn ? (
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => setDialog("return")}
+              >
+                <Undo2 />
+                Return
               </Button>
             ) : null}
 
@@ -193,10 +253,10 @@ export function VoucherActions({
             ) : null}
           </div>
 
-          {canRelease && !hasProof ? (
+          {(canRelease || canSubmit) && !hasProof ? (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              Cash cannot be released until this voucher has a receipt photo or
-              a written no-receipt reason.
+              This voucher needs a receipt photo or a written no-receipt reason
+              before it can be {canSubmit ? "submitted" : "released"}.
             </p>
           ) : null}
         </CardContent>
@@ -212,7 +272,10 @@ export function VoucherActions({
           description={
             <>
               {formatPHP(voucher.amount)} leaves the fund now and goes to{" "}
-              {voucher.payee}. The approver reviews this voucher afterwards.
+              {voucher.payee}.{" "}
+              {preApproved
+                ? "An approver already approved it."
+                : "The approver reviews this voucher afterwards."}
             </>
           }
           confirmLabel="Release cash"
@@ -220,7 +283,35 @@ export function VoucherActions({
           onConfirm={() =>
             run(
               () => releaseVoucher(voucher.id),
-              "Cash released. The approver will review it.",
+              preApproved
+                ? "Cash released."
+                : "Cash released. The approver will review it.",
+            )
+          }
+        />
+      ) : null}
+
+      {dialog === "submit" ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) close();
+          }}
+          title="Submit for approval?"
+          description={
+            <>
+              {formatPHP(voucher.amount)} is at or above{" "}
+              {formatPHP(voucher.approval_threshold)}, so an approver must
+              approve it before any cash goes to {voucher.payee}. You can
+              release the cash once it is approved.
+            </>
+          }
+          confirmLabel="Submit"
+          pending={pending}
+          onConfirm={() =>
+            run(
+              () => submitVoucher(voucher.id),
+              "Submitted. An approver has been notified.",
             )
           }
         />
@@ -233,13 +324,41 @@ export function VoucherActions({
             if (!open) close();
           }}
           title="Approve this voucher?"
-          description="The cash was already released. Approving records your review of the receipt and particulars."
+          description={
+            isSubmitted
+              ? "No cash has gone out yet. Approving lets the custodian release it."
+              : "The cash was already released. Approving records your review of the receipt and particulars."
+          }
           confirmLabel="Approve"
           pending={pending}
           onConfirm={() =>
             run(
               () => approveVoucher(voucher.id),
-              "Voucher approved.",
+              isSubmitted
+                ? "Approved. The custodian can now release the cash."
+                : "Voucher approved.",
+            )
+          }
+        />
+      ) : null}
+
+      {dialog === "return" ? (
+        <ReasonDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) close();
+          }}
+          title="Return this voucher"
+          description="No cash has gone out. It goes back to the custodian as a draft with your reason."
+          label="What needs to change?"
+          placeholder="Example: the amount does not match the quotation."
+          confirmLabel="Return voucher"
+          destructive
+          pending={pending}
+          onSubmit={(reason) =>
+            run(
+              () => returnVoucher({ voucher_id: voucher.id, reason }),
+              "Voucher returned to the custodian.",
             )
           }
         />
@@ -325,20 +444,36 @@ export function VoucherActions({
   );
 }
 
-function describeState(status: VoucherStatus) {
-  switch (status) {
+function describeState(
+  voucher: {
+    status: VoucherStatus;
+    needs_approval: boolean;
+    approval_threshold: string;
+    reject_reason?: string | null;
+  },
+  context: { preApproved: boolean; own: boolean },
+) {
+  switch (voucher.status) {
     case "draft":
-      return "Release the cash now, then the approver reviews it.";
+      return voucher.needs_approval
+        ? `At or above ${formatPHP(voucher.approval_threshold)}: submit it for approval first, then release the cash.`
+        : "Release the cash now, then the approver reviews it.";
+    case "submitted":
+      return context.own
+        ? "Waiting for an approver. No cash can go out until it is approved."
+        : "Approve it so the custodian can release the cash, or return it with a reason.";
     case "released":
       return "Cash is out. Waiting for an approver to review.";
     case "approved":
-      return "Reviewed and approved. It closes with the next replenishment.";
+      return context.preApproved
+        ? "Approved. The cash has not been handed out yet."
+        : "Reviewed and approved. It closes with the next replenishment.";
     case "rejected":
       return "Flagged. Cash stays counted until this is corrected or voided.";
     case "closed":
       return "Closed in a replenishment.";
     case "void":
-      return "Void. The record is kept for audit.";
+      return "Voided. The record is kept for audit.";
   }
 }
 

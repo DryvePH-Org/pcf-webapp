@@ -41,6 +41,7 @@ export default async function ReplenishmentsPage() {
         .from("vouchers")
         .select("fund_id, amount")
         .in("status", ELIGIBLE_STATUSES)
+        .not("released_at", "is", null)
         .is("replenishment_id", null),
       supabase
         .from("vouchers")

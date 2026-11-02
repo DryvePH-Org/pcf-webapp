@@ -4,10 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircleAlert, Save, Wallet } from "lucide-react";
+import { CircleAlert, Save, Send, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
-import { createVoucher, releaseVoucher, setVoucherReceipt } from "@/actions/vouchers";
+import {
+  createVoucher,
+  releaseVoucher,
+  setVoucherReceipt,
+  submitVoucher,
+} from "@/actions/vouchers";
 import type { CategoryOption, FundOption } from "@/components/vouchers/types";
 import {
   ReceiptUploader,
@@ -28,13 +33,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadReceipt } from "@/lib/receipts";
+import { parseMoney } from "@/lib/money";
 import { todayInAppTz } from "@/lib/dates";
 import {
   createVoucherSchema,
   type CreateVoucherValues,
 } from "@/lib/validators/voucher";
 
-type Intent = "draft" | "release";
+type Intent = "draft" | "release" | "submit";
 
 export function VoucherForm({
   funds,
@@ -66,6 +72,17 @@ export function VoucherForm({
   const errors = form.formState.errors;
   const fundId = useWatch({ control: form.control, name: "fund_id" });
   const selectedFund = funds.find((fund) => fund.id === fundId);
+  const amountText = useWatch({ control: form.control, name: "amount" });
+  const amountCentavos = parseMoney(amountText ?? "");
+  const thresholdCentavos = selectedFund
+    ? parseMoney(selectedFund.approval_threshold)
+    : null;
+  // At or above the fund's threshold an approver must approve before any cash
+  // is released.
+  const needsApproval =
+    amountCentavos !== null &&
+    thresholdCentavos !== null &&
+    amountCentavos >= thresholdCentavos;
   const fundItems = funds.map((fund) => ({ value: fund.id, label: fund.name }));
   const categoryItems = categories.map((category) => ({
     value: category.id,
@@ -76,7 +93,7 @@ export function VoucherForm({
     setServerError(null);
     setReceiptError(null);
 
-    if (nextIntent === "release") {
+    if (nextIntent !== "draft") {
       if (mode === "receipt" && !file) {
         setReceiptError(
           "Attach a receipt photo or switch to No receipt and give a reason.",
@@ -131,7 +148,15 @@ export function VoucherForm({
         }
       }
 
-      if (nextIntent === "release") {
+      if (nextIntent === "submit") {
+        const submitted = await submitVoucher(voucherId);
+        if (!submitted.ok) {
+          toast.error(submitted.error);
+          router.push(`/vouchers/${voucherId}`);
+          return;
+        }
+        toast.success("Submitted. An approver has been notified.");
+      } else if (nextIntent === "release") {
         const released = await releaseVoucher(voucherId);
         if (!released.ok) {
           toast.error(released.error);
@@ -152,7 +177,7 @@ export function VoucherForm({
 
   const submitDraft = form.handleSubmit((values) => submit(values, "draft"));
   const submitRelease = form.handleSubmit((values) =>
-    submit(values, "release"),
+    submit(values, needsApproval ? "submit" : "release"),
   );
 
   return (
@@ -262,9 +287,24 @@ export function VoucherForm({
                   {errors.amount.message}
                 </p>
               ) : selectedFund ? (
-                <p className="text-xs text-muted-foreground">
+                <p
+                  className={
+                    needsApproval
+                      ? "text-xs text-amber-700 dark:text-amber-400"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
                   Limit per transaction:{" "}
                   <MoneyText value={selectedFund.per_txn_limit} />
+                  {" · "}
+                  {needsApproval
+                    ? "An approver must approve this before any cash is released."
+                    : (
+                        <>
+                          Approval needed from{" "}
+                          <MoneyText value={selectedFund.approval_threshold} />
+                        </>
+                      )}
                 </p>
               ) : null}
             </div>
@@ -361,10 +401,14 @@ export function VoucherForm({
               disabled={submitting !== null}
               onClick={submitRelease}
             >
-              <Wallet />
-              {submitting === "release"
-                ? "Releasing..."
-                : "Save and release cash"}
+              {needsApproval ? <Send /> : <Wallet />}
+              {needsApproval
+                ? submitting === "submit"
+                  ? "Submitting..."
+                  : "Submit for approval"
+                : submitting === "release"
+                  ? "Releasing..."
+                  : "Save and release cash"}
             </Button>
           </div>
         </form>

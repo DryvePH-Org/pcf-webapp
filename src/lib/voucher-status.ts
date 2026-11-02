@@ -1,5 +1,6 @@
 export const VOUCHER_STATUSES = [
   "draft",
+  "submitted",
   "released",
   "approved",
   "closed",
@@ -11,6 +12,7 @@ export type VoucherStatus = (typeof VOUCHER_STATUSES)[number];
 
 export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
   draft: "Draft",
+  submitted: "Awaiting approval",
   released: "Released",
   approved: "Approved",
   closed: "Closed",

@@ -1,4 +1,7 @@
 export type ApprovalItem = {
+  // "pre": approve before any cash is released; "post": cash is out, review it.
+  kind: "pre" | "post";
+  submitted_at: string | null;
   id: string;
   pcv_number: string;
   voucher_date: string;

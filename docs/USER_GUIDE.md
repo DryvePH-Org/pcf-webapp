@@ -20,6 +20,19 @@ The app is installable: on a phone, use your browser's **Add to Home Screen**
 equation for the fund. If a physical count doesn't match, record it on the Cash
 Count page and explain the difference.
 
+## Large vouchers need approval first
+
+Each fund has an **approval limit** (default ₱3,000, set by the admin on the Funds
+page; separate from the per-transaction limit, which is the most a single voucher
+may be). Vouchers **below** the limit are released straight away and reviewed later.
+Vouchers **at or above** it follow a stricter path:
+
+1. The custodian prepares the voucher and taps **Submit for approval**.
+2. An approver (never the preparer) approves it, or **returns** it with a reason.
+   A returned voucher goes back to draft so the custodian can fix and resubmit.
+3. Only after approval can the custodian **Release cash**. Until then the money is
+   not counted as released.
+
 ## Email notifications (everyone)
 
 You get an email when something needs you or something important happens to

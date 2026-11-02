@@ -60,7 +60,8 @@ export default async function ReportsPage({
   let voucherQuery = supabase
     .from("vouchers")
     .select("pcv_number, voucher_date, payee, amount, category_id")
-    .neq("status", "void");
+    .neq("status", "void")
+    .not("released_at", "is", null);
   if (from) voucherQuery = voucherQuery.gte("voucher_date", from);
   if (to) voucherQuery = voucherQuery.lte("voucher_date", to);
 

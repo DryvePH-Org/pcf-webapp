@@ -14,7 +14,7 @@ export default async function NewVoucherPage() {
   const [fundsResult, categoriesResult] = await Promise.all([
     supabase
       .from("funds")
-      .select("id, name, per_txn_limit")
+      .select("id, name, per_txn_limit, approval_threshold")
       .eq("is_active", true)
       .order("created_at"),
     supabase
@@ -31,6 +31,7 @@ export default async function NewVoucherPage() {
     id: fund.id,
     name: fund.name,
     per_txn_limit: String(fund.per_txn_limit),
+    approval_threshold: String(fund.approval_threshold),
   }));
   const categories: CategoryOption[] = categoriesResult.data.map(
     (category) => ({ id: category.id, name: category.name }),

@@ -87,6 +87,77 @@ const exclude = (...ids: (string | null | undefined)[]) =>
 
 // ----------------------------------------------------------------- vouchers
 
+export async function notifyVoucherSubmitted(voucherId: string, actorId: string) {
+  const { voucher, rows } = await loadVoucher(voucherId);
+  const actor = await nameOf(actorId);
+  await notify({
+    event: "voucher.submitted",
+    entityType: "vouchers",
+    entityId: voucherId,
+    recipients: await recipientsByRole(["approver"], {
+      exclude: exclude(actorId, voucher.prepared_by),
+    }),
+    subject: `Approval needed before release: ${voucher.pcv_number} · ${formatPHP(voucher.amount)} to ${voucher.payee}`,
+    content: () => ({
+      tone: "action",
+      heading: `${voucher.pcv_number} needs your approval before cash is released`,
+      paragraphs: [
+        `${actor} submitted a ${formatPHP(voucher.amount)} voucher. It is at or above the fund's approval amount, so no cash goes out until you approve it. You can also return it with a reason.`,
+      ],
+      rows,
+      cta: { label: "Review vouchers", path: "/approvals" },
+    }),
+  });
+}
+
+export async function notifyVoucherPreApproved(voucherId: string, actorId: string) {
+  const { voucher, rows } = await loadVoucher(voucherId);
+  const actor = await nameOf(actorId);
+  await notify({
+    event: "voucher.pre_approved",
+    entityType: "vouchers",
+    entityId: voucherId,
+    recipients: await recipientsByRole([], {
+      include: [voucher.prepared_by],
+      exclude: exclude(actorId),
+    }),
+    subject: `Approved — release the cash: ${voucher.pcv_number}`,
+    content: () => ({
+      tone: "action",
+      heading: `${voucher.pcv_number} is approved`,
+      paragraphs: [
+        `${actor} approved this voucher. You can now release ${formatPHP(voucher.amount)} to ${voucher.payee}.`,
+      ],
+      rows,
+      cta: { label: "Release the cash", path: `/vouchers/${voucherId}` },
+    }),
+  });
+}
+
+export async function notifyVoucherReturned(voucherId: string, actorId: string) {
+  const { voucher, rows } = await loadVoucher(voucherId);
+  const actor = await nameOf(actorId);
+  await notify({
+    event: "voucher.returned",
+    entityType: "vouchers",
+    entityId: voucherId,
+    recipients: await recipientsByRole([], {
+      include: [voucher.prepared_by],
+      exclude: exclude(actorId),
+    }),
+    subject: `Returned: ${voucher.pcv_number} needs changes`,
+    content: () => ({
+      tone: "alert",
+      heading: `${voucher.pcv_number} was returned`,
+      paragraphs: [
+        `${actor} returned this voucher before any cash was released. It is back in your drafts; fix it and submit it again, or void it.`,
+      ],
+      rows: [{ label: "Reason", value: voucher.reject_reason ?? "—" }, ...rows],
+      cta: { label: "Open voucher", path: `/vouchers/${voucherId}` },
+    }),
+  });
+}
+
 export async function notifyVoucherReleased(voucherId: string, actorId: string) {
   const { voucher, rows } = await loadVoucher(voucherId);
   const actor = await nameOf(actorId);
