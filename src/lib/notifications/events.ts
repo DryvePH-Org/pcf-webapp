@@ -117,7 +117,8 @@ export async function notifyVoucherSubmitted(voucherId: string, actorId: string)
     event: "voucher.submitted",
     entityType: "vouchers",
     entityId: voucherId,
-    recipients: await recipientsByRole(["approver"], {
+    // Admins can approve too, which matters when the only approver is the preparer.
+    recipients: await recipientsByRole(["approver", "admin"], {
       exclude: exclude(actorId, voucher.prepared_by),
     }),
     subject: `Approval needed before release: ${voucher.pcv_number} · ${formatPHP(voucher.amount)} to ${voucher.payee}`,

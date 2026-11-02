@@ -89,6 +89,12 @@ to void it, or ask the approver to approve it once the issue is resolved.
 
 ## Approver
 
+Approvers can also **prepare their own vouchers** (Vouchers → New voucher), with the
+same steps as a custodian: lines, receipt, edit a draft, release or submit for
+approval. You can never approve a voucher you prepared; another approver or an
+admin has to. Large ones submitted by you go to the other approvers and admins.
+
+
 You review expenses after the cash is out.
 
 1. **Approvals** lists released vouchers, oldest first.

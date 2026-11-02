@@ -16,7 +16,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 const ROUTE_RULES: readonly { prefix: string; roles: readonly Role[] }[] = [
   { prefix: "/admin", roles: ["admin"] },
-  { prefix: "/vouchers/new", roles: ["admin", "custodian"] },
+  { prefix: "/vouchers/new", roles: ["admin", "custodian", "approver"] },
   { prefix: "/vouchers", roles: ALL_ROLES },
   { prefix: "/approvals", roles: ["admin", "approver"] },
   { prefix: "/replenishments", roles: ["admin", "custodian", "accounting"] },
@@ -50,12 +50,12 @@ export type Action =
   | "admin.manage";
 
 export const ACTION_ROLES: Record<Action, readonly Role[]> = {
-  "voucher.create": ["custodian", "admin"],
-  "voucher.submit": ["custodian", "admin"],
+  "voucher.create": ["custodian", "approver", "admin"],
+  "voucher.submit": ["custodian", "approver", "admin"],
   "voucher.approve": ["approver", "admin"],
   "voucher.reject": ["approver", "admin"],
-  "voucher.release": ["custodian", "admin"],
-  "voucher.void": ["custodian", "admin"],
+  "voucher.release": ["custodian", "approver", "admin"],
+  "voucher.void": ["custodian", "approver", "admin"],
   "replenishment.create": ["custodian", "admin"],
   "replenishment.submit": ["custodian", "admin"],
   "replenishment.review": ["accounting", "admin"],

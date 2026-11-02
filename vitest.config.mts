@@ -16,6 +16,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Integration tests share one database (and one fund's settings), so run
+    // files one after another.
+    fileParallelism: false,
     include: ['tests/**/*.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,

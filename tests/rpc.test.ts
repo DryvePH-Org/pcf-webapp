@@ -113,7 +113,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
   });
 
   it('rejects calls from the wrong role', async () => {
-    const { error: approverCreate } = await clients.approver.rpc('create_voucher', {
+    const { error: approverCreate } = await clients.accounting.rpc('create_voucher', {
       p_fund_id: fundId,
       p_payee: runTag,
       p_particulars: runTag,
@@ -377,7 +377,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
       p_id: releasedId,
       p_reason: 'Wrong payee',
     });
-    expect(ownReleased?.message).toMatch(/custodians can only void drafts/i);
+    expect(ownReleased?.message).toMatch(/can only void drafts/i);
 
     const { error: adminVoid } = await clients.admin.rpc('void_voucher', {
       p_id: releasedId,
@@ -391,7 +391,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
       p_id: approverVoidId,
       p_reason: 'Not mine to void',
     });
-    expect(approverVoid?.message).toMatch(/Not authorized/);
+    expect(approverVoid?.message).toMatch(/your own vouchers/);
 
     const { error: closedVoid } = await clients.admin.rpc('void_voucher', {
       p_id: closedVoucherId,

@@ -32,7 +32,7 @@ describe('canAccessRoute', () => {
     ['custodian', '/admin/users', false],
     ['approver', '/approvals', true],
     ['approver', '/vouchers', true],
-    ['approver', '/vouchers/new', false],
+    ['approver', '/vouchers/new', true],
     ['approver', '/replenishments', false],
     ['approver', '/admin/funds', false],
     ['accounting', '/replenishments', true],
@@ -53,12 +53,10 @@ describe('canAccessRoute', () => {
   });
 
   it('keeps voucher creation restricted while the list stays readable', () => {
-    for (const role of ['admin', 'custodian'] as const) {
+    for (const role of ['admin', 'custodian', 'approver'] as const) {
       expect(canAccessRoute(role, '/vouchers/new')).toBe(true);
     }
-    for (const role of ['approver', 'accounting'] as const) {
-      expect(canAccessRoute(role, '/vouchers/new')).toBe(false);
-    }
+    expect(canAccessRoute('accounting', '/vouchers/new')).toBe(false);
   });
 
   it('denies unknown routes to every role', () => {
@@ -93,8 +91,14 @@ describe('canPerform', () => {
 
     expect(canPerform('approver', 'voucher.approve')).toBe(true);
     expect(canPerform('approver', 'voucher.reject')).toBe(true);
-    expect(canPerform('approver', 'voucher.create')).toBe(false);
-    expect(canPerform('approver', 'voucher.release')).toBe(false);
+    // Approvers can prepare their own vouchers but hold no fund or cash duties.
+    for (const action of ['voucher.create', 'voucher.submit', 'voucher.release', 'voucher.void'] as const) {
+      expect(canPerform('approver', action)).toBe(true);
+    }
+    for (const action of ['replenishment.create', 'replenishment.submit', 'cash.count'] as const) {
+      expect(canPerform('approver', action)).toBe(false);
+    }
+    expect(canPerform('accounting', 'voucher.create')).toBe(false);
 
     expect(canPerform('accounting', 'replenishment.review')).toBe(true);
     expect(canPerform('accounting', 'replenishment.close')).toBe(true);

@@ -97,8 +97,8 @@ export function VoucherActions({
   const canAttach =
     isDraft &&
     own &&
-    (viewer.role === "custodian" || viewer.role === "admin");
-  const canEdit = isDraft && own && (viewer.role === "custodian" || viewer.role === "admin");
+    canPerform(viewer.role, "voucher.create");
+  const canEdit = isDraft && own && canPerform(viewer.role, "voucher.create");
   const canApprove =
     (isSubmitted || voucher.status === "released" || voucher.status === "rejected") &&
     canPerform(viewer.role, "voucher.approve") &&
