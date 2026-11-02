@@ -20,6 +20,19 @@ The app is installable: on a phone, use your browser's **Add to Home Screen**
 equation for the fund. If a physical count doesn't match, record it on the Cash
 Count page and explain the difference.
 
+## Email notifications (everyone)
+
+You get an email when something needs you or something important happens to
+your work — for example an approver gets one when a voucher is released, a
+custodian when a voucher is flagged, accounting when a replenishment is
+submitted, and admins when a cash count doesn't match or the fund runs low.
+You are never emailed about something you did yourself. Each morning at 8:00 you
+also get one short summary of what is still waiting on you, but only if there is
+something.
+
+Admins can see every email the app sent, and any that failed, under
+**Admin → Notifications**.
+
 ---
 
 ## Custodian

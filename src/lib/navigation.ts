@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   ClipboardCheck,
   Landmark,
   LayoutDashboard,
@@ -45,6 +46,7 @@ const ADMINISTRATION: NavItem[] = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/funds", label: "Funds", icon: Landmark },
   { href: "/admin/categories", label: "Categories", icon: Tags },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
 ];
 
 export function navGroupsFor(role: Role): NavGroup[] {

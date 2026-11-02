@@ -575,7 +575,7 @@ Acceptance
 Do **not** build these until asked.
 
 1. **Google Drive archive:** a monthly job moves receipts older than N months from Supabase Storage to Google Drive via a service account, stores the Drive link in the database, and keeps the voucher record intact. Build only if storage is nearly full.
-2. **Email notifications** (Resend): voucher released, approved or flagged, replenishment ready, low balance.
+2. ~~**Email notifications** (Resend)~~ — built (2026-11-02): voucher, replenishment, low-balance, cash-count variance, and user events, plus a daily digest. See README.
 3. **Employee request flow:** employees submit a cash request that the custodian converts into a voucher.
 4. **Messenger or Telegram bot** for submitting requests.
 5. **Multiple funds** with fund-specific custodians and permissions.

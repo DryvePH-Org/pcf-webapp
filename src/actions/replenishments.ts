@@ -5,6 +5,13 @@ import { z } from "zod";
 
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
+import { queueNotification } from "@/lib/notifications/deliver";
+import {
+  notifyReplenishmentApproved,
+  notifyReplenishmentClosed,
+  notifyReplenishmentRejected,
+  notifyReplenishmentSubmitted,
+} from "@/lib/notifications/events";
 import { canPerform } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -89,6 +96,10 @@ export async function submitReplenishment(id: string): Promise<ActionResult> {
   });
   if (error) return actionError(error.message);
 
+  const submittedId = parsedId.data;
+  queueNotification("replenishment.submitted", () =>
+    notifyReplenishmentSubmitted(submittedId, user.id),
+  );
   revalidateReplenishment(parsedId.data);
   return { ok: true };
 }
@@ -113,6 +124,15 @@ export async function reviewReplenishment(
   });
   if (error) return actionError(error.message);
 
+  const reviewedId = parsed.data.replenishment_id;
+  const approved = parsed.data.approve;
+  queueNotification(
+    approved ? "replenishment.approved" : "replenishment.rejected",
+    () =>
+      approved
+        ? notifyReplenishmentApproved(reviewedId, user.id)
+        : notifyReplenishmentRejected(reviewedId, user.id),
+  );
   revalidateReplenishment(parsed.data.replenishment_id);
   return { ok: true };
 }
@@ -133,6 +153,10 @@ export async function closeReplenishment(id: string): Promise<ActionResult> {
   });
   if (error) return actionError(error.message);
 
+  const closedId = parsedId.data;
+  queueNotification("replenishment.closed", () =>
+    notifyReplenishmentClosed(closedId, user.id),
+  );
   revalidateReplenishment(parsedId.data);
   return { ok: true };
 }

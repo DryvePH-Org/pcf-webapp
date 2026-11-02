@@ -1,0 +1,21 @@
+name: Daily digest
+
+# 00:00 UTC is 08:00 in Manila. Emails each role a summary of what is waiting
+# on them (reviews, flagged vouchers, replenishments, low balance) and sends
+# nothing to roles with nothing pending.
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the digest
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 10 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            https://pcf-webapp.aaron-custodio.workers.dev/api/cron/digest

@@ -5,6 +5,12 @@ import { z } from "zod";
 
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
+import { queueNotification } from "@/lib/notifications/deliver";
+import {
+  notifyUserAccessChanged,
+  notifyUserRoleChanged,
+  notifyUserWelcome,
+} from "@/lib/notifications/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -57,6 +63,8 @@ export async function createUser(input: CreateUserValues): Promise<ActionResult>
     );
   }
 
+  const newUserId = data.user.id;
+  queueNotification("user.welcome", () => notifyUserWelcome(newUserId, role, admin.id));
   revalidatePath("/admin/users");
   return { ok: true };
 }
@@ -87,6 +95,11 @@ export async function updateUserRole(input: {
   if (error) return actionError(error.message);
   if (!data) return actionError("User not found.");
 
+  const changedId = parsed.data.userId;
+  const newRole = parsed.data.role;
+  queueNotification("user.role_changed", () =>
+    notifyUserRoleChanged(changedId, newRole, admin.id),
+  );
   revalidatePath("/admin/users");
   return { ok: true };
 }
@@ -117,6 +130,11 @@ export async function setUserActive(input: {
   if (error) return actionError(error.message);
   if (!data) return actionError("User not found.");
 
+  const changedId = parsed.data.userId;
+  const active = parsed.data.isActive;
+  queueNotification("user.access_changed", () =>
+    notifyUserAccessChanged(changedId, active, admin.id),
+  );
   revalidatePath("/admin/users");
   return { ok: true };
 }

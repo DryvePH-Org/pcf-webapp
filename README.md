@@ -45,6 +45,9 @@ Open http://localhost:3000.
 | `NEXT_PUBLIC_APP_TIMEZONE` | client + server | `Asia/Manila` |
 | `RESEND_API_KEY` | server only | Sends the sign-in code emails |
 | `RESEND_FROM` | server only, optional | Sender, e.g. `Petty Cash <noreply@your-domain>`; defaults to Resend's shared test sender |
+| `APP_URL` | server only, optional | Base URL used in email links; defaults to the live site |
+| `CRON_SECRET` | server only | Protects `/api/cron/digest`; must match the GitHub secret of the same name |
+| `NOTIFY_REDIRECT_TO` | dev only | Sends every notification to this one address (subject shows the intended recipient). Set it in `.env.local` so test accounts never email anyone |
 
 Local preview in the Workers runtime also reads `.dev.vars` (gitignored).
 
@@ -61,6 +64,37 @@ in Resend, then set `RESEND_FROM` to an address on it.
 
 For tests and local work, the `@pcf.local` seed accounts can't receive email;
 the Playwright helpers sign them in by generating a code with the Admin API.
+
+## Email notifications
+
+Emails are sent through Resend from the server actions, after the response, so a
+slow or failing email never blocks or breaks the action. Every attempt is
+recorded in `notification_log` and shown to admins at **Admin → Notifications**.
+
+| Event | Who is told |
+|---|---|
+| Voucher released | Approvers — needs review |
+| Voucher approved | The person who prepared it |
+| Voucher flagged | Preparer + admins (with the reason) |
+| Voucher voided | Preparer + admins (with the reason) |
+| Replenishment submitted | Accounting — needs review |
+| Replenishment approved | The requester |
+| Replenishment rejected | Requester + admins (with the note) |
+| Replenishment closed | Requester + admins — fund restored |
+| Fund drops below its warning level | The fund's custodian + admins + accounting |
+| Cash count doesn't match | Admins + accounting |
+| User created / role changed / access changed | That user |
+| Daily summary (08:00 Manila) | Each role, only if something is waiting on them |
+
+The person who performed an action is never emailed about it.
+
+The daily summary is triggered by `.github/workflows/daily-digest.yml`, which
+calls `POST /api/cron/digest` with `Authorization: Bearer $CRON_SECRET`. Set the
+same secret on the Worker and in GitHub (**Settings → Secrets → Actions**), then
+run the workflow once by hand to check it.
+
+Delivery to anyone but the Resend account owner needs a verified sending domain
+(see Signing in). Failures show up in **Admin → Notifications** until then.
 
 ## Database
 
@@ -120,7 +154,8 @@ Deploys are manual. Secrets live on the Worker, not in git.
 ```bash
 pnpm wrangler login                       # once
 pnpm wrangler secret put <NAME>           # NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-                                          # NEXT_PUBLIC_APP_TIMEZONE, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY
+                                          # NEXT_PUBLIC_APP_TIMEZONE, SUPABASE_SERVICE_ROLE_KEY,
+                                          # RESEND_API_KEY, CRON_SECRET
 pnpm run deploy
 ```
 

@@ -6,6 +6,14 @@ import { z } from "zod";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { toMoneyNumber } from "@/lib/money";
+import {
+  notifyLowBalance,
+  notifyVoucherApproved,
+  notifyVoucherFlagged,
+  notifyVoucherReleased,
+  notifyVoucherVoided,
+} from "@/lib/notifications/events";
+import { queueNotification } from "@/lib/notifications/deliver";
 import { createClient } from "@/lib/supabase/server";
 import {
   createVoucherSchema,
@@ -44,6 +52,18 @@ function createVoucherValidationError(input: z.ZodError): CreateVoucherResult {
     string[]
   >;
   return createVoucherError("Check the highlighted fields.", fieldErrors);
+}
+
+async function fundIsLow(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fundId: string,
+) {
+  const { data } = await supabase
+    .from("fund_balance_v")
+    .select("is_low")
+    .eq("fund_id", fundId)
+    .maybeSingle();
+  return Boolean(data?.is_low);
 }
 
 function revalidateVoucher(id: string) {
@@ -172,8 +192,22 @@ export async function releaseVoucher(id: string): Promise<ActionResult> {
   if (!user) return actionError("Sign in to release cash.");
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("vouchers")
+    .select("fund_id")
+    .eq("id", id)
+    .maybeSingle();
+  const wasLow = before ? await fundIsLow(supabase, before.fund_id) : true;
+
   const { error } = await supabase.rpc("release_voucher", { p_id: id });
   if (error) return actionError(error.message);
+
+  const nowLow = before ? await fundIsLow(supabase, before.fund_id) : false;
+  queueNotification("voucher.released", () => notifyVoucherReleased(id, user.id));
+  if (before && nowLow && !wasLow) {
+    const fundId = before.fund_id;
+    queueNotification("fund.low_balance", () => notifyLowBalance(fundId));
+  }
 
   revalidateVoucher(id);
   return { ok: true };
@@ -187,6 +221,7 @@ export async function approveVoucher(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("approve_voucher", { p_id: id });
   if (error) return actionError(error.message);
 
+  queueNotification("voucher.approved", () => notifyVoucherApproved(id, user.id));
   revalidateVoucher(id);
   return { ok: true };
 }
@@ -207,6 +242,8 @@ export async function flagVoucher(
   });
   if (error) return actionError(error.message);
 
+  const flaggedId = parsed.data.voucher_id;
+  queueNotification("voucher.flagged", () => notifyVoucherFlagged(flaggedId, user.id));
   revalidateVoucher(parsed.data.voucher_id);
   return { ok: true };
 }
@@ -227,6 +264,8 @@ export async function voidVoucher(
   });
   if (error) return actionError(error.message);
 
+  const voidedId = parsed.data.voucher_id;
+  queueNotification("voucher.voided", () => notifyVoucherVoided(voidedId, user.id));
   revalidateVoucher(parsed.data.voucher_id);
   return { ok: true };
 }

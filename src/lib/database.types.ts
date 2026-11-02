@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.18"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       audit_log: {
@@ -218,6 +193,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_log: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          error: string | null
+          event: string
+          id: number
+          recipient_email: string
+          recipient_id: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          event: string
+          id?: never
+          recipient_email: string
+          recipient_id?: string | null
+          status: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          error?: string | null
+          event?: string
+          id?: never
+          recipient_email?: string
+          recipient_id?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -459,6 +473,19 @@ export type Database = {
         Returns: string
       }
       next_pcv_number: { Args: { p_fund_id: string }; Returns: string }
+      notification_recipients: {
+        Args: {
+          p_exclude?: string[]
+          p_include?: string[]
+          p_roles: Database["public"]["Enums"]["user_role"][]
+        }
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }[]
+      }
       record_cash_count: {
         Args: { p_counted: number; p_fund_id: string; p_note?: string }
         Returns: string
@@ -623,9 +650,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       replenishment_status: [

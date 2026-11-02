@@ -6,6 +6,8 @@ import { z } from "zod";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
+import { queueNotification } from "@/lib/notifications/deliver";
+import { notifyCashCountVariance } from "@/lib/notifications/events";
 import { canPerform } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -64,6 +66,18 @@ export async function recordCashCount(
   });
 
   if (error) return actionError(error.message);
+
+  if (countedCentavos !== expectedCentavos) {
+    queueNotification("cash_count.variance", () =>
+      notifyCashCountVariance({
+        fundId: fund_id,
+        countedCentavos: countedCentavos ?? 0,
+        expectedCentavos,
+        note: note || null,
+        actorId: user.id,
+      }),
+    );
+  }
 
   revalidatePath("/cash-count");
   revalidatePath("/dashboard");
