@@ -54,3 +54,7 @@ next-env.d.ts
 
 # local-only secrets, never committed
 .secrets/
+
+# playwright
+/test-results/
+/playwright-report/

@@ -3,14 +3,27 @@
 Web app for an imprest petty cash fund: vouchers with receipts, approvals, cash
 release, live balance, replenishment, and an audit trail.
 
-See [`docs/petty-cash-app-plan.md`](docs/petty-cash-app-plan.md) for the full
-build plan (single source of truth).
+- Build plan and decision records: [`docs/petty-cash-app-plan.md`](docs/petty-cash-app-plan.md)
+- How each role uses the app: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)
+- Live site: https://pcf-webapp.aaron-custodio.workers.dev
 
 ## Stack
 
 Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui ·
-Supabase (Postgres, Auth, Storage, RLS) · react-hook-form + zod · Recharts ·
-Vitest · Playwright · pnpm.
+Supabase (Postgres, Auth, Storage, RLS) · Cloudflare Workers
+(`@opennextjs/cloudflare`) · Resend (sign-in emails) · react-hook-form + zod ·
+Recharts · Vitest · Playwright · pnpm.
+
+## Two Supabase projects
+
+| | Project | Used by | Data |
+|---|---|---|---|
+| Development / test | `PCFproject` (`qjfbeaeqeorpllvfrgpg`) | local dev, tests | seeded `@pcf.local` users, throwaway vouchers |
+| Production | `PCFprojectProd` (`ltkzkgkvxztjxwqtnklj`) | the live site | real data only, never seeded |
+
+`.env.local` points at the **development** project. `pnpm run deploy` builds
+against **production** (it pins the production URL and publishable key, since
+`NEXT_PUBLIC_*` values are inlined into the bundle at build time).
 
 ## Local setup
 
@@ -18,74 +31,122 @@ Prerequisites: Node 22+, pnpm 12+, Supabase CLI.
 
 ```bash
 pnpm install
-cp .env.example .env.local   # then fill in the values
-supabase login
-supabase link --project-ref qjfbeaeqeorpllvfrgpg
+cp .env.example .env.local   # fill in the development project's values
 pnpm dev
 ```
 
 Open http://localhost:3000.
 
-Environment variables:
-
 | Variable | Where | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | client + server | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client + server | Publishable (or anon) key |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | Never expose or prefix with `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client + server | Publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only | Never prefix with `NEXT_PUBLIC_` |
 | `NEXT_PUBLIC_APP_TIMEZONE` | client + server | `Asia/Manila` |
+| `RESEND_API_KEY` | server only | Sends the sign-in code emails |
+| `RESEND_FROM` | server only, optional | Sender, e.g. `Petty Cash <noreply@your-domain>`; defaults to Resend's shared test sender |
 
-### Database
+Local preview in the Workers runtime also reads `.dev.vars` (gitignored).
 
-Migrations live in `supabase/migrations`. Apply them with:
+## Signing in
+
+There are no passwords. An admin creates a user (email + role) under
+**Admin → Users**; the user enters their email on the login page and types the
+8-digit code that arrives by email. Only emails with an active, admin-created
+account get a code.
+
+Until a sending domain is verified in Resend, the shared sender only delivers
+to the Resend account owner, so other staff can't receive codes. Verify a domain
+in Resend, then set `RESEND_FROM` to an address on it.
+
+For tests and local work, the `@pcf.local` seed accounts can't receive email;
+the Playwright helpers sign them in by generating a code with the Admin API.
+
+## Database
+
+Migrations live in `supabase/migrations`.
 
 ```bash
-supabase db push
+supabase link --project-ref <ref>
+SUPABASE_DB_PASSWORD=... supabase db push --linked
 ```
 
-Seed the development project (fund, categories, and one test user per role):
+**Development only** — seed a fund, categories, and one test user per role:
 
 ```bash
 supabase db query --linked -f supabase/seed.sql
 ```
 
-The seed creates `admin@pcf.local`, `custodian@pcf.local`,
-`approver@pcf.local`, and `accounting@pcf.local` with the development-only
-password `Phase1-Dev-Passw0rd`. Remove or rotate these accounts before
-production.
+**Production** — never run `seed.sql`. Insert categories, then create the first
+admin through the Admin API (`auth.admin.createUser` with `email_confirm: true`)
+and add a matching `profiles` row with `role = 'admin'`. Create the fund from
+**Admin → Funds**.
 
-`src/lib/database.types.ts` is generated from the linked project:
+Regenerate types after schema changes:
 
 ```bash
 supabase gen types typescript --linked --schema public > src/lib/database.types.ts
 ```
-
-The RPC and RLS integration suite (`tests/rpc.test.ts`) writes test records to
-the linked project, so it only runs when `RUN_DB_TESTS=true` is set in
-`.env.local`. CI leaves it skipped.
 
 ## Scripts
 
 | Command | Purpose |
 |---|---|
 | `pnpm dev` | Dev server |
-| `pnpm build` | Production build |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm test` | Vitest |
+| `pnpm build` | Next.js production build |
+| `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit` |
+| `pnpm test` | Vitest (set `RUN_DB_TESTS=true` in `.env.local` for the RPC/RLS suite) |
+| `pnpm test:e2e` | Playwright (see below) |
+| `pnpm preview` | Build and run in the Workers runtime locally |
+| `pnpm run deploy` | Build against production and deploy to Cloudflare |
 
-## Deploy (Netlify, free tier)
+### End-to-end tests
 
-1. Push this repo to GitHub.
-2. Netlify → **Add new site → Import an existing project** → pick the repo.
-3. Build command `pnpm build`; publish directory `.next` (from `netlify.toml`).
-4. Add the environment variables above in **Site configuration → Environment
-   variables**. Store `SUPABASE_SERVICE_ROLE_KEY` with the **secret** flag so it
-   is server-only.
-5. Deploy.
+```bash
+# Public checks against the live site (read-only, safe on production)
+E2E_BASE_URL=https://pcf-webapp.aaron-custodio.workers.dev pnpm test:e2e
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, and tests on every push to
-`main` and on pull requests.
+# Full happy path + layout checks against the DEVELOPMENT project
+E2E_AUTHENTICATED=true pnpm test:e2e
+```
+
+The authenticated run wipes vouchers, replenishments, and cash counts in the
+project that `.env.local` points to, and refuses to run if that is production.
+
+## Deploying
+
+Deploys are manual. Secrets live on the Worker, not in git.
+
+```bash
+pnpm wrangler login                       # once
+pnpm wrangler secret put <NAME>           # NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+                                          # NEXT_PUBLIC_APP_TIMEZONE, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY
+pnpm run deploy
+```
+
+Type the secret **name** as the argument and paste the **value** at the prompt.
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, and unit tests on every
+push to `main` and on pull requests.
+
+## Keep-alive
+
+Supabase pauses free projects after about a week without activity.
+`.github/workflows/keepalive.yml` calls `/api/health` every 3 days, which runs a
+real query against the production database. Run it by hand from the Actions
+tab (**Keep-alive → Run workflow**) to verify.
+
+## Backups
+
+Supabase's free plan has no automatic backups, so back up regularly:
+
+- **Weekly** (set a calendar reminder): run
+  `SUPABASE_DB_PASSWORD=... supabase db dump --linked -f backup-$(date +%F).sql`
+  against the production project and store the file somewhere private (not in
+  git).
+- **Receipts** live in the private `receipts` Storage bucket and are not in the
+  database dump. Download the bucket from Supabase → Storage periodically.
+- Financial records are never hard-deleted (vouchers are voided with a reason),
+  so the audit log plus a recent dump is enough to reconstruct history.
 
 ## Decisions (plan rule 10)
 
@@ -98,3 +159,4 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, and tests on every push to
   fields on your own draft/rejected rows, guarded by a column trigger.
 - Replenishment request numbers use a Postgres sequence (the plan only
   requires uniqueness); PCV numbers use `fund_counters` per fund and year.
+- Hosting and sign-in decisions are recorded in the plan document.

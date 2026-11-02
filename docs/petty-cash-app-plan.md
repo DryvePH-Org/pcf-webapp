@@ -64,6 +64,14 @@ The original draft assumed cash was released only after approval. We changed to 
 - Accounting can review and close a replenishment without waiting for voucher reviews. Closing marks the linked vouchers `closed` and restores expected cash to the fund amount.
 - Replenishment review still uses its own `draft → submitted → approved → closed` flow; that `submitted` status is unchanged.
 
+### Hosting and sign-in decision record (2026-11-02)
+
+- **Hosting moved from Netlify to Cloudflare Workers** (via `@opennextjs/cloudflare`): faster on the free tier, no watermark, commercial use allowed. Deploys are manual: `pnpm run deploy`.
+- **Cache Components is off** (`cacheComponents` removed). It made every request hang on the Workers runtime, and nothing in the app used `"use cache"`.
+- **Two Supabase projects.** Development/test is `PCFproject` (seeded with `@pcf.local` test users); production is `PCFprojectProd` (no test data). `pnpm run deploy` pins the production URL and publishable key at build time, because `NEXT_PUBLIC_*` values are inlined into the bundle.
+- **Sign-in is passwordless and by code.** Admins create accounts by email and role; nobody sets a password. The login page asks for an email, the server checks the account exists and is active, generates a one-time code with `auth.admin.generateLink`, and emails it through the Resend HTTP API. The user types the code. Links were dropped because a company email scanner opened them first and used them up, and Supabase's own email sender was rate limiting every request.
+- Resend's shared sender (`onboarding@resend.dev`) only delivers to the Resend account owner. A verified sending domain is required before other staff can sign in.
+
 ---
 
 ## 2. Tech stack (all free tier)
@@ -548,13 +556,13 @@ Acceptance
 **Goal:** production ready at zero cost.
 
 Tasks
-- [ ] `/api/health`: runs `select 1` against Supabase, returns `{ ok: true }`.
-- [ ] `.github/workflows/keepalive.yml`: scheduled every 3 days (`cron: '0 2 */3 * *'`), `curl` the production `/api/health`. This prevents the Supabase free project from pausing.
-- [ ] Playwright smoke test of the happy path (section 11).
-- [ ] Production Supabase project: run migrations, create the real admin user, **do not run the test seed**.
-- [ ] Netlify production env vars set. Confirm the service role key is server-only.
-- [ ] Write `README.md` and `docs/USER_GUIDE.md` (one short page per role).
-- [ ] Add a backup note: weekly `pg_dump` or a manual export reminder.
+- [x] `/api/health`: runs `select 1` against Supabase, returns `{ ok: true }`.
+- [x] `.github/workflows/keepalive.yml`: scheduled every 3 days (`cron: '0 2 */3 * *'`), `curl` the production `/api/health`. This prevents the Supabase free project from pausing.
+- [x] Playwright smoke test of the happy path (section 11).
+- [x] Production Supabase project: run migrations, create the real admin user, **do not run the test seed**.
+- [x] Production env vars set as Cloudflare Worker secrets (replaces Netlify). The service role key is server-only.
+- [x] Write `README.md` and `docs/USER_GUIDE.md` (one short page per role).
+- [x] Add a backup note: weekly `pg_dump` or a manual export reminder.
 
 Acceptance
 - Full happy path passes on production.
