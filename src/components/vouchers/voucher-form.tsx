@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +45,31 @@ import {
   type CreateVoucherValues,
 } from "@/lib/validators/voucher";
 
+function ComparePhoto({ file, onDismiss }: { file: File; onDismiss: () => void }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+      <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt="Your scanned paper voucher"
+          className="h-16 w-16 rounded-md border border-border object-cover"
+        />
+      </a>
+      <p className="min-w-0 flex-1 text-xs">
+        <span className="font-medium">Filled in by AI from your paper voucher.</span>{" "}
+        Handwriting can be misread, so tap the photo to open it and check the
+        payee, date and every amount against it.
+      </p>
+      <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
+        Hide
+      </Button>
+    </div>
+  );
+}
+
 const emptyLine = { particulars: "", amount: "", category_id: "" };
 
 type Intent = "draft" | "release" | "submit";
@@ -77,6 +102,9 @@ export function VoucherForm({
   // The photo being read right now, and which kind of document it is.
   const [scanning, setScanning] = useState<{ file: File; kind: "receipt" | "voucher" } | null>(null);
   const [filledFromPhoto, setFilledFromPhoto] = useState(false);
+  // The paper voucher photo last read, kept on screen so the custodian can
+  // compare it with what the form now says.
+  const [comparePhoto, setComparePhoto] = useState<File | null>(null);
 
   const form = useForm<CreateVoucherValues>({
     resolver: zodResolver(createVoucherSchema),
@@ -150,6 +178,7 @@ export function VoucherForm({
         lines.replace(scanned);
       }
       setFilledFromPhoto(true);
+      if (kind === "voucher") setComparePhoto(photo);
       toast.success("Filled in from the photo. Check every field before saving.");
     } catch {
       toast.error("The scan failed. Fill in the form by hand.");
@@ -281,6 +310,9 @@ export function VoucherForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={submitDraft} noValidate>
+          {comparePhoto && !edit ? (
+            <ComparePhoto file={comparePhoto} onDismiss={() => setComparePhoto(null)} />
+          ) : null}
           {edit ? null : (
             <PaperVoucherScanner
               highlight={highlightScan}

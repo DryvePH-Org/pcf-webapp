@@ -54,6 +54,7 @@ export function buildScanPrompt(
       '- payee is who received the money: the "Paid to" / "Payee" / "Received by" name. Never use the signature of an approver or custodian.',
       "- items has one entry for EVERY row of the particulars table, in order, with that row's amount. Combine quantity and description into the description. If the table has one row, return one item.",
       "- Read handwriting carefully and give your best reading of unclear words or digits; never invent rows that are not on the page.",
+      "- Handwritten amounts: a zero is often drawn as a narrow oval, a slashed circle or a squiggle and is easily mistaken for 7, 6 or 8. Petty cash amounts are usually round figures such as 2,000 or 350.00, so prefer 0 for any unclear digit after the first. A comma is followed by exactly three digits (2,000 not 2,070). Read the amount column only; the particulars text is not part of the amount.",
       "- Ignore voucher numbers, signatures, stamps and the grand total row (put the grand total in total).",
       categoryRule + " If the form has its own account or category column, match it to the closest option.",
     ].join("\n");
