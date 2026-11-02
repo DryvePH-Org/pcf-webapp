@@ -47,6 +47,14 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
     return { ok: false, error: "Could not load categories." };
   }
 
+  // Recent payees help the model and let us correct misread handwriting.
+  const { data: recent } = await supabase
+    .from("vouchers")
+    .select("payee")
+    .order("created_at", { ascending: false })
+    .limit(300);
+  const knownPayees = [...new Set((recent ?? []).map((row) => row.payee))].slice(0, 40);
+
   const dataUrl = `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
 
   const request = () =>
@@ -70,6 +78,7 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
                   categories.map((category) => category.name),
                   todayInAppTz(),
                   kind,
+                  knownPayees,
                 ),
               },
               { type: "image_url", image_url: { url: dataUrl } },
@@ -104,7 +113,7 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
   const body = (await response.json()) as {
     choices?: { message?: { content?: string } }[];
   };
-  const receipt = parseScan(body.choices?.[0]?.message?.content ?? "", categories);
+  const receipt = parseScan(body.choices?.[0]?.message?.content ?? "", categories, knownPayees);
   if (!receipt) {
     return { ok: false, error: "Could not read that receipt. Try a clearer, flatter photo." };
   }

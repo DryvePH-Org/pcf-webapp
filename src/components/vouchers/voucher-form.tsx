@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { compressReceipt, uploadReceipt } from "@/lib/receipts";
+import { prepareScanImage, uploadReceipt } from "@/lib/receipts";
 import { parseMoney } from "@/lib/money";
 import { todayInAppTz } from "@/lib/dates";
 import {
@@ -164,14 +164,14 @@ export function VoucherForm({
     setScanning({ file: photo, kind });
     try {
       const body = new FormData();
-      body.set("image", await compressReceipt(photo), "scan.jpg");
+      body.set("image", await prepareScanImage(photo), "scan.jpg");
       body.set("kind", kind);
       const result = await scanReceipt(body);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      const { payee, voucher_date, lines: scanned } = result.receipt;
+      const { payee, voucher_date, lines: scanned, warnings } = result.receipt;
       if (payee) form.setValue("payee", payee, { shouldValidate: true });
       if (voucher_date) form.setValue("voucher_date", voucher_date, { shouldValidate: true });
       if (scanned.length > 0) {
@@ -180,6 +180,7 @@ export function VoucherForm({
       setFilledFromPhoto(true);
       if (kind === "voucher") setComparePhoto(photo);
       toast.success("Filled in from the photo. Check every field before saving.");
+      for (const warning of warnings) toast.warning(warning, { duration: 12000 });
     } catch {
       toast.error("The scan failed. Fill in the form by hand.");
     } finally {
