@@ -58,8 +58,11 @@ You hold the fund and hand out the cash.
    payee was paid for several items; the voucher total is the sum of the lines
    (up to 20) and can't exceed the per-transaction limit. Reports split the
    spending by each line's category.
-2. Attach a receipt photo (on a phone this opens the camera). No receipt? Give a
-   reason instead.
+2. Attach a receipt photo (on a phone this opens the camera). If the form is
+   still empty, the app reads the photo and fills in the payee, date, lines and
+   categories for you. **Always check them**: the reading can be wrong. Use
+   **Fill form from photo** to run it again (it replaces what you typed). No
+   receipt? Give a reason instead.
 3. **Save draft** to finish later, or **Save and release cash** to hand over
    the money now. Releasing lowers your expected cash by that amount.
 

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircleAlert, Plus, Save, Send, Trash2, Wallet } from "lucide-react";
+import { CircleAlert, Plus, Save, Send, Sparkles, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
+import { scanReceipt } from "@/actions/receipt-scan";
 import {
   createVoucher,
   releaseVoucher,
@@ -32,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { uploadReceipt } from "@/lib/receipts";
+import { compressReceipt, uploadReceipt } from "@/lib/receipts";
 import { parseMoney } from "@/lib/money";
 import { todayInAppTz } from "@/lib/dates";
 import {
@@ -58,6 +59,8 @@ export function VoucherForm({
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<Intent | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [filledFromPhoto, setFilledFromPhoto] = useState(false);
 
   const form = useForm<CreateVoucherValues>({
     resolver: zodResolver(createVoucherSchema),
@@ -94,6 +97,39 @@ export function VoucherForm({
     value: category.id,
     label: category.name,
   }));
+
+  // Reads the photo and pre-fills the form. Only runs over an untouched form
+  // unless the custodian asks for it, so typed work is never overwritten.
+  async function fillFromPhoto(photo: File, overwrite: boolean) {
+    const current = form.getValues();
+    const untouched =
+      !current.payee.trim() &&
+      current.items.every((item) => !item.particulars.trim() && !item.amount.trim());
+    if (!untouched && !overwrite) return;
+
+    setScanning(true);
+    try {
+      const body = new FormData();
+      body.set("image", await compressReceipt(photo), "receipt.jpg");
+      const result = await scanReceipt(body);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      const { payee, voucher_date, lines: scanned } = result.receipt;
+      if (payee) form.setValue("payee", payee, { shouldValidate: true });
+      if (voucher_date) form.setValue("voucher_date", voucher_date, { shouldValidate: true });
+      if (scanned.length > 0) {
+        lines.replace(scanned);
+      }
+      setFilledFromPhoto(true);
+      toast.success("Filled in from the photo. Check every field before saving.");
+    } catch {
+      toast.error("The scan failed. Fill in the form by hand.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function submit(values: CreateVoucherValues, nextIntent: Intent) {
     setServerError(null);
@@ -414,6 +450,8 @@ export function VoucherForm({
               onFileChange={(next) => {
                 setFile(next);
                 setReceiptError(null);
+                setFilledFromPhoto(false);
+                if (next) void fillFromPhoto(next, false);
               }}
               mode={mode}
               onModeChange={(next) => {
@@ -423,6 +461,25 @@ export function VoucherForm({
               disabled={submitting !== null}
               error={receiptError ?? undefined}
             />
+            {mode === "receipt" && file ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={scanning || submitting !== null}
+                  onClick={() => void fillFromPhoto(file, true)}
+                >
+                  <Sparkles />
+                  {scanning ? "Reading receipt..." : "Fill form from photo"}
+                </Button>
+                {filledFromPhoto ? (
+                  <p className="text-xs text-muted-foreground">
+                    Filled in by AI. Check the payee, date, amounts and categories.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {mode === "none" ? (

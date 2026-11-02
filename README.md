@@ -44,6 +44,8 @@ Open http://localhost:3000.
 | `SUPABASE_SERVICE_ROLE_KEY` | server only | Never prefix with `NEXT_PUBLIC_` |
 | `NEXT_PUBLIC_APP_TIMEZONE` | client + server | `Asia/Manila` |
 | `RESEND_API_KEY` | server only | Sends the sign-in code emails |
+| `GROQ_API_KEY` | server only, optional | Reads receipt photos to pre-fill vouchers (without it the form just stays manual) |
+| `GROQ_MODEL` | server only, optional | Groq vision model; defaults to `qwen/qwen3.8-27b` |
 | `RESEND_FROM` | server only, optional | Sender, e.g. `Petty Cash <noreply@your-domain>`; defaults to Resend's shared test sender |
 | `APP_URL` | server only, optional | Base URL used in email links; defaults to the live site |
 | `CRON_SECRET` | server only | Protects `/api/cron/digest`; must match the GitHub secret of the same name |
