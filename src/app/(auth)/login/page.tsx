@@ -11,9 +11,22 @@ const HIGHLIGHTS = [
   { icon: Wallet, text: "Live imprest balance you can verify" },
 ];
 
-export default async function LoginPage() {
+const CALLBACK_ERRORS: Record<string, string> = {
+  invalid_link: "That link has expired or was already used. Request a new one.",
+  inactive: "Your account is inactive. Contact an administrator.",
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
+
+  const params = await searchParams;
+  const errorParam = Array.isArray(params.error) ? params.error[0] : params.error;
+  const initialError = errorParam ? (CALLBACK_ERRORS[errorParam] ?? null) : null;
 
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
@@ -78,11 +91,11 @@ export default async function LoginPage() {
               Sign in
             </h2>
             <p className="text-sm text-muted-foreground">
-              Use the account provided by your administrator.
+              Enter your email and we&apos;ll send you a one-time sign-in link.
             </p>
           </div>
 
-          <LoginForm />
+          <LoginForm initialError={initialError} />
 
           <p className="text-xs text-muted-foreground">
             Accounts are created by an admin. If you need access, contact your

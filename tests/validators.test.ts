@@ -315,7 +315,6 @@ describe('user schemas', () => {
   const validUser = {
     full_name: 'Maria Santos',
     email: 'Maria@Example.com',
-    password: 'Secret123',
     role: 'custodian',
   };
 
@@ -324,20 +323,10 @@ describe('user schemas', () => {
     expect(parsed.email).toBe('maria@example.com');
   });
 
-  it('rejects invalid emails, weak passwords, and unknown roles', () => {
+  it('rejects invalid emails, unknown roles, and blank names', () => {
     expect(
       createUserSchema.safeParse({ ...validUser, email: 'not-an-email' })
         .success,
-    ).toBe(false);
-    expect(
-      createUserSchema.safeParse({ ...validUser, password: 'short1' }).success,
-    ).toBe(false);
-    expect(
-      createUserSchema.safeParse({ ...validUser, password: 'lettersonly' })
-        .success,
-    ).toBe(false);
-    expect(
-      createUserSchema.safeParse({ ...validUser, password: '12345678' }).success,
     ).toBe(false);
     expect(
       createUserSchema.safeParse({ ...validUser, role: 'owner' }).success,

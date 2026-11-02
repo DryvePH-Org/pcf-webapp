@@ -27,7 +27,6 @@ import {
 const emptyValues: CreateUserValues = {
   full_name: "",
   email: "",
-  password: "",
   role: "custodian",
 };
 
@@ -81,7 +80,7 @@ export function UserFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="New user"
-      description="Create an account and share the temporary password with them."
+      description="They'll sign in with a magic link sent to this email — no password to set or share."
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
@@ -111,57 +110,35 @@ export function UserFormDialog({
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="user-password">Temporary password</Label>
-            <Input
-              id="user-password"
-              type="password"
-              autoComplete="new-password"
-              {...form.register("password")}
-              aria-invalid={Boolean(errors.password)}
-            />
-            {errors.password ? (
-              <p className="text-xs text-destructive">
-                {errors.password.message}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                At least 8 characters with a letter and a number.
-              </p>
+        <div className="space-y-2">
+          <Label>Role</Label>
+          <Controller
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(value) =>
+                  field.onChange(value ?? "custodian")
+                }
+                items={roleItems}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <Controller
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={(value) =>
-                    field.onChange(value ?? "custodian")
-                  }
-                  items={roleItems}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roleItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.role ? (
-              <p className="text-xs text-destructive">{errors.role.message}</p>
-            ) : null}
-          </div>
+          />
+          {errors.role ? (
+            <p className="text-xs text-destructive">{errors.role.message}</p>
+          ) : null}
         </div>
 
         {serverError ? (

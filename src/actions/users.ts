@@ -29,12 +29,11 @@ export async function createUser(input: CreateUserValues): Promise<ActionResult>
 
   const parsed = createUserSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
-  const { full_name, email, password, role } = parsed.data;
+  const { full_name, email, role } = parsed.data;
 
   const adminClient = createAdminClient();
   const { data, error } = await adminClient.auth.admin.createUser({
     email,
-    password,
     email_confirm: true,
     user_metadata: { full_name },
   });
