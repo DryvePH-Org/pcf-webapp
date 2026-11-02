@@ -457,6 +457,11 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       approve_voucher: { Args: { p_id: string }; Returns: undefined }
+      assign_custodian_funds: {
+        Args: { p_fund_ids: string[]; p_user_id: string }
+        Returns: undefined
+      }
+      can_access_fund: { Args: { p_fund_id: string }; Returns: boolean }
       close_replenishment: { Args: { p_id: string }; Returns: undefined }
       create_replenishment: { Args: { p_fund_id: string }; Returns: string }
       create_voucher: {
@@ -495,6 +500,7 @@ export type Database = {
         Returns: undefined
       }
       release_voucher: { Args: { p_id: string }; Returns: undefined }
+      require_fund_access: { Args: { p_fund_id: string }; Returns: undefined }
       require_role: {
         Args: { p_roles: Database["public"]["Enums"]["user_role"][] }
         Returns: Database["public"]["Enums"]["user_role"]

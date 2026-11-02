@@ -54,6 +54,10 @@ differs from the expected amount you must add a note.
 replenishment**. It bundles every released, approved, or flagged voucher not yet
 reimbursed. Check the totals, then **Submit to accounting**.
 
+You only see the funds an administrator has assigned to you. If you have none,
+the dashboard says so; ask an administrator. When your funds change you get an
+email.
+
 A flagged voucher shows the approver's reason. It can't be edited; ask an admin
 to void it, or ask the approver to approve it once the issue is resolved.
 
@@ -90,9 +94,12 @@ You can do everything above, plus set the system up.
 
 - **Admin → Users**: create a user with their email and role (they receive no
   password — they sign in with a code), change roles, deactivate people who
-  leave.
+  leave. For a custodian, the **Funds** column shows what they hold; click
+  **Assign** or **Change** and tick the funds they should have (one custodian
+  can hold many; ticking a fund held by someone else moves it). Before you
+  deactivate a custodian or change their role, reassign their funds.
 - **Admin → Funds**: create the fund, set its amount, per-transaction limit,
-  low-balance warning level, and custodian. Changing the fund amount changes the
+  low-balance warning level, and custodian. A fund has one custodian. Changing the fund amount changes the
   equation, so you're warned first.
 - **Admin → Categories**: add, rename, or deactivate (never delete) categories.
 - **Voiding**: only admins can void a voucher that has been released, and a

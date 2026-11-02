@@ -164,7 +164,7 @@ export default async function CashCountPage() {
         <EmptyState
           icon={Wallet}
           title="No active fund"
-          description="Ask an administrator to set up an active fund before recording counts."
+          description="Ask an administrator to assign you an active fund before recording counts."
         />
       ) : (
         <CashCountForm funds={countFunds} />

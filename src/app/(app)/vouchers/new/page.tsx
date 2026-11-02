@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewVoucherPage() {
-  await requireUser("/vouchers/new");
+  const user = await requireUser("/vouchers/new");
   const supabase = await createClient();
 
   const [fundsResult, categoriesResult] = await Promise.all([
@@ -46,8 +46,16 @@ export default async function NewVoucherPage() {
       {funds.length === 0 || categories.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="Setup needed first"
-          description="Add at least one active fund and category before recording a voucher."
+          title={
+            funds.length === 0 && user.role === "custodian"
+              ? "No fund assigned yet"
+              : "Setup needed first"
+          }
+          description={
+            funds.length === 0 && user.role === "custodian"
+              ? "Ask an administrator to assign you a fund before recording a voucher."
+              : "Add at least one active fund and category before recording a voucher."
+          }
         />
       ) : (
         <VoucherForm funds={funds} categories={categories} />

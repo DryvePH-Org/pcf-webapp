@@ -6,7 +6,8 @@ import { Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { setUserActive, updateUserRole } from "@/actions/users";
-import type { UserRow } from "@/components/admin/types";
+import { AssignFundsDialog } from "@/components/admin/assign-funds-dialog";
+import type { FundAssignmentOption, UserRow } from "@/components/admin/types";
 import { UserFormDialog } from "@/components/admin/user-form-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -34,14 +35,17 @@ const roleItems = ALL_ROLES.map((role) => ({
 
 export function UsersManager({
   users,
+  funds,
   currentUserId,
 }: {
   users: UserRow[];
+  funds: FundAssignmentOption[];
   currentUserId: string;
 }) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<UserRow | null>(null);
+  const [assigning, setAssigning] = useState<UserRow | null>(null);
   const [pending, setPending] = useState(false);
 
   async function setActive(user: UserRow, isActive: boolean) {
@@ -89,6 +93,11 @@ export function UsersManager({
           onChanged={() => router.refresh()}
         />
       ),
+    },
+    {
+      key: "funds",
+      header: "Funds",
+      cell: (user) => <FundsCell user={user} onAssign={() => setAssigning(user)} />,
     },
     {
       key: "status",
@@ -190,6 +199,10 @@ export function UsersManager({
                 )}
               </div>
 
+              {user.role === "custodian" ? (
+                <FundsCell user={user} onAssign={() => setAssigning(user)} />
+              ) : null}
+
               <p className="text-xs text-muted-foreground">
                 Joined {user.joined}
               </p>
@@ -216,6 +229,22 @@ export function UsersManager({
         />
       ) : null}
 
+      {assigning ? (
+        <AssignFundsDialog
+          key={assigning.id}
+          open
+          user={assigning}
+          funds={funds}
+          onOpenChange={(next) => {
+            if (!next) setAssigning(null);
+          }}
+          onSaved={() => {
+            toast.success("Funds updated");
+            router.refresh();
+          }}
+        />
+      ) : null}
+
       <ConfirmDialog
         open={deactivating !== null}
         onOpenChange={(next) => {
@@ -234,6 +263,31 @@ export function UsersManager({
           if (deactivating) void setActive(deactivating, false);
         }}
       />
+    </div>
+  );
+}
+
+function FundsCell({
+  user,
+  onAssign,
+}: {
+  user: UserRow;
+  onAssign: () => void;
+}) {
+  if (user.role !== "custodian") {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className={user.funds.length ? "text-sm" : "text-sm text-muted-foreground"}>
+        {user.funds.length ? user.funds.join(", ") : "No funds assigned"}
+      </span>
+      {user.is_active ? (
+        <Button variant="outline" size="sm" onClick={onAssign}>
+          {user.funds.length ? "Change" : "Assign"}
+        </Button>
+      ) : null}
     </div>
   );
 }

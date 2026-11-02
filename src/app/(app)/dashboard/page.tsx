@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Wallet } from "lucide-react";
 
 import {
   BalanceCard,
   type BalanceFund,
 } from "@/components/dashboard/balance-card";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyText } from "@/components/shared/money-text";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -238,6 +240,16 @@ export default async function DashboardPage() {
             <BalanceCard key={fund.fund_id} fund={fund} />
           ))}
         </div>
+      ) : seesCash ? (
+        <EmptyState
+          icon={Wallet}
+          title={user.role === "custodian" ? "No fund assigned yet" : "No fund set up yet"}
+          description={
+            user.role === "custodian"
+              ? "Ask an administrator to assign you a fund. It will appear here once they do."
+              : "Create a fund under Admin → Funds, then assign it to a custodian under Admin → Users."
+          }
+        />
       ) : null}
 
       <div className="grid gap-6 md:grid-cols-2">

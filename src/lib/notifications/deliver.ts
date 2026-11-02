@@ -22,6 +22,7 @@ export type NotificationEvent =
   | "replenishment.rejected"
   | "replenishment.closed"
   | "fund.low_balance"
+  | "fund.assignment_changed"
   | "cash_count.variance"
   | "user.welcome"
   | "user.role_changed"

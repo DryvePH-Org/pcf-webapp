@@ -7,6 +7,7 @@ import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { queueNotification } from "@/lib/notifications/deliver";
 import {
+  notifyFundAssignment,
   notifyUserAccessChanged,
   notifyUserRoleChanged,
   notifyUserWelcome,
@@ -25,6 +26,20 @@ function validationError(error: z.ZodError): ActionResult {
     "Check the highlighted fields.",
     z.flattenError(error).fieldErrors as Record<string, string[]>,
   );
+}
+
+
+async function heldFunds(userId: string) {
+  const { data, error } = await createAdminClient()
+    .from("funds")
+    .select("id, name")
+    .eq("custodian_id", userId);
+  if (error) throw error;
+  return data;
+}
+
+function heldFundsMessage(names: string[]) {
+  return `This custodian still holds ${names.join(", ")}. Reassign ${names.length === 1 ? "that fund" : "those funds"} first.`;
 }
 
 export async function createUser(input: CreateUserValues): Promise<ActionResult> {
@@ -84,6 +99,13 @@ export async function updateUserRole(input: {
   const parsed = updateUserRoleSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
 
+  if (parsed.data.role !== "custodian") {
+    const held = await heldFunds(parsed.data.userId);
+    if (held.length > 0) {
+      return actionError(heldFundsMessage(held.map((fund) => fund.name)));
+    }
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -119,6 +141,13 @@ export async function setUserActive(input: {
   const parsed = setUserActiveSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
 
+  if (!parsed.data.isActive) {
+    const held = await heldFunds(parsed.data.userId);
+    if (held.length > 0) {
+      return actionError(heldFundsMessage(held.map((fund) => fund.name)));
+    }
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -136,5 +165,61 @@ export async function setUserActive(input: {
     notifyUserAccessChanged(changedId, active, admin.id),
   );
   revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+const setCustodianFundsSchema = z.object({
+  userId: z.string().uuid(),
+  fundIds: z.array(z.string().uuid()).max(200),
+});
+
+export async function setCustodianFunds(input: {
+  userId: string;
+  fundIds: string[];
+}): Promise<ActionResult> {
+  const admin = await getAdminUser();
+  if (!admin) return actionError("Only administrators can assign funds.");
+
+  const parsed = setCustodianFundsSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  const { userId } = parsed.data;
+  const fundIds = [...new Set(parsed.data.fundIds)];
+
+  // Remember who held what, so everyone affected can be told afterwards.
+  const { data: funds, error: readError } = await createAdminClient()
+    .from("funds")
+    .select("id, name, custodian_id");
+  if (readError) return actionError(readError.message);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("assign_custodian_funds", {
+    p_user_id: userId,
+    p_fund_ids: fundIds,
+  });
+  if (error) return actionError(error.message);
+
+  const selected = new Set(fundIds);
+  const added = funds.filter((fund) => selected.has(fund.id) && fund.custodian_id !== userId);
+  const removed = funds.filter((fund) => !selected.has(fund.id) && fund.custodian_id === userId);
+
+  const changes = new Map<string, { added: string[]; removed: string[] }>();
+  const entry = (id: string) => {
+    if (!changes.has(id)) changes.set(id, { added: [], removed: [] });
+    return changes.get(id)!;
+  };
+  for (const fund of added) {
+    entry(userId).added.push(fund.name);
+    if (fund.custodian_id) entry(fund.custodian_id).removed.push(fund.name);
+  }
+  for (const fund of removed) entry(userId).removed.push(fund.name);
+
+  for (const [recipientId, change] of changes) {
+    queueNotification("fund.assignment_changed", () =>
+      notifyFundAssignment({ userId: recipientId, ...change, actorId: admin.id }),
+    );
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/funds");
   return { ok: true };
 }

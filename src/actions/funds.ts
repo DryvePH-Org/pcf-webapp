@@ -6,6 +6,8 @@ import { z } from "zod";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
+import { queueNotification } from "@/lib/notifications/deliver";
+import { notifyFundAssignment } from "@/lib/notifications/events";
 import { createClient } from "@/lib/supabase/server";
 import { saveFundSchema, type SaveFundInput } from "@/lib/validators/fund";
 
@@ -36,17 +38,19 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   };
 
   const supabase = await createClient();
+  let previousCustodian: string | null = null;
 
   if (id) {
     const { data: current, error: readError } = await supabase
       .from("funds")
-      .select("amount")
+      .select("amount, custodian_id")
       .eq("id", id)
       .maybeSingle();
 
     if (readError) return actionError(readError.message);
     if (!current) return actionError("Fund not found.");
 
+    previousCustodian = current.custodian_id;
     const amountChanged =
       parseMoney(String(current.amount)) !== parseMoney(values.amount);
     if (amountChanged && !confirmAmountChange) {
@@ -60,6 +64,22 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   } else {
     const { error } = await supabase.from("funds").insert(payload);
     if (error) return actionError(error.message);
+  }
+
+  if (previousCustodian !== payload.custodian_id) {
+    const fundName = payload.name;
+    const previous = previousCustodian;
+    const next = payload.custodian_id;
+    if (next) {
+      queueNotification("fund.assignment_changed", () =>
+        notifyFundAssignment({ userId: next, added: [fundName], removed: [], actorId: admin.id }),
+      );
+    }
+    if (previous) {
+      queueNotification("fund.assignment_changed", () =>
+        notifyFundAssignment({ userId: previous, added: [], removed: [fundName], actorId: admin.id }),
+      );
+    }
   }
 
   revalidatePath("/admin/funds");

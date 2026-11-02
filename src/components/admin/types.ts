@@ -28,4 +28,13 @@ export type UserRow = {
   role: Role;
   is_active: boolean;
   joined: string;
+  funds: string[];
+};
+
+export type FundAssignmentOption = {
+  id: string;
+  name: string;
+  amount: string;
+  custodian_id: string | null;
+  custodian_name: string | null;
 };

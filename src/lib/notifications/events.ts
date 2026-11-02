@@ -366,6 +366,49 @@ export async function notifyCashCountVariance(input: {
   });
 }
 
+export async function notifyFundAssignment(input: {
+  userId: string;
+  added: string[];
+  removed: string[];
+  actorId: string;
+}) {
+  if (input.added.length === 0 && input.removed.length === 0) return;
+  const [recipient, actor] = await Promise.all([
+    recipientById(input.userId),
+    nameOf(input.actorId),
+  ]);
+  if (!recipient) return;
+
+  const paragraphs: string[] = [];
+  if (input.added.length > 0) {
+    paragraphs.push(
+      `${actor} made you the custodian of: ${input.added.join(", ")}. You can now record vouchers, count cash, and request replenishments for ${input.added.length === 1 ? "it" : "them"}.`,
+    );
+  }
+  if (input.removed.length > 0) {
+    paragraphs.push(
+      `${actor} removed you as custodian of: ${input.removed.join(", ")}. You no longer see or work with ${input.removed.length === 1 ? "that fund" : "those funds"}.`,
+    );
+  }
+
+  await notify({
+    event: "fund.assignment_changed",
+    entityType: "profiles",
+    entityId: input.userId,
+    recipients: [recipient],
+    subject:
+      input.added.length > 0
+        ? `You're now the custodian of ${input.added.join(", ")}`
+        : `You were removed as custodian of ${input.removed.join(", ")}`,
+    content: () => ({
+      tone: input.added.length > 0 ? "action" : "info",
+      heading: "Your fund assignment changed",
+      paragraphs,
+      cta: { label: "Open the app", path: "/dashboard" },
+    }),
+  });
+}
+
 // -------------------------------------------------------------------- users
 
 export async function notifyUserWelcome(userId: string, role: Role, actorId: string) {

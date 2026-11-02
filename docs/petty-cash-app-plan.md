@@ -70,6 +70,7 @@ The original draft assumed cash was released only after approval. We changed to 
 - **Cache Components is off** (`cacheComponents` removed). It made every request hang on the Workers runtime, and nothing in the app used `"use cache"`.
 - **Two Supabase projects.** Development/test is `PCFproject` (seeded with `@pcf.local` test users); production is `PCFprojectProd` (no test data). `pnpm run deploy` pins the production URL and publishable key at build time, because `NEXT_PUBLIC_*` values are inlined into the bundle.
 - **Sign-in is passwordless and by code.** Admins create accounts by email and role; nobody sets a password. The login page asks for an email, the server checks the account exists and is active, generates a one-time code with `auth.admin.generateLink`, and emails it through the Resend HTTP API. The user types the code. Links were dropped because a company email scanner opened them first and used them up, and Supabase's own email sender was rate limiting every request.
+- **Multiple funds, one accountable custodian each.** A custodian holds many funds but each fund has a single custodian (`funds.custodian_id`), as imprest control expects. Custodians only see and act on their own funds (row-level security plus checks inside the RPCs and on receipt photos); admins, approvers, and accounting see all funds. Voucher numbers run sequentially across all funds per year because `pcv_number` must be unique system-wide.
 - Resend's shared sender (`onboarding@resend.dev`) only delivers to the Resend account owner. A verified sending domain is required before other staff can sign in.
 
 ---
@@ -578,7 +579,7 @@ Do **not** build these until asked.
 2. ~~**Email notifications** (Resend)~~ — built (2026-11-02): voucher, replenishment, low-balance, cash-count variance, and user events, plus a daily digest. See README.
 3. **Employee request flow:** employees submit a cash request that the custodian converts into a voucher.
 4. **Messenger or Telegram bot** for submitting requests.
-5. **Multiple funds** with fund-specific custodians and permissions.
+5. ~~**Multiple funds** with fund-specific custodians and permissions~~ — built (2026-11-02): one accountable custodian per fund, many funds per custodian, custodians confined to their own funds. See README.
 6. **Receipt OCR** to auto-fill amount and payee.
 
 ---

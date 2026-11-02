@@ -65,6 +65,22 @@ in Resend, then set `RESEND_FROM` to an address on it.
 For tests and local work, the `@pcf.local` seed accounts can't receive email;
 the Playwright helpers sign them in by generating a code with the Admin API.
 
+## Funds and custodians
+
+A fund has **one accountable custodian**, and a custodian can hold **many
+funds**. Admins assign them from **Admin → Users** (the Funds column: Assign /
+Change, tick the funds) or from **Admin → Funds** (the custodian dropdown).
+
+- A custodian only sees, and can only act on, their own funds: vouchers,
+  replenishments, cash counts, and receipt photos for other funds are hidden by
+  row-level security, and recording, releasing, replenishing, or counting cash
+  on someone else's fund is rejected by the database.
+- Admins, approvers, and accounting work across every fund.
+- A custodian who still holds a fund can't be deactivated or moved to another
+  role until the fund is reassigned.
+- Voucher numbers (`PCV-YYYY-NNNN`) run sequentially across all funds per year,
+  because the number must be unique system-wide.
+
 ## Email notifications
 
 Emails are sent through Resend from the server actions, after the response, so a
@@ -82,6 +98,7 @@ recorded in `notification_log` and shown to admins at **Admin → Notifications*
 | Replenishment rejected | Requester + admins (with the note) |
 | Replenishment closed | Requester + admins — fund restored |
 | Fund drops below its warning level | The fund's custodian + admins + accounting |
+| Funds assigned to / removed from a custodian | That custodian (and the one who lost a fund) |
 | Cash count doesn't match | Admins + accounting |
 | User created / role changed / access changed | That user |
 | Daily summary (08:00 Manila) | Each role, only if something is waiting on them |
