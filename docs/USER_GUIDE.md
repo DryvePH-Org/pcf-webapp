@@ -58,11 +58,15 @@ You hold the fund and hand out the cash.
    payee was paid for several items; the voucher total is the sum of the lines
    (up to 20) and can't exceed the per-transaction limit. Reports split the
    spending by each line's category.
+   **Shortcut:** on the Vouchers page, **Scan paper voucher** takes a photo of
+   your signed paper petty cash voucher and fills the form from it, one line per
+   particular (the same button sits at the top of the New voucher form). The
+   paper photo is only read, not saved. Handwriting can be misread, so always
+   check the payee, date, amounts and categories.
 2. Attach a receipt photo (on a phone this opens the camera). If the form is
-   still empty, the app reads the photo and fills in the payee, date, lines and
-   categories for you. **Always check them**: the reading can be wrong. Use
-   **Fill form from photo** to run it again (it replaces what you typed). No
-   receipt? Give a reason instead.
+   still empty, the app also reads a store receipt and fills the form from it.
+   Use **Fill form from receipt** to run it again (it replaces what you typed).
+   No receipt? Give a reason instead.
 3. **Save draft** to finish later, or **Save and release cash** to hand over
    the money now. Releasing lowers your expected cash by that amount.
 

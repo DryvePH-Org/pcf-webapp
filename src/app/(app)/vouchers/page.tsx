@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ReceiptText, Search } from "lucide-react";
+import { FileScan, ReceiptText, Search } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
@@ -244,10 +244,20 @@ export default async function VouchersPage({
               label="Export CSV"
             />
             {canPerform(user.role, "voucher.create") ? (
-              <Button nativeButton={false} render={<Link href="/vouchers/new" />}>
-                <ReceiptText />
-                New voucher
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href="/vouchers/new?scan=1" />}
+                >
+                  <FileScan />
+                  Scan paper voucher
+                </Button>
+                <Button nativeButton={false} render={<Link href="/vouchers/new" />}>
+                  <ReceiptText />
+                  New voucher
+                </Button>
+              </>
             ) : null}
           </>
         }

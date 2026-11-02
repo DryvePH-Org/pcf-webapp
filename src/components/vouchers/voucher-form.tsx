@@ -19,6 +19,8 @@ import {
   ReceiptUploader,
   type ReceiptMode,
 } from "@/components/vouchers/receipt-uploader";
+import { PaperVoucherScanner } from "@/components/vouchers/paper-voucher-scanner";
+import { ScanProgress } from "@/components/vouchers/scan-progress";
 import { MoneyText } from "@/components/shared/money-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -49,9 +51,11 @@ type Intent = "draft" | "release" | "submit";
 export function VoucherForm({
   funds,
   categories,
+  highlightScan = false,
 }: {
   funds: FundOption[];
   categories: CategoryOption[];
+  highlightScan?: boolean;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -59,7 +63,8 @@ export function VoucherForm({
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<Intent | null>(null);
-  const [scanning, setScanning] = useState(false);
+  // The photo being read right now, and which kind of document it is.
+  const [scanning, setScanning] = useState<{ file: File; kind: "receipt" | "voucher" } | null>(null);
   const [filledFromPhoto, setFilledFromPhoto] = useState(false);
 
   const form = useForm<CreateVoucherValues>({
@@ -100,17 +105,28 @@ export function VoucherForm({
 
   // Reads the photo and pre-fills the form. Only runs over an untouched form
   // unless the custodian asks for it, so typed work is never overwritten.
-  async function fillFromPhoto(photo: File, overwrite: boolean) {
+  async function fillFromPhoto(
+    photo: File,
+    kind: "receipt" | "voucher",
+    overwrite: boolean,
+  ) {
     const current = form.getValues();
     const untouched =
       !current.payee.trim() &&
       current.items.every((item) => !item.particulars.trim() && !item.amount.trim());
     if (!untouched && !overwrite) return;
+    if (
+      !untouched &&
+      !window.confirm("This replaces the payee and lines you have typed. Continue?")
+    ) {
+      return;
+    }
 
-    setScanning(true);
+    setScanning({ file: photo, kind });
     try {
       const body = new FormData();
-      body.set("image", await compressReceipt(photo), "receipt.jpg");
+      body.set("image", await compressReceipt(photo), "scan.jpg");
+      body.set("kind", kind);
       const result = await scanReceipt(body);
       if (!result.ok) {
         toast.error(result.error);
@@ -127,7 +143,7 @@ export function VoucherForm({
     } catch {
       toast.error("The scan failed. Fill in the form by hand.");
     } finally {
-      setScanning(false);
+      setScanning(null);
     }
   }
 
@@ -229,6 +245,13 @@ export function VoucherForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={submitDraft} noValidate>
+          <PaperVoucherScanner
+            highlight={highlightScan}
+            scanning={scanning?.kind === "voucher" ? scanning.file : null}
+            disabled={scanning !== null || submitting !== null}
+            onPick={(photo) => void fillFromPhoto(photo, "voucher", true)}
+          />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="voucher-date">Voucher date</Label>
@@ -451,7 +474,7 @@ export function VoucherForm({
                 setFile(next);
                 setReceiptError(null);
                 setFilledFromPhoto(false);
-                if (next) void fillFromPhoto(next, false);
+                if (next) void fillFromPhoto(next, "receipt", false);
               }}
               mode={mode}
               onModeChange={(next) => {
@@ -461,17 +484,20 @@ export function VoucherForm({
               disabled={submitting !== null}
               error={receiptError ?? undefined}
             />
-            {mode === "receipt" && file ? (
+            {scanning?.kind === "receipt" ? (
+              <ScanProgress file={scanning.file} label="Reading the receipt..." />
+            ) : null}
+            {mode === "receipt" && file && scanning?.kind !== "receipt" ? (
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={scanning || submitting !== null}
-                  onClick={() => void fillFromPhoto(file, true)}
+                  disabled={scanning !== null || submitting !== null}
+                  onClick={() => void fillFromPhoto(file, "receipt", true)}
                 >
                   <Sparkles />
-                  {scanning ? "Reading receipt..." : "Fill form from photo"}
+                  Fill form from receipt
                 </Button>
                 {filledFromPhoto ? (
                   <p className="text-xs text-muted-foreground">

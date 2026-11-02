@@ -29,19 +29,42 @@ const rawSchema = z.object({
   total: z.union([z.number(), z.string()]).nullish(),
 });
 
-export function buildScanPrompt(categoryNames: string[], today: string) {
-  return [
-    "You read photos of Philippine petty cash documents: a filled-in paper petty cash voucher (often handwritten, with signatures), or a store receipt or invoice.",
+export type ScanKind = "receipt" | "voucher";
+
+const SHAPE =
+  '{"payee": string|null, "date": "YYYY-MM-DD"|null, "items": [{"description": string, "amount": number, "category": string|null}], "total": number|null}';
+
+export function buildScanPrompt(
+  categoryNames: string[],
+  today: string,
+  kind: ScanKind = "receipt",
+) {
+  const categoryRule = `- category must be exactly one of: ${categoryNames.map((name) => JSON.stringify(name)).join(", ")}; use null if none fits.`;
+  const common = [
     "Return ONLY a JSON object with this shape:",
-    '{"payee": string|null, "date": "YYYY-MM-DD"|null, "items": [{"description": string, "amount": number, "category": string|null}], "total": number|null}',
+    SHAPE,
     "Rules:",
-    '- payee is who received the money: the "Paid to" / "Payee" / "Received by" name on a voucher, or the store or supplier name on a receipt. Never use the signature of an approver or custodian.',
-    `- date is the voucher or receipt date as YYYY-MM-DD. Today is ${today}; use it to resolve a missing year. Philippine dates are usually month/day/year. Use null if unreadable.`,
-    "- items lists each line of the particulars table with its peso amount (the line total, not the unit price). Combine quantity and description into the description. If only a total is readable, return one item describing the purchase briefly.",
-    "- Read handwriting carefully. If an amount or word is unclear, still give your best reading; never invent lines that are not on the page.",
-    "- Ignore voucher numbers, signatures, stamps, VAT, change, cash tendered and discount lines unless they are the only amount.",
-    `- category must be exactly one of: ${categoryNames.map((name) => JSON.stringify(name)).join(", ")}; use null if none fits. If the form has its own account or category column, match it to the closest option.`,
+    `- date is the date as YYYY-MM-DD. Today is ${today}; use it to resolve a missing year. Philippine dates are usually month/day/year. Use null if unreadable.`,
     "- amount is a plain number with no currency symbol or thousands separators.",
+  ];
+  if (kind === "voucher") {
+    return [
+      "You read a photo of a filled-in paper petty cash voucher (often handwritten, with signatures).",
+      ...common,
+      '- payee is who received the money: the "Paid to" / "Payee" / "Received by" name. Never use the signature of an approver or custodian.',
+      "- items has one entry for EVERY row of the particulars table, in order, with that row's amount. Combine quantity and description into the description. If the table has one row, return one item.",
+      "- Read handwriting carefully and give your best reading of unclear words or digits; never invent rows that are not on the page.",
+      "- Ignore voucher numbers, signatures, stamps and the grand total row (put the grand total in total).",
+      categoryRule + " If the form has its own account or category column, match it to the closest option.",
+    ].join("\n");
+  }
+  return [
+    "You read a photo of a store receipt or invoice for a petty cash voucher.",
+    ...common,
+    "- payee is the store or supplier name printed on the receipt.",
+    "- items lists each purchased line with its peso amount (the line total, not the unit price). If only a total is readable, return one item describing the purchase briefly.",
+    "- Do not invent items. Skip VAT, change, cash tendered and discount lines unless they are the only amount.",
+    categoryRule,
   ].join("\n");
 }
 

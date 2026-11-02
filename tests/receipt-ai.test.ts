@@ -65,4 +65,11 @@ describe('buildScanPrompt', () => {
     expect(prompt).toContain('"Meals", "Fuel"');
     expect(prompt).toContain('2026-11-02');
   });
+
+  it('asks for every table row when reading a paper voucher', () => {
+    const prompt = buildScanPrompt(['Meals'], '2026-11-02', 'voucher');
+    expect(prompt).toContain('paper petty cash voucher');
+    expect(prompt).toContain('EVERY row');
+    expect(buildScanPrompt(['Meals'], '2026-11-02')).toContain('store receipt');
+  });
 });

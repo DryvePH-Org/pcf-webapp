@@ -2,7 +2,12 @@
 
 import { getCurrentUser } from "@/lib/auth";
 import { todayInAppTz } from "@/lib/dates";
-import { buildScanPrompt, parseScan, type ScannedReceipt } from "@/lib/receipt-ai";
+import {
+  buildScanPrompt,
+  parseScan,
+  type ScanKind,
+  type ScannedReceipt,
+} from "@/lib/receipt-ai";
 import { createClient } from "@/lib/supabase/server";
 
 export type ScanResult =
@@ -30,6 +35,8 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
   if (file.size > MAX_BYTES) {
     return { ok: false, error: "That photo is too large to scan." };
   }
+
+  const kind: ScanKind = formData.get("kind") === "voucher" ? "voucher" : "receipt";
 
   const supabase = await createClient();
   const { data: categories, error } = await supabase
@@ -63,6 +70,7 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
                 text: buildScanPrompt(
                   categories.map((category) => category.name),
                   todayInAppTz(),
+                  kind,
                 ),
               },
               { type: "image_url", image_url: { url: dataUrl } },

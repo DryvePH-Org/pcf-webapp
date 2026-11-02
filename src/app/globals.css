@@ -145,3 +145,27 @@
     print-color-adjust: exact;
   }
 }
+
+/* Sweeping line over a photo while it is being read. */
+@keyframes scan-sweep {
+  0% {
+    top: 0;
+  }
+  50% {
+    top: calc(100% - 3px);
+  }
+  100% {
+    top: 0;
+  }
+}
+
+.scan-sweep {
+  animation: scan-sweep 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-sweep {
+    animation: none;
+    top: 50%;
+  }
+}

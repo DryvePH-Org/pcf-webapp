@@ -7,7 +7,12 @@ import type { CategoryOption, FundOption } from "@/components/vouchers/types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function NewVoucherPage() {
+export default async function NewVoucherPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scan?: string }>;
+}) {
+  const { scan } = await searchParams;
   const user = await requireUser("/vouchers/new");
   const supabase = await createClient();
 
@@ -59,7 +64,11 @@ export default async function NewVoucherPage() {
           }
         />
       ) : (
-        <VoucherForm funds={funds} categories={categories} />
+        <VoucherForm
+          funds={funds}
+          categories={categories}
+          highlightScan={scan === "1"}
+        />
       )}
     </div>
   );
