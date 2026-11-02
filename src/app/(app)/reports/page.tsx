@@ -59,7 +59,7 @@ export default async function ReportsPage({
 
   let voucherQuery = supabase
     .from("vouchers")
-    .select("pcv_number, voucher_date, payee, amount, category_id")
+    .select("pcv_number, voucher_date, payee, amount, category_id, voucher_items(amount, category_id)")
     .neq("status", "void")
     .not("released_at", "is", null);
   if (from) voucherQuery = voucherQuery.gte("voucher_date", from);
@@ -106,11 +106,17 @@ export default async function ReportsPage({
   const payeeTotals = new Map<string, number>();
 
   for (const voucher of vouchers) {
-    const categoryName = categoryNames.get(voucher.category_id) ?? "—";
-    categoryTotals.set(
-      categoryName,
-      (categoryTotals.get(categoryName) ?? 0) + Number(voucher.amount),
-    );
+    // Each line counts toward its own category.
+    const spread = voucher.voucher_items.length
+      ? voucher.voucher_items
+      : [{ amount: voucher.amount, category_id: voucher.category_id }];
+    for (const line of spread) {
+      const categoryName = categoryNames.get(line.category_id) ?? "—";
+      categoryTotals.set(
+        categoryName,
+        (categoryTotals.get(categoryName) ?? 0) + Number(line.amount),
+      );
+    }
 
     const monthKey = voucher.voucher_date.slice(0, 7);
     monthTotals.set(

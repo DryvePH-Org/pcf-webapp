@@ -8,7 +8,7 @@ export function VoucherPrint({
   fundName,
   voucherDate,
   payee,
-  particulars,
+  lines,
   amount,
   categoryName,
   status,
@@ -23,7 +23,7 @@ export function VoucherPrint({
   fundName: string;
   voucherDate: string;
   payee: string;
-  particulars: string;
+  lines: { particulars: string; amount: string; category_name: string }[];
   amount: string;
   categoryName: string;
   status: VoucherStatus;
@@ -73,14 +73,27 @@ export function VoucherPrint({
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="h-24 border border-black px-2 py-2 align-top whitespace-pre-wrap">
-                {particulars}
-              </td>
-              <td className="border border-black px-2 py-2 text-right align-top font-mono">
-                {formatPHP(amount)}
-              </td>
-            </tr>
+            {lines.map((line, index) => (
+              <tr key={index}>
+                <td className="border border-black px-2 py-2 align-top whitespace-pre-wrap">
+                  {line.particulars}
+                  {lines.length > 1 ? (
+                    <span className="block text-[10px] uppercase">
+                      {line.category_name}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="border border-black px-2 py-2 text-right align-top font-mono">
+                  {formatPHP(line.amount)}
+                </td>
+              </tr>
+            ))}
+            {lines.length === 1 ? (
+              <tr>
+                <td className="h-16 border border-black" />
+                <td className="border border-black" />
+              </tr>
+            ) : null}
           </tbody>
           <tfoot>
             <tr>

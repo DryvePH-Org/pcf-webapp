@@ -27,6 +27,7 @@ export type ReplenishmentVoucherRow = {
   amount: string;
   category_id: string;
   category_name: string;
+  lines: { amount: string; category_name: string }[];
   receipt_url: string | null;
   no_receipt_reason: string | null;
 };

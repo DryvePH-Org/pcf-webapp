@@ -178,19 +178,26 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
 
     const { data: edited, error: editError } = await clients.custodian
       .from('vouchers')
-      .update({ particulars: `${runTag} edited particulars` })
+      .update({ payee: `${runTag} edited payee` })
       .eq('id', id)
-      .select('id, particulars');
+      .select('id, payee');
     expect(editError).toBeNull();
     expect(edited).toHaveLength(1);
-    expect(edited![0].particulars).toBe(`${runTag} edited particulars`);
+    expect(edited![0].payee).toBe(`${runTag} edited payee`);
+
+    // Lines and totals are written only through the RPC, so they cannot drift.
+    const { error: lineEditError } = await clients.custodian
+      .from('vouchers')
+      .update({ particulars: `${runTag} edited particulars` })
+      .eq('id', id);
+    expect(lineEditError).not.toBeNull();
 
     // Released vouchers are financial records: descriptive edits stop working.
     const releasedId = await makeVoucher('custodian', 15);
     expect((await clients.custodian.rpc('release_voucher', { p_id: releasedId })).error).toBeNull();
     const { data: locked } = await clients.custodian
       .from('vouchers')
-      .update({ particulars: `${runTag} not allowed` })
+      .update({ payee: `${runTag} not allowed` })
       .eq('id', releasedId)
       .select('id');
     expect(locked).toEqual([]);

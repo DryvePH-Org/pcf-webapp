@@ -4,6 +4,23 @@ import { isPositiveMoney } from "@/lib/money";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
+export const MAX_VOUCHER_LINES = 20;
+
+export const voucherLineSchema = z.object({
+  particulars: z
+    .string()
+    .trim()
+    .min(1, "Particulars are required.")
+    .max(300, "Keep each line under 300 characters."),
+  amount: z
+    .string()
+    .trim()
+    .refine(isPositiveMoney, "Enter an amount greater than zero."),
+  category_id: z.uuid("Choose a category."),
+});
+
+export type VoucherLineValues = z.infer<typeof voucherLineSchema>;
+
 export const createVoucherSchema = z.object({
   fund_id: z.uuid("Choose a fund."),
   voucher_date: z
@@ -14,16 +31,10 @@ export const createVoucherSchema = z.object({
     .trim()
     .min(1, "Payee is required.")
     .max(120, "Keep the payee under 120 characters."),
-  particulars: z
-    .string()
-    .trim()
-    .min(1, "Particulars are required.")
-    .max(500, "Keep the particulars under 500 characters."),
-  amount: z
-    .string()
-    .trim()
-    .refine(isPositiveMoney, "Enter an amount greater than zero."),
-  category_id: z.uuid("Choose a category."),
+  items: z
+    .array(voucherLineSchema)
+    .min(1, "Add at least one line.")
+    .max(MAX_VOUCHER_LINES, `A voucher can have at most ${MAX_VOUCHER_LINES} lines.`),
   no_receipt_reason: z
     .string()
     .trim()

@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircleAlert, Save, Send, Wallet } from "lucide-react";
+import { CircleAlert, Plus, Save, Send, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -37,8 +37,11 @@ import { parseMoney } from "@/lib/money";
 import { todayInAppTz } from "@/lib/dates";
 import {
   createVoucherSchema,
+  MAX_VOUCHER_LINES,
   type CreateVoucherValues,
 } from "@/lib/validators/voucher";
+
+const emptyLine = { particulars: "", amount: "", category_id: "" };
 
 type Intent = "draft" | "release" | "submit";
 
@@ -62,25 +65,28 @@ export function VoucherForm({
       fund_id: funds[0]?.id ?? "",
       voucher_date: todayInAppTz(),
       payee: "",
-      particulars: "",
-      amount: "",
-      category_id: "",
+      items: [emptyLine],
       no_receipt_reason: "",
     },
   });
+  const lines = useFieldArray({ control: form.control, name: "items" });
 
   const errors = form.formState.errors;
   const fundId = useWatch({ control: form.control, name: "fund_id" });
   const selectedFund = funds.find((fund) => fund.id === fundId);
-  const amountText = useWatch({ control: form.control, name: "amount" });
-  const amountCentavos = parseMoney(amountText ?? "");
+  const watchedItems = useWatch({ control: form.control, name: "items" });
+  // Sum in centavos; an unparsable line counts as zero until it is fixed.
+  const amountCentavos = (watchedItems ?? []).reduce(
+    (sum, item) => sum + (parseMoney(item?.amount ?? "") ?? 0),
+    0,
+  );
   const thresholdCentavos = selectedFund
     ? parseMoney(selectedFund.approval_threshold)
     : null;
   // At or above the fund's threshold an approver must approve before any cash
   // is released.
   const needsApproval =
-    amountCentavos !== null &&
+    amountCentavos > 0 &&
     thresholdCentavos !== null &&
     amountCentavos >= thresholdCentavos;
   const fundItems = funds.map((fund) => ({ value: fund.id, label: fund.name }));
@@ -250,95 +256,155 @@ export function VoucherForm({
             ) : null}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="voucher-particulars">Particulars</Label>
-            <Textarea
-              id="voucher-particulars"
-              placeholder="What was the cash spent on?"
-              rows={3}
-              {...form.register("particulars")}
-              aria-invalid={Boolean(errors.particulars)}
-            />
-            {errors.particulars ? (
+          <div className="space-y-3">
+            <Label>What was it spent on?</Label>
+            {lines.fields.map((field, index) => {
+              const lineErrors = errors.items?.[index];
+              return (
+                <div
+                  key={field.id}
+                  className="space-y-3 rounded-lg border border-border p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Line {index + 1}
+                    </span>
+                    {lines.fields.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remove line ${index + 1}`}
+                        onClick={() => lines.remove(index)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`voucher-particulars-${index}`}>
+                      Particulars
+                    </Label>
+                    <Textarea
+                      id={`voucher-particulars-${index}`}
+                      placeholder="What was the cash spent on?"
+                      rows={2}
+                      {...form.register(`items.${index}.particulars`)}
+                      aria-invalid={Boolean(lineErrors?.particulars)}
+                    />
+                    {lineErrors?.particulars ? (
+                      <p className="text-xs text-destructive">
+                        {lineErrors.particulars.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor={`voucher-amount-${index}`}>Amount</Label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                          ₱
+                        </span>
+                        <Input
+                          id={`voucher-amount-${index}`}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          className="pl-7 text-right tabular-nums"
+                          {...form.register(`items.${index}.amount`)}
+                          aria-invalid={Boolean(lineErrors?.amount)}
+                        />
+                      </div>
+                      {lineErrors?.amount ? (
+                        <p className="text-xs text-destructive">
+                          {lineErrors.amount.message}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`voucher-category-${index}`}>
+                        Category
+                      </Label>
+                      <Controller
+                        control={form.control}
+                        name={`items.${index}.category_id`}
+                        render={({ field: categoryField }) => (
+                          <Select
+                            value={categoryField.value}
+                            onValueChange={(value) =>
+                              categoryField.onChange(value ?? "")
+                            }
+                            items={categoryItems}
+                          >
+                            <SelectTrigger
+                              id={`voucher-category-${index}`}
+                              className="w-full"
+                            >
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryItems.map((item) => (
+                                <SelectItem key={item.value} value={item.value}>
+                                  {item.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      {lineErrors?.category_id ? (
+                        <p className="text-xs text-destructive">
+                          {lineErrors.category_id.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {errors.items?.root || typeof errors.items?.message === "string" ? (
               <p className="text-xs text-destructive">
-                {errors.particulars.message}
+                {errors.items?.root?.message ?? errors.items?.message}
               </p>
             ) : null}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="voucher-amount">Amount</Label>
-              <div className="relative">
-                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
-                  ₱
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={lines.fields.length >= MAX_VOUCHER_LINES}
+                onClick={() => lines.append(emptyLine)}
+              >
+                <Plus />
+                Add line
+              </Button>
+              <p className="text-sm">
+                Total{" "}
+                <span className="font-semibold tabular-nums">
+                  <MoneyText value={String(amountCentavos / 100)} />
                 </span>
-                <Input
-                  id="voucher-amount"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  className="pl-7 text-right tabular-nums"
-                  {...form.register("amount")}
-                  aria-invalid={Boolean(errors.amount)}
-                />
-              </div>
-              {errors.amount ? (
-                <p className="text-xs text-destructive">
-                  {errors.amount.message}
-                </p>
-              ) : selectedFund ? (
-                <p
-                  className={
-                    needsApproval
-                      ? "text-xs text-amber-700 dark:text-amber-400"
-                      : "text-xs text-muted-foreground"
-                  }
-                >
-                  Limit per transaction:{" "}
-                  <MoneyText value={selectedFund.per_txn_limit} />
-                  {" · "}
-                  {needsApproval
-                    ? "An approver must approve this before any cash is released."
-                    : (
-                        <>
-                          Approval needed from{" "}
-                          <MoneyText value={selectedFund.approval_threshold} />
-                        </>
-                      )}
-                </p>
-              ) : null}
+              </p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="voucher-category">Category</Label>
-              <Controller
-                control={form.control}
-                name="category_id"
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? "")}
-                    items={categoryItems}
-                  >
-                    <SelectTrigger id="voucher-category" className="w-full">
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {selectedFund ? (
+              <p
+                className={
+                  needsApproval
+                    ? "text-xs text-amber-700 dark:text-amber-400"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                Limit per transaction:{" "}
+                <MoneyText value={selectedFund.per_txn_limit} />
+                {" · "}
+                {needsApproval ? (
+                  "An approver must approve this before any cash is released."
+                ) : (
+                  <>
+                    Approval needed from{" "}
+                    <MoneyText value={selectedFund.approval_threshold} />
+                  </>
                 )}
-              />
-              {errors.category_id ? (
-                <p className="text-xs text-destructive">
-                  {errors.category_id.message}
-                </p>
-              ) : null}
-            </div>
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">

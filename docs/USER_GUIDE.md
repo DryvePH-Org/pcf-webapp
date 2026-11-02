@@ -53,8 +53,11 @@ Admins can see every email the app sent, and any that failed, under
 You hold the fund and hand out the cash.
 
 **Record an expense**
-1. **Vouchers → New voucher**. Fill in date, payee, particulars, amount, and
-   category. The amount can't exceed the per-transaction limit.
+1. **Vouchers → New voucher**. Fill in date and payee, then add a line for each
+   thing bought: particulars, amount, and category. Use **Add line** when one
+   payee was paid for several items; the voucher total is the sum of the lines
+   (up to 20) and can't exceed the per-transaction limit. Reports split the
+   spending by each line's category.
 2. Attach a receipt photo (on a phone this opens the camera). No receipt? Give a
    reason instead.
 3. **Save draft** to finish later, or **Save and release cash** to hand over

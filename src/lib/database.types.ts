@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.18"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       audit_log: {
@@ -328,6 +353,48 @@ export type Database = {
           },
         ]
       }
+      voucher_items: {
+        Row: {
+          amount: number
+          category_id: string
+          id: string
+          particulars: string
+          position: number
+          voucher_id: string
+        }
+        Insert: {
+          amount: number
+          category_id: string
+          id?: string
+          particulars: string
+          position: number
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          category_id?: string
+          id?: string
+          particulars?: string
+          position?: number
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vouchers: {
         Row: {
           amount: number
@@ -477,6 +544,17 @@ export type Database = {
           p_fund_id: string
           p_no_receipt_reason?: string
           p_particulars: string
+          p_payee: string
+          p_receipt_path?: string
+          p_voucher_date?: string
+        }
+        Returns: string
+      }
+      create_voucher_lines: {
+        Args: {
+          p_fund_id: string
+          p_items: Json
+          p_no_receipt_reason?: string
           p_payee: string
           p_receipt_path?: string
           p_voucher_date?: string
@@ -671,6 +749,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       replenishment_status: [

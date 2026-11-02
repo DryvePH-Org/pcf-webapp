@@ -214,9 +214,13 @@ describe('voucher schemas', () => {
     fund_id: '00000000-0000-4000-8000-000000000001',
     voucher_date: '2026-10-31',
     payee: 'Ana Cruz',
-    particulars: 'Printer paper and ink',
-    amount: '1250.50',
-    category_id: '00000000-0000-4000-8000-000000000002',
+    items: [
+      {
+        particulars: 'Printer paper and ink',
+        amount: '1250.50',
+        category_id: '00000000-0000-4000-8000-000000000002',
+      },
+    ],
     no_receipt_reason: '',
   };
 
@@ -233,23 +237,46 @@ describe('voucher schemas', () => {
       createVoucherSchema.safeParse({ ...validVoucher, payee: '   ' }).success,
     ).toBe(false);
     expect(
-      createVoucherSchema.safeParse({ ...validVoucher, particulars: '' }).success,
+      createVoucherSchema.safeParse({
+        ...validVoucher,
+        items: [{ ...validVoucher.items[0], particulars: '' }],
+      }).success,
     ).toBe(false);
     expect(
       createVoucherSchema.safeParse({ ...validVoucher, fund_id: 'main' }).success,
     ).toBe(false);
     expect(
-      createVoucherSchema.safeParse({ ...validVoucher, category_id: '' }).success,
+      createVoucherSchema.safeParse({
+        ...validVoucher,
+        items: [{ ...validVoucher.items[0], category_id: '' }],
+      }).success,
     ).toBe(false);
   });
 
   it('rejects zero, negative, and over-precise amounts', () => {
     for (const amount of ['0', '0.00', '-1', '10.001', '1,000']) {
       expect(
-        createVoucherSchema.safeParse({ ...validVoucher, amount }).success,
+        createVoucherSchema.safeParse({
+          ...validVoucher,
+          items: [{ ...validVoucher.items[0], amount }],
+        }).success,
         amount,
       ).toBe(false);
     }
+  });
+
+  it('accepts several lines but needs at least one and at most twenty', () => {
+    const line = validVoucher.items[0];
+    expect(
+      createVoucherSchema.safeParse({ ...validVoucher, items: [line, line, line] }).success,
+    ).toBe(true);
+    expect(createVoucherSchema.safeParse({ ...validVoucher, items: [] }).success).toBe(false);
+    expect(
+      createVoucherSchema.safeParse({
+        ...validVoucher,
+        items: Array.from({ length: 21 }, () => line),
+      }).success,
+    ).toBe(false);
   });
 
   it('validates receipt paths and reason text', () => {

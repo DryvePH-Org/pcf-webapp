@@ -68,7 +68,7 @@ export default async function ReplenishmentDetailPage({
     supabase
       .from("vouchers")
       .select(
-        "id, pcv_number, voucher_date, payee, particulars, amount, category_id, receipt_path, no_receipt_reason",
+        "id, pcv_number, voucher_date, payee, particulars, amount, category_id, receipt_path, no_receipt_reason, voucher_items(amount, category_id)",
       )
       .eq("replenishment_id", replenishment.id)
       .order("voucher_date", { ascending: true })
@@ -104,8 +104,17 @@ export default async function ReplenishmentDetailPage({
     }),
   );
 
-  const vouchers: ReplenishmentVoucherRow[] = vouchersData.map(
-    (voucher) => ({
+  const vouchers: ReplenishmentVoucherRow[] = vouchersData.map((voucher) => {
+    const lines = (
+      voucher.voucher_items.length
+        ? voucher.voucher_items
+        : [{ amount: voucher.amount, category_id: voucher.category_id }]
+    ).map((line) => ({
+      amount: String(line.amount),
+      category_name: categoryNames.get(line.category_id) ?? "—",
+    }));
+    const distinct = new Set(lines.map((line) => line.category_name));
+    return {
       id: voucher.id,
       pcv_number: voucher.pcv_number,
       voucher_date: voucher.voucher_date,
@@ -113,11 +122,15 @@ export default async function ReplenishmentDetailPage({
       particulars: voucher.particulars,
       amount: String(voucher.amount),
       category_id: voucher.category_id,
-      category_name: categoryNames.get(voucher.category_id) ?? "—",
+      category_name:
+        distinct.size > 1
+          ? "Multiple categories"
+          : (categoryNames.get(voucher.category_id) ?? "—"),
+      lines,
       receipt_url: receiptUrls.get(voucher.id) ?? null,
       no_receipt_reason: voucher.no_receipt_reason,
-    }),
-  );
+    };
+  });
 
   const categoryTotals = buildCategoryTotals(vouchers);
   const fundName = fundResult.data?.name ?? "—";
@@ -444,13 +457,17 @@ function Detail({ label, value }: { label: string; value: string }) {
 function buildCategoryTotals(vouchers: ReplenishmentVoucherRow[]) {
   const totals = new Map<string, { count: number; centavos: number }>();
   for (const voucher of vouchers) {
-    const current = totals.get(voucher.category_name) ?? {
-      count: 0,
-      centavos: 0,
-    };
-    current.count += 1;
-    current.centavos += Math.round(Number(voucher.amount) * 100);
-    totals.set(voucher.category_name, current);
+    // A voucher counts once per category it touches; each line adds its own amount.
+    const touched = new Set<string>();
+    for (const line of voucher.lines) {
+      const current = totals.get(line.category_name) ?? { count: 0, centavos: 0 };
+      if (!touched.has(line.category_name)) {
+        current.count += 1;
+        touched.add(line.category_name);
+      }
+      current.centavos += Math.round(Number(line.amount) * 100);
+      totals.set(line.category_name, current);
+    }
   }
 
   return [...totals.entries()]

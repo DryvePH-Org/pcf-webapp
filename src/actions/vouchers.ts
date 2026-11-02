@@ -87,12 +87,14 @@ export async function createVoucher(
 
   const values = parsed.data;
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_voucher", {
+  const { data, error } = await supabase.rpc("create_voucher_lines", {
     p_fund_id: values.fund_id,
     p_payee: values.payee,
-    p_particulars: values.particulars,
-    p_amount: toMoneyNumber(values.amount),
-    p_category_id: values.category_id,
+    p_items: values.items.map((item) => ({
+      particulars: item.particulars,
+      amount: toMoneyNumber(item.amount),
+      category_id: item.category_id,
+    })),
     p_voucher_date: values.voucher_date,
     p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
   });

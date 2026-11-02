@@ -68,12 +68,13 @@ export default async function VoucherDetailPage({
     ...(voucher.approved_by ? [voucher.approved_by] : []),
   ];
 
-  const [categoryResult, fundResult, profileResult] = await Promise.all([
+  const [categoryResult, itemsResult, fundResult, profileResult] = await Promise.all([
+    supabase.from("categories").select("id, name"),
     supabase
-      .from("categories")
-      .select("name")
-      .eq("id", voucher.category_id)
-      .maybeSingle(),
+      .from("voucher_items")
+      .select("position, particulars, amount, category_id")
+      .eq("voucher_id", voucher.id)
+      .order("position", { ascending: true }),
     supabase
       .from("funds")
       .select("name, approval_threshold")
@@ -86,6 +87,7 @@ export default async function VoucherDetailPage({
   ]);
 
   if (categoryResult.error) throw new Error(categoryResult.error.message);
+  if (itemsResult.error) throw new Error(itemsResult.error.message);
   if (fundResult.error) throw new Error(fundResult.error.message);
   if (profileResult.error) throw new Error(profileResult.error.message);
 
@@ -96,7 +98,19 @@ export default async function VoucherDetailPage({
   const approvedByName = voucher.approved_by
     ? (names.get(voucher.approved_by) ?? "—")
     : null;
-  const categoryName = categoryResult.data?.name ?? "—";
+  const categoryById = new Map(
+    categoryResult.data.map((category) => [category.id, category.name]),
+  );
+  const lines = itemsResult.data.map((item) => ({
+    particulars: item.particulars,
+    amount: String(item.amount),
+    category_name: categoryById.get(item.category_id) ?? "—",
+  }));
+  const distinctCategories = new Set(lines.map((line) => line.category_name));
+  const categoryName =
+    distinctCategories.size > 1
+      ? "Multiple categories"
+      : (categoryById.get(voucher.category_id) ?? "—");
   const fundName = fundResult.data?.name ?? "—";
   const approvalThreshold = fundResult.data?.approval_threshold ?? 3000;
   const status: VoucherStatus = isVoucherStatus(voucher.status)
@@ -275,11 +289,28 @@ export default async function VoucherDetailPage({
                   />
                 </dl>
 
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Particulars</p>
-                  <p className="text-sm whitespace-pre-wrap">
-                    {voucher.particulars}
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {lines.length > 1 ? `Particulars (${lines.length} lines)` : "Particulars"}
                   </p>
+                  <ul className="divide-y divide-border rounded-md border border-border text-sm">
+                    {lines.map((line, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start justify-between gap-4 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="whitespace-pre-wrap">{line.particulars}</p>
+                          {lines.length > 1 ? (
+                            <p className="text-xs text-muted-foreground">
+                              {line.category_name}
+                            </p>
+                          ) : null}
+                        </div>
+                        <MoneyText value={line.amount} />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </CardContent>
             </Card>
@@ -385,7 +416,7 @@ export default async function VoucherDetailPage({
           fundName={fundName}
           voucherDate={voucher.voucher_date}
           payee={voucher.payee}
-          particulars={voucher.particulars}
+          lines={lines}
           amount={String(voucher.amount)}
           categoryName={categoryName}
           status={status}
