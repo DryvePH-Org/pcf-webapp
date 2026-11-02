@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
@@ -39,7 +40,10 @@ export const viewport: Viewport = {
   themeColor: "#171717",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Render every page per request: the Content-Security-Policy nonce is
+  // different each time, so pages can't be prebuilt.
+  await connection();
   return (
     <html
       lang="en"

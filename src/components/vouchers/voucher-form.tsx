@@ -405,6 +405,7 @@ export function VoucherForm({
             <Label htmlFor="voucher-payee">Payee</Label>
             <Input
               id="voucher-payee"
+              maxLength={120}
               placeholder="Who received the cash?"
               autoComplete="off"
               {...form.register("payee")}
@@ -446,6 +447,7 @@ export function VoucherForm({
                     </Label>
                     <Textarea
                       id={`voucher-particulars-${index}`}
+                      maxLength={300}
                       placeholder="What was the cash spent on?"
                       rows={2}
                       {...form.register(`items.${index}.particulars`)}
@@ -466,6 +468,7 @@ export function VoucherForm({
                         </span>
                         <Input
                           id={`voucher-amount-${index}`}
+                          maxLength={13}
                           inputMode="decimal"
                           placeholder="0.00"
                           className="pl-7 text-right tabular-nums"
@@ -617,6 +620,7 @@ export function VoucherForm({
               </Label>
               <Textarea
                 id="voucher-no-receipt-reason"
+              maxLength={300}
                 placeholder="Example: the supplier does not issue official receipts."
                 rows={2}
                 {...form.register("no_receipt_reason")}

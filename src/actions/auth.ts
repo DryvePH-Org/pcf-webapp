@@ -4,17 +4,17 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { sendSignInCode } from "@/lib/email";
+import { clientIp, withinLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { emailField } from "@/lib/validators/text";
 
 export type SignInCodeState = {
   status: "idle" | "sent" | "error";
   message: string | null;
 };
 
-const emailSchema = z.object({
-  email: z.string().trim().toLowerCase().pipe(z.email()),
-});
+const emailSchema = z.object({ email: emailField });
 
 const PAGE_SIZE = 200;
 const MAX_PAGES = 10;
@@ -54,6 +54,19 @@ export async function requestSignInCode(
   }
   const { email } = parsed.data;
 
+  // Stops code-spamming (inbox flooding, email quota burn) per address and per
+  // caller. The same answer is given whether or not the account exists.
+  const ip = await clientIp();
+  if (
+    !(await withinLimit(`code:email:${email}`, 3, 600)) ||
+    !(await withinLimit(`code:ip:${ip}`, 10, 600))
+  ) {
+    return {
+      status: "error",
+      message: "Too many attempts. Wait a few minutes before asking for another code.",
+    };
+  }
+
   try {
     // Only people with an admin-created, active account get a code. The reply
     // is identical either way so the form can't be used to probe for accounts.
@@ -84,10 +97,10 @@ export async function requestSignInCode(
 
 export type VerifyCodeResult =
   | { ok: true }
-  | { ok: false; error: "invalid_code" | "inactive" };
+  | { ok: false; error: "invalid_code" | "inactive" | "rate_limited" };
 
 const verifyCodeSchema = z.object({
-  email: z.string().trim().toLowerCase().pipe(z.email()),
+  email: emailField,
   token: z.string().trim().regex(/^\d{6,8}$/),
 });
 
@@ -97,6 +110,15 @@ export async function verifyEmailCode(input: {
 }): Promise<VerifyCodeResult> {
   const parsed = verifyCodeSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid_code" };
+
+  // Codes are short, so cap guesses per address and per caller.
+  const ip = await clientIp();
+  if (
+    !(await withinLimit(`verify:email:${parsed.data.email}`, 8, 600)) ||
+    !(await withinLimit(`verify:ip:${ip}`, 30, 600))
+  ) {
+    return { ok: false, error: "rate_limited" };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({

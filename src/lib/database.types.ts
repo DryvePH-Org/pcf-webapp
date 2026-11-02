@@ -285,6 +285,24 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          hits: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          hits?: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          hits?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       replenishments: {
         Row: {
           created_at: string
@@ -535,6 +553,10 @@ export type Database = {
         Returns: undefined
       }
       can_access_fund: { Args: { p_fund_id: string }; Returns: boolean }
+      check_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: boolean
+      }
       close_replenishment: { Args: { p_id: string }; Returns: undefined }
       create_replenishment: { Args: { p_fund_id: string }; Returns: string }
       create_voucher: {

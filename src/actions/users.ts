@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { queueNotification } from "@/lib/notifications/deliver";
@@ -114,7 +115,7 @@ export async function updateUserRole(input: {
     .select("id")
     .maybeSingle();
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
   if (!data) return actionError("User not found.");
 
   const changedId = parsed.data.userId;
@@ -156,7 +157,7 @@ export async function setUserActive(input: {
     .select("id")
     .maybeSingle();
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
   if (!data) return actionError("User not found.");
 
   const changedId = parsed.data.userId;
@@ -196,7 +197,7 @@ export async function setCustodianFunds(input: {
     p_user_id: userId,
     p_fund_ids: fundIds,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const selected = new Set(fundIds);
   const added = funds.filter((fund) => selected.has(fund.id) && fund.custodian_id !== userId);

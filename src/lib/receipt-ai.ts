@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { cleanText } from "@/lib/validators/text";
 import { MAX_VOUCHER_LINES } from "@/lib/validators/voucher";
 
 export type ScannedLine = {
@@ -158,7 +159,8 @@ export function parseScan(
   let lines: ScannedLine[] = [];
   for (const item of items.slice(0, MAX_VOUCHER_LINES)) {
     const amount = toAmount(item.amount);
-    const particulars = item.description?.trim().slice(0, 300);
+    // Model output is untrusted text (a receipt can contain instructions); clean it like user input.
+    const particulars = cleanText(item.description ?? "").slice(0, 300);
     if (!amount || !particulars) continue;
     lines.push({
       particulars,
@@ -189,7 +191,7 @@ export function parseScan(
   }
 
   return {
-    payee: snapPayee(payee?.trim().slice(0, 120) ?? "", knownPayees),
+    payee: snapPayee(cleanText(payee ?? "").slice(0, 120), knownPayees),
     voucher_date: validDate,
     lines,
     warnings,

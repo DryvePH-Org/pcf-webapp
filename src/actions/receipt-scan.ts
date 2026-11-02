@@ -8,6 +8,7 @@ import {
   type ScanKind,
   type ScannedReceipt,
 } from "@/lib/receipt-ai";
+import { withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export type ScanResult =
@@ -26,6 +27,14 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return { ok: false, error: "Photo auto-fill is not set up yet. Fill in the form by hand." };
+  }
+
+  // The reading service is paid/limited: cap each person per minute and per day.
+  if (
+    !(await withinLimit(`scan:minute:${user.id}`, 6, 60)) ||
+    !(await withinLimit(`scan:day:${user.id}`, 150, 86400))
+  ) {
+    return { ok: false, error: "Too many scans right now. Wait a minute and try again." };
   }
 
   const file = formData.get("image");

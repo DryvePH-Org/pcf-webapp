@@ -18,3 +18,14 @@ describe("toCsv", () => {
     expect(csv).toBe("Amount\r\n1000\r\n0.5");
   });
 });
+
+describe('formula injection', () => {
+  it('neutralises cells that spreadsheets would run as formulas', () => {
+    const out = toCsv(['Payee', 'Amount'], [['=HYPERLINK("http://evil","x")', 5], ['+1+1', -20], ['@SUM(A1)', 1], ['-cmd', 2], ['Normal', 3]]);
+    expect(out).toContain(`"'=HYPERLINK(""http://evil"",""x"")"`);
+    expect(out).toContain(`'+1+1,-20`);
+    expect(out).toContain(`'@SUM(A1)`);
+    expect(out).toContain(`'-cmd`);
+    expect(out).toContain('Normal,3');
+  });
+});

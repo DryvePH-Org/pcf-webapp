@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +43,7 @@ export async function createCategory(input: {
     .from("categories")
     .insert({ name: parsed.data.name });
 
-  if (error) return categoryWriteError(error.code, error.message);
+  if (error) return categoryWriteError(error.code, safeDbMessage(error));
 
   revalidatePath("/admin/categories");
   return { ok: true };
@@ -66,7 +67,7 @@ export async function renameCategory(input: {
     .update({ name: parsed.data.name })
     .eq("id", parsed.data.id);
 
-  if (error) return categoryWriteError(error.code, error.message);
+  if (error) return categoryWriteError(error.code, safeDbMessage(error));
 
   revalidatePath("/admin/categories");
   return { ok: true };
@@ -90,7 +91,7 @@ export async function setCategoryActive(input: {
     .update({ is_active: parsed.data.isActive })
     .eq("id", parsed.data.id);
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   revalidatePath("/admin/categories");
   return { ok: true };

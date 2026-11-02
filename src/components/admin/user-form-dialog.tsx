@@ -87,6 +87,7 @@ export function UserFormDialog({
           <Label htmlFor="user-name">Full name</Label>
           <Input
             id="user-name"
+ maxLength={100}
             autoComplete="off"
             {...form.register("full_name")}
             aria-invalid={Boolean(errors.full_name)}
@@ -100,6 +101,7 @@ export function UserFormDialog({
           <Label htmlFor="user-email">Email</Label>
           <Input
             id="user-email"
+ maxLength={254}
             type="email"
             autoComplete="off"
             {...form.register("email")}

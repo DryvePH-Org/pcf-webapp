@@ -1,10 +1,8 @@
 import { z } from "zod";
 
-export const categoryNameSchema = z
-  .string()
-  .trim()
-  .min(1, "Category name is required")
-  .max(60, "Keep the name under 60 characters");
+import { labelText } from "@/lib/validators/text";
+
+export const categoryNameSchema = labelText(60, "Category name is required");
 
 export const createCategorySchema = z.object({
   name: categoryNameSchema,

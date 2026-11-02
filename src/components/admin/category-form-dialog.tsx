@@ -71,6 +71,7 @@ export function CategoryFormDialog({
           <Label htmlFor="category-name">Name</Label>
           <Input
             id="category-name"
+ maxLength={60}
             placeholder="Transportation"
             {...form.register("name")}
             aria-invalid={Boolean(form.formState.errors.name)}

@@ -160,6 +160,7 @@ export function CashCountForm({ funds }: { funds: CashCountFund[] }) {
                 </span>
                 <Input
                   id="cash-count-counted"
+ maxLength={13}
                   inputMode="decimal"
                   placeholder="0.00"
                   className="pl-7 text-right tabular-nums"
@@ -226,6 +227,7 @@ export function CashCountForm({ funds }: { funds: CashCountFund[] }) {
             </Label>
             <Textarea
               id="cash-count-note"
+ maxLength={300}
               placeholder={
                 hasVariance
                   ? "Explain the difference between counted and expected cash."

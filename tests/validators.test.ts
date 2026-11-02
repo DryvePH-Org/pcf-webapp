@@ -23,6 +23,7 @@ import {
   receiptPathSchema,
   voucherReasonSchema,
 } from '@/lib/validators/voucher';
+import { cleanText, labelText, personName, text } from '@/lib/validators/text';
 import { isVoucherStatus } from '@/lib/voucher-status';
 
 const validFund = {
@@ -382,5 +383,30 @@ describe('user schemas', () => {
     expect(setUserActiveSchema.safeParse({ userId, isActive: false }).success).toBe(
       true,
     );
+  });
+});
+
+describe('text sanitising', () => {
+  it('strips control, invisible and bidi characters and angle brackets', () => {
+    expect(cleanText('Ana\u0000 Cruz‮')).toBe('Ana Cruz');
+    expect(cleanText('<script>alert(1)</script>Store')).toBe('scriptalert(1)/scriptStore');
+    expect(cleanText('a​b⁦c')).toBe('abc');
+    expect(cleanText('  too   many\n\tspaces ')).toBe('too many spaces');
+    expect(cleanText('line1\r\n\r\n\r\n\r\nline2', true)).toBe('line1\n\nline2');
+  });
+
+  it('enforces length limits after cleaning and rejects oversized input', () => {
+    const payee = text({ max: 10, min: 1 });
+    expect(payee.safeParse('x'.repeat(11)).success).toBe(false);
+    expect(payee.safeParse('x'.repeat(10)).success).toBe(true);
+    expect(payee.safeParse('​​').success).toBe(false);
+    expect(payee.safeParse('x'.repeat(1_000_000)).success).toBe(false);
+  });
+
+  it('restricts names and labels to sensible characters', () => {
+    expect(personName().safeParse("Mary-Ann O'Neil Jr.").success).toBe(true);
+    expect(personName().safeParse('Robert"); DROP TABLE').success).toBe(false);
+    expect(labelText(60, 'x').safeParse('Office Supplies (A/B)').success).toBe(true);
+    expect(labelText(60, 'x').safeParse('=cmd|calc').success).toBe(false);
   });
 });

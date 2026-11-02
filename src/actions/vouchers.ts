@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { toMoneyNumber } from "@/lib/money";
@@ -17,6 +18,7 @@ import {
   notifyVoucherVoided,
 } from "@/lib/notifications/events";
 import { queueNotification } from "@/lib/notifications/deliver";
+import { withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
   createVoucherSchema,
@@ -87,6 +89,11 @@ export async function createVoucher(
   const parsed = createVoucherSchema.safeParse(input);
   if (!parsed.success) return createVoucherValidationError(parsed.error);
 
+  // A runaway script or stolen session cannot flood the ledger with vouchers.
+  if (!(await withinLimit(`voucher:create:${user.id}`, 40, 60))) {
+    return createVoucherError("You are creating vouchers too quickly. Wait a minute and try again.");
+  }
+
   const values = parsed.data;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_voucher_lines", {
@@ -101,7 +108,7 @@ export async function createVoucher(
     p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
   });
 
-  if (error) return createVoucherError(error.message);
+  if (error) return createVoucherError(safeDbMessage(error));
 
   revalidatePath("/vouchers");
   return { ok: true, id: data as string };
@@ -128,7 +135,7 @@ export async function updateVoucher(
     })),
     p_voucher_date: values.voucher_date,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   revalidateVoucher(values.voucher_id);
   return { ok: true };
@@ -170,7 +177,7 @@ export async function setVoucherReceipt(
     .eq("id", voucher_id)
     .select("id");
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
   if (!updated || updated.length === 0) {
     return actionError("Could not attach the receipt to this voucher.");
   }
@@ -212,7 +219,7 @@ export async function setNoReceiptReason(
     .eq("id", voucher_id)
     .select("id");
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
   if (!updated || updated.length === 0) {
     return actionError("Could not update this voucher.");
   }
@@ -234,7 +241,7 @@ export async function releaseVoucher(id: string): Promise<ActionResult> {
   const wasLow = before ? await fundIsLow(supabase, before.fund_id) : true;
 
   const { error } = await supabase.rpc("release_voucher", { p_id: id });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const nowLow = before ? await fundIsLow(supabase, before.fund_id) : false;
   // A pre-approved voucher has already been reviewed, so approvers aren't
@@ -262,7 +269,7 @@ export async function approveVoucher(id: string): Promise<ActionResult> {
     .eq("id", id)
     .maybeSingle();
   const { error } = await supabase.rpc("approve_voucher", { p_id: id });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   if (before?.status === "submitted") {
     queueNotification("voucher.pre_approved", () =>
@@ -281,7 +288,7 @@ export async function submitVoucher(id: string): Promise<ActionResult> {
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("submit_voucher", { p_id: id });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   queueNotification("voucher.submitted", () => notifyVoucherSubmitted(id, user.id));
   revalidateVoucher(id);
@@ -302,7 +309,7 @@ export async function returnVoucher(
     p_id: parsed.data.voucher_id,
     p_reason: parsed.data.reason,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const returnedId = parsed.data.voucher_id;
   queueNotification("voucher.returned", () => notifyVoucherReturned(returnedId, user.id));
@@ -324,7 +331,7 @@ export async function flagVoucher(
     p_id: parsed.data.voucher_id,
     p_reason: parsed.data.reason,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const flaggedId = parsed.data.voucher_id;
   queueNotification("voucher.flagged", () => notifyVoucherFlagged(flaggedId, user.id));
@@ -346,7 +353,7 @@ export async function voidVoucher(
     p_id: parsed.data.voucher_id,
     p_reason: parsed.data.reason,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const voidedId = parsed.data.voucher_id;
   queueNotification("voucher.voided", () => notifyVoucherVoided(voidedId, user.id));

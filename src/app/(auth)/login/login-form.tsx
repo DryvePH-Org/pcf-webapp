@@ -20,6 +20,7 @@ const idleState: SignInCodeState = { status: "idle", message: null };
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_code: "That code is wrong or has expired. Request a new one.",
   inactive: "Your account is inactive. Contact an administrator.",
+  rate_limited: "Too many attempts. Wait a few minutes and try again.",
 };
 
 export function LoginForm() {
@@ -68,6 +69,7 @@ export function LoginForm() {
           <Input
             id="token"
             name="token"
+            maxLength={8}
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
@@ -117,6 +119,7 @@ export function LoginForm() {
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
+ maxLength={254}
           name="email"
           type="email"
           autoComplete="email"

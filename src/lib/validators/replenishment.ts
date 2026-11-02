@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { text } from "@/lib/validators/text";
+
 export const replenishmentIdSchema = z.uuid();
 
 export const createReplenishmentSchema = z.object({
@@ -14,7 +16,7 @@ export const replenishmentReviewSchema = z
   .object({
     replenishment_id: z.uuid(),
     approve: z.boolean(),
-    note: z.string().trim().max(300, "Keep the note under 300 characters."),
+    note: text({ max: 300, multiline: true, tooLongMessage: "Keep the note under 300 characters." }),
   })
   .refine((value) => value.approve || value.note.length > 0, {
     message: "Explain why this replenishment is being rejected.",

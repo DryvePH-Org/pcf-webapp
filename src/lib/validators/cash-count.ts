@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { parseMoney } from "@/lib/money";
+import { text } from "@/lib/validators/text";
 
 export const cashCountSchema = z.object({
   fund_id: z.uuid("Choose a fund."),
@@ -14,10 +15,7 @@ export const cashCountSchema = z.object({
       },
       "Enter the cash counted as zero or more.",
     ),
-  note: z
-    .string()
-    .trim()
-    .max(300, "Keep the note under 300 characters."),
+  note: text({ max: 300, multiline: true, tooLongMessage: "Keep the note under 300 characters." }),
 });
 
 export type CashCountValues = z.infer<typeof cashCountSchema>;

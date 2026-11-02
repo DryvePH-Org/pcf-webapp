@@ -1,6 +1,8 @@
 import { ALL_ROLES } from "@/lib/permissions";
 import { z } from "zod";
 
+import { emailField, personName } from "@/lib/validators/text";
+
 const roleValues = ALL_ROLES as readonly [
   "admin",
   "custodian",
@@ -11,12 +13,8 @@ const roleValues = ALL_ROLES as readonly [
 export const roleSchema = z.enum(roleValues);
 
 export const createUserSchema = z.object({
-  full_name: z.string().trim().min(1, "Full name is required").max(100),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .pipe(z.email("Enter a valid email address")),
+  full_name: personName(100),
+  email: emailField,
   role: roleSchema,
 });
 

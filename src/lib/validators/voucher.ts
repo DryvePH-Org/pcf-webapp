@@ -1,17 +1,19 @@
 import { z } from "zod";
 
 import { isPositiveMoney } from "@/lib/money";
+import { text } from "@/lib/validators/text";
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 export const MAX_VOUCHER_LINES = 20;
 
 export const voucherLineSchema = z.object({
-  particulars: z
-    .string()
-    .trim()
-    .min(1, "Particulars are required.")
-    .max(300, "Keep each line under 300 characters."),
+  particulars: text({
+    max: 300,
+    min: 1,
+    requiredMessage: "Particulars are required.",
+    tooLongMessage: "Keep each line under 300 characters.",
+  }),
   amount: z
     .string()
     .trim()
@@ -26,20 +28,20 @@ export const createVoucherSchema = z.object({
   voucher_date: z
     .string()
     .regex(datePattern, "Choose a valid voucher date."),
-  payee: z
-    .string()
-    .trim()
-    .min(1, "Payee is required.")
-    .max(120, "Keep the payee under 120 characters."),
+  payee: text({
+    max: 120,
+    min: 1,
+    requiredMessage: "Payee is required.",
+    tooLongMessage: "Keep the payee under 120 characters.",
+  }),
   items: z
     .array(voucherLineSchema)
     .min(1, "Add at least one line.")
     .max(MAX_VOUCHER_LINES, `A voucher can have at most ${MAX_VOUCHER_LINES} lines.`),
-  no_receipt_reason: z
-    .string()
-    .trim()
-    .max(300, "Keep the reason under 300 characters.")
-    .optional(),
+  no_receipt_reason: text({
+    max: 300,
+    tooLongMessage: "Keep the reason under 300 characters.",
+  }).optional(),
 });
 
 export type CreateVoucherValues = z.infer<typeof createVoucherSchema>;
@@ -64,22 +66,24 @@ export type ReceiptPathValues = z.infer<typeof receiptPathSchema>;
 
 export const voucherReasonSchema = z.object({
   voucher_id: z.uuid(),
-  reason: z
-    .string()
-    .trim()
-    .min(1, "A reason is required.")
-    .max(300, "Keep the reason under 300 characters."),
+  reason: text({
+    max: 300,
+    min: 1,
+    requiredMessage: "A reason is required.",
+    tooLongMessage: "Keep the reason under 300 characters.",
+  }),
 });
 
 export type VoucherReasonValues = z.infer<typeof voucherReasonSchema>;
 
 export const noReceiptReasonSchema = z.object({
   voucher_id: z.uuid(),
-  reason: z
-    .string()
-    .trim()
-    .min(1, "Give a short reason for the missing receipt.")
-    .max(300, "Keep the reason under 300 characters."),
+  reason: text({
+    max: 300,
+    min: 1,
+    requiredMessage: "Give a short reason for the missing receipt.",
+    tooLongMessage: "Keep the reason under 300 characters.",
+  }),
 });
 
 export type NoReceiptReasonValues = z.infer<typeof noReceiptReasonSchema>;

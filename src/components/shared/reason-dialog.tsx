@@ -47,6 +47,7 @@ export function ReasonDialog({
         <Label htmlFor={inputId}>{label}</Label>
         <Textarea
           id={inputId}
+ maxLength={300}
           value={reason}
           rows={3}
           placeholder={placeholder}

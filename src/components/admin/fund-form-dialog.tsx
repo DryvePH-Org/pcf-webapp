@@ -132,6 +132,7 @@ export function FundFormDialog({
             <Label htmlFor="fund-name">Fund name</Label>
             <Input
               id="fund-name"
+ maxLength={80}
               {...form.register("name")}
               placeholder="Main Petty Cash"
               aria-invalid={Boolean(errors.name)}
@@ -146,6 +147,7 @@ export function FundFormDialog({
               <Label htmlFor="fund-amount">Fund amount</Label>
               <Input
                 id="fund-amount"
+ maxLength={13}
                 inputMode="decimal"
                 placeholder="10000.00"
                 {...form.register("amount")}
@@ -162,6 +164,7 @@ export function FundFormDialog({
               <Label htmlFor="fund-limit">Per-transaction limit</Label>
               <Input
                 id="fund-limit"
+ maxLength={13}
                 inputMode="decimal"
                 placeholder="1000.00"
                 {...form.register("per_txn_limit")}
@@ -178,6 +181,7 @@ export function FundFormDialog({
               <Label htmlFor="fund-approval">Approval needed from</Label>
               <Input
                 id="fund-approval"
+ maxLength={13}
                 inputMode="decimal"
                 placeholder="3000.00"
                 {...form.register("approval_threshold")}

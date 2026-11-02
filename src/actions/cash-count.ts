@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
@@ -65,7 +66,7 @@ export async function recordCashCount(
     p_note: note || undefined,
   });
 
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   if (countedCentavos !== expectedCentavos) {
     queueNotification("cash_count.variance", () =>

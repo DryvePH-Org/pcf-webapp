@@ -1,6 +1,8 @@
 import { isPositiveMoney, parseMoney } from "@/lib/money";
 import { z } from "zod";
 
+import { labelText } from "@/lib/validators/text";
+
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,7 +17,7 @@ const moneyField = z
 
 export const fundFormSchema = z
   .object({
-    name: z.string().trim().min(1, "Fund name is required").max(80),
+    name: labelText(80, "Fund name is required"),
     amount: moneyField,
     per_txn_limit: moneyField,
     approval_threshold: moneyField,

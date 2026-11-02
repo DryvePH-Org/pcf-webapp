@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { queueNotification } from "@/lib/notifications/deliver";
@@ -74,7 +75,7 @@ export async function createReplenishment(
   const { data, error } = await supabase.rpc("create_replenishment", {
     p_fund_id: parsed.data.fund_id,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: safeDbMessage(error) };
 
   revalidateReplenishment();
   return { ok: true, id: data as string };
@@ -94,7 +95,7 @@ export async function submitReplenishment(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("submit_replenishment", {
     p_id: parsedId.data,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const submittedId = parsedId.data;
   queueNotification("replenishment.submitted", () =>
@@ -122,7 +123,7 @@ export async function reviewReplenishment(
     p_approve: parsed.data.approve,
     p_note: parsed.data.note || undefined,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const reviewedId = parsed.data.replenishment_id;
   const approved = parsed.data.approve;
@@ -151,7 +152,7 @@ export async function closeReplenishment(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("close_replenishment", {
     p_id: parsedId.data,
   });
-  if (error) return actionError(error.message);
+  if (error) return actionError(safeDbMessage(error));
 
   const closedId = parsedId.data;
   queueNotification("replenishment.closed", () =>

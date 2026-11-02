@@ -306,6 +306,7 @@ export default async function VouchersPage({
             </label>
             <Input
               id="voucher-search"
+ maxLength={100}
               name="q"
               defaultValue={q}
               placeholder="PCV number or payee"

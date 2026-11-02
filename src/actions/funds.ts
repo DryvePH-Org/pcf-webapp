@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
@@ -61,10 +62,10 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
     }
 
     const { error } = await supabase.from("funds").update(payload).eq("id", id);
-    if (error) return actionError(error.message);
+    if (error) return actionError(safeDbMessage(error));
   } else {
     const { error } = await supabase.from("funds").insert(payload);
-    if (error) return actionError(error.message);
+    if (error) return actionError(safeDbMessage(error));
   }
 
   if (previousCustodian !== payload.custodian_id) {
