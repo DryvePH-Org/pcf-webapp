@@ -14,11 +14,14 @@ export function PaperVoucherScanner({
   scanning,
   disabled,
   highlight,
+  cooldown = 0,
 }: {
   onPick: (file: File) => void;
   scanning: File | null;
   disabled?: boolean;
   highlight?: boolean;
+  // Seconds before another scan is allowed (the reading service is rate limited).
+  cooldown?: number;
 }) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -88,7 +91,7 @@ export function PaperVoucherScanner({
               onClick={() => cameraInput.current?.click()}
             >
               <Camera />
-              Scan paper voucher
+              {cooldown > 0 ? `Scan again in ${cooldown}s` : "Scan paper voucher"}
             </Button>
             <Button
               type="button"

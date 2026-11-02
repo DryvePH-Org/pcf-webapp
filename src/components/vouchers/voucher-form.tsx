@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,6 +70,9 @@ function ComparePhoto({ file, onDismiss }: { file: File; onDismiss: () => void }
   );
 }
 
+// Groq's free tier allows about three scans a minute, so space them out.
+const SCAN_COOLDOWN_SECONDS = 20;
+
 const emptyLine = { particulars: "", amount: "", category_id: "" };
 
 type Intent = "draft" | "release" | "submit";
@@ -105,6 +108,23 @@ export function VoucherForm({
   // The paper voucher photo last read, kept on screen so the custodian can
   // compare it with what the form now says.
   const [comparePhoto, setComparePhoto] = useState<File | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const tick = () => {
+      const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setSecondsLeft(Math.max(0, left));
+    };
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => clearInterval(timer);
+  }, [cooldownUntil]);
+
+  const startCooldown = useCallback((seconds: number) => {
+    setCooldownUntil(Date.now() + seconds * 1000);
+  }, []);
 
   const form = useForm<CreateVoucherValues>({
     resolver: zodResolver(createVoucherSchema),
@@ -161,7 +181,13 @@ export function VoucherForm({
       return;
     }
 
+    if (cooldownUntil > Date.now()) {
+      toast.info(`Please wait ${secondsLeft}s before scanning again.`);
+      return;
+    }
+
     setScanning({ file: photo, kind });
+    startCooldown(SCAN_COOLDOWN_SECONDS);
     try {
       const body = new FormData();
       body.set("image", await prepareScanImage(photo), "scan.jpg");
@@ -169,6 +195,8 @@ export function VoucherForm({
       const result = await scanReceipt(body);
       if (!result.ok) {
         toast.error(result.error);
+        // A rate-limit answer means Groq needs a longer rest.
+        if (/too many/i.test(result.error)) startCooldown(40);
         return;
       }
       const { payee, voucher_date, lines: scanned, warnings } = result.receipt;
@@ -318,7 +346,8 @@ export function VoucherForm({
             <PaperVoucherScanner
               highlight={highlightScan}
               scanning={scanning?.kind === "voucher" ? scanning.file : null}
-              disabled={scanning !== null || submitting !== null}
+              disabled={scanning !== null || submitting !== null || secondsLeft > 0}
+              cooldown={scanning ? 0 : secondsLeft}
               onPick={(photo) => void fillFromPhoto(photo, "voucher", true)}
             />
           )}
@@ -566,11 +595,11 @@ export function VoucherForm({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={scanning !== null || submitting !== null}
+                  disabled={scanning !== null || submitting !== null || secondsLeft > 0}
                   onClick={() => void fillFromPhoto(file, "receipt", true)}
                 >
                   <Sparkles />
-                  Fill form from receipt
+                  {secondsLeft > 0 ? `Scan again in ${secondsLeft}s` : "Fill form from receipt"}
                 </Button>
                 {filledFromPhoto ? (
                   <p className="text-xs text-muted-foreground">

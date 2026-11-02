@@ -47,6 +47,8 @@ test.describe("receipt photo fills the voucher form (desktop)", () => {
     await expect(page.getByLabel("Voucher date")).toHaveValue("2026-11-01");
     await expect(page.locator("#voucher-particulars-2")).not.toHaveValue("");
     await expect(page.getByText("Total")).toContainText("475.50");
+    // Scans are spaced out to respect the reading service's rate limit.
+    await expect(page.getByRole("button", { name: /Scan again in \d+s/ }).first()).toBeDisabled();
     await context.close();
   });
 });
