@@ -51,3 +51,6 @@ next-env.d.ts
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# local-only secrets, never committed
+.secrets/
