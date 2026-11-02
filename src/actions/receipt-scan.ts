@@ -49,9 +49,8 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
 
   const dataUrl = `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
 
-  let response: Response;
-  try {
-    response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const request = () =>
+    fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -80,6 +79,17 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
       }),
       signal: AbortSignal.timeout(25_000),
     });
+
+  let response: Response;
+  try {
+    response = await request();
+    // The free tier allows only a few scans a minute; wait briefly and retry once.
+    if (response.status === 429) {
+      const wait = Number(response.headers.get("retry-after"));
+      const seconds = Number.isFinite(wait) && wait > 0 ? Math.min(wait, 8) : 4;
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+      response = await request();
+    }
   } catch {
     return { ok: false, error: "The scan took too long. Try again or fill in the form by hand." };
   }

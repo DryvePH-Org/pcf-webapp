@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Ban,
   CircleCheck,
   Flag,
   Paperclip,
+  Pencil,
   PenLine,
   Send,
   Undo2,
@@ -96,6 +98,7 @@ export function VoucherActions({
     isDraft &&
     own &&
     (viewer.role === "custodian" || viewer.role === "admin");
+  const canEdit = isDraft && own && (viewer.role === "custodian" || viewer.role === "admin");
   const canApprove =
     (isSubmitted || voucher.status === "released" || voucher.status === "rejected") &&
     canPerform(viewer.role, "voucher.approve") &&
@@ -170,6 +173,17 @@ export function VoucherActions({
               >
                 <Send />
                 Submit for approval
+              </Button>
+            ) : null}
+
+            {canEdit ? (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={`/vouchers/${voucher.id}/edit`} />}
+              >
+                <Pencil />
+                Edit
               </Button>
             ) : null}
 

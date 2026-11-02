@@ -44,6 +44,12 @@ export const createVoucherSchema = z.object({
 
 export type CreateVoucherValues = z.infer<typeof createVoucherSchema>;
 
+export const updateVoucherSchema = createVoucherSchema
+  .omit({ fund_id: true, no_receipt_reason: true })
+  .extend({ voucher_id: z.uuid() });
+
+export type UpdateVoucherValues = z.infer<typeof updateVoucherSchema>;
+
 export const receiptPathSchema = z.object({
   voucher_id: z.uuid(),
   receipt_path: z

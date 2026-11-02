@@ -67,6 +67,9 @@ You hold the fund and hand out the cash.
    still empty, the app also reads a store receipt and fills the form from it.
    Use **Fill form from receipt** to run it again (it replaces what you typed).
    No receipt? Give a reason instead.
+   A draft can be corrected later: open it and tap **Edit** to change the payee,
+   date or lines (the receipt and release stay on the voucher page). Once a
+   voucher is submitted or released it is locked.
 3. **Save draft** to finish later, or **Save and release cash** to hand over
    the money now. Releasing lowers your expected cash by that amount.
 

@@ -93,4 +93,48 @@ describe.skipIf(!enabled)('Multi-line vouchers', () => {
     const { error } = await custodian.from('vouchers').update({ amount: 1 }).eq('id', id);
     expect(error).not.toBeNull();
   });
+
+  it('lets the preparer rewrite a draft, recomputing the total', async () => {
+    const { data: id } = await create(lines(['Old', 10, 0]));
+    const { error } = await custodian.rpc('update_voucher_lines', {
+      p_id: id,
+      p_payee: `${tag} corrected`,
+      p_items: lines(['New A', 20, 1], ['New B', 5.5, 0]),
+      p_voucher_date: '2026-10-01',
+    });
+    expect(error).toBeNull();
+    const { data: voucher } = await custodian
+      .from('vouchers')
+      .select('payee, amount, particulars, voucher_date')
+      .eq('id', id)
+      .single();
+    expect(voucher!.payee).toBe(`${tag} corrected`);
+    expect(Number(voucher!.amount)).toBeCloseTo(25.5, 2);
+    expect(voucher!.particulars).toBe('New A; New B');
+    expect(voucher!.voucher_date).toBe('2026-10-01');
+    const { data: items } = await custodian
+      .from('voucher_items')
+      .select('particulars')
+      .eq('voucher_id', id)
+      .order('position');
+    expect(items!.map((i) => i.particulars)).toEqual(['New A', 'New B']);
+  });
+
+  it('refuses to edit released vouchers, over-limit totals or other custodians', async () => {
+    const { data: id } = await create(lines(['Locked', 10, 0]));
+    const { error: over } = await custodian.rpc('update_voucher_lines', {
+      p_id: id,
+      p_payee: 'x',
+      p_items: lines(['Big', 5000, 0]),
+    });
+    expect(over?.message).toMatch(/per-transaction limit/);
+
+    await custodian.rpc('release_voucher', { p_id: id });
+    const { error: locked } = await custodian.rpc('update_voucher_lines', {
+      p_id: id,
+      p_payee: 'x',
+      p_items: lines(['Nope', 1, 0]),
+    });
+    expect(locked?.message).toMatch(/Only drafts/);
+  });
 });

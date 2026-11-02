@@ -603,6 +603,15 @@ export type Database = {
       }
       submit_replenishment: { Args: { p_id: string }; Returns: undefined }
       submit_voucher: { Args: { p_id: string }; Returns: undefined }
+      update_voucher_lines: {
+        Args: {
+          p_id: string
+          p_items: Json
+          p_payee: string
+          p_voucher_date?: string
+        }
+        Returns: undefined
+      }
       void_voucher: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined

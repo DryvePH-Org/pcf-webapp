@@ -47,6 +47,15 @@ test.describe("custodian prepares a multi-line voucher (desktop)", () => {
     await expect(page.getByText("Padlocks").first()).toBeVisible();
     await expect(page.getByText("Delivery").first()).toBeVisible();
     await expect(page.getByText("Multiple categories").first()).toBeVisible();
+
+    // The draft can be corrected from the voucher page.
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.waitForURL(/\/edit$/);
+    await page.locator("#voucher-amount-1").fill("99.50");
+    await expect(page.getByText("Total")).toContainText("220.00");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(/\/vouchers\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("220.00").first()).toBeVisible();
     await context.close();
   });
 });

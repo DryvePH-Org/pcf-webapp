@@ -32,18 +32,41 @@ async function loadVoucher(id: string) {
     .single();
   if (error) throw error;
 
-  const [{ data: category }, { data: fund }] = await Promise.all([
-    admin.from("categories").select("name").eq("id", voucher.category_id).maybeSingle(),
+  const [{ data: categories }, { data: fund }, { data: items }] = await Promise.all([
+    admin.from("categories").select("id, name"),
     admin.from("funds").select("name").eq("id", voucher.fund_id).maybeSingle(),
+    admin
+      .from("voucher_items")
+      .select("particulars, amount, category_id")
+      .eq("voucher_id", id)
+      .order("position", { ascending: true }),
   ]);
+  const categoryName = (categoryId: string) =>
+    categories?.find((category) => category.id === categoryId)?.name ?? "—";
+  const lines = items ?? [];
+  const multiple = lines.length > 1;
+  const distinctCategories = new Set(lines.map((line) => line.category_id));
 
   const rows: Row[] = [
     { label: "Voucher", value: voucher.pcv_number },
     { label: "Payee", value: voucher.payee },
     { label: "Amount", value: formatPHP(voucher.amount) },
-    { label: "Category", value: category?.name ?? "—" },
+    {
+      label: "Category",
+      value:
+        multiple && distinctCategories.size > 1
+          ? "Multiple categories"
+          : categoryName(voucher.category_id),
+    },
     { label: "Fund", value: fund?.name ?? "—" },
-    { label: "Particulars", value: voucher.particulars },
+    ...(multiple
+      ? lines.map((line, index) => ({
+          label: `Line ${index + 1}`,
+          value: `${line.particulars} — ${formatPHP(line.amount)}${
+            distinctCategories.size > 1 ? ` (${categoryName(line.category_id)})` : ""
+          }`,
+        }))
+      : [{ label: "Particulars", value: voucher.particulars }]),
     {
       label: "Receipt",
       value: voucher.receipt_path

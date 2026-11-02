@@ -23,7 +23,9 @@ import {
   noReceiptReasonSchema,
   receiptPathSchema,
   voucherReasonSchema,
+  updateVoucherSchema,
   type CreateVoucherValues,
+  type UpdateVoucherValues,
 } from "@/lib/validators/voucher";
 
 export type CreateVoucherResult =
@@ -103,6 +105,33 @@ export async function createVoucher(
 
   revalidatePath("/vouchers");
   return { ok: true, id: data as string };
+}
+
+export async function updateVoucher(
+  input: UpdateVoucherValues,
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to edit a voucher.");
+
+  const parsed = updateVoucherSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  const values = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_voucher_lines", {
+    p_id: values.voucher_id,
+    p_payee: values.payee,
+    p_items: values.items.map((item) => ({
+      particulars: item.particulars,
+      amount: toMoneyNumber(item.amount),
+      category_id: item.category_id,
+    })),
+    p_voucher_date: values.voucher_date,
+  });
+  if (error) return actionError(error.message);
+
+  revalidateVoucher(values.voucher_id);
+  return { ok: true };
 }
 
 export async function setVoucherReceipt(

@@ -11,6 +11,7 @@ import { scanReceipt } from "@/actions/receipt-scan";
 import {
   createVoucher,
   releaseVoucher,
+  updateVoucher,
   setVoucherReceipt,
   submitVoucher,
 } from "@/actions/vouchers";
@@ -52,10 +53,20 @@ export function VoucherForm({
   funds,
   categories,
   highlightScan = false,
+  edit,
 }: {
   funds: FundOption[];
   categories: CategoryOption[];
   highlightScan?: boolean;
+  // Set when correcting an existing draft; receipts and actions stay on the
+  // voucher page.
+  edit?: {
+    id: string;
+    fund_id: string;
+    voucher_date: string;
+    payee: string;
+    items: { particulars: string; amount: string; category_id: string }[];
+  };
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -70,10 +81,10 @@ export function VoucherForm({
   const form = useForm<CreateVoucherValues>({
     resolver: zodResolver(createVoucherSchema),
     defaultValues: {
-      fund_id: funds[0]?.id ?? "",
-      voucher_date: todayInAppTz(),
-      payee: "",
-      items: [emptyLine],
+      fund_id: edit?.fund_id ?? funds[0]?.id ?? "",
+      voucher_date: edit?.voucher_date ?? todayInAppTz(),
+      payee: edit?.payee ?? "",
+      items: edit?.items ?? [emptyLine],
       no_receipt_reason: "",
     },
   });
@@ -144,6 +155,29 @@ export function VoucherForm({
       toast.error("The scan failed. Fill in the form by hand.");
     } finally {
       setScanning(null);
+    }
+  }
+
+  async function saveEdit(values: CreateVoucherValues) {
+    if (!edit) return;
+    setServerError(null);
+    setSubmitting("draft");
+    try {
+      const result = await updateVoucher({
+        voucher_id: edit.id,
+        voucher_date: values.voucher_date,
+        payee: values.payee,
+        items: values.items,
+      });
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
+      toast.success("Changes saved");
+      router.push(`/vouchers/${edit.id}`);
+      router.refresh();
+    } finally {
+      setSubmitting(null);
     }
   }
 
@@ -233,7 +267,9 @@ export function VoucherForm({
     }
   }
 
-  const submitDraft = form.handleSubmit((values) => submit(values, "draft"));
+  const submitDraft = form.handleSubmit((values) =>
+    edit ? saveEdit(values) : submit(values, "draft"),
+  );
   const submitRelease = form.handleSubmit((values) =>
     submit(values, needsApproval ? "submit" : "release"),
   );
@@ -245,12 +281,14 @@ export function VoucherForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={submitDraft} noValidate>
-          <PaperVoucherScanner
-            highlight={highlightScan}
-            scanning={scanning?.kind === "voucher" ? scanning.file : null}
-            disabled={scanning !== null || submitting !== null}
-            onPick={(photo) => void fillFromPhoto(photo, "voucher", true)}
-          />
+          {edit ? null : (
+            <PaperVoucherScanner
+              highlight={highlightScan}
+              scanning={scanning?.kind === "voucher" ? scanning.file : null}
+              disabled={scanning !== null || submitting !== null}
+              onPick={(photo) => void fillFromPhoto(photo, "voucher", true)}
+            />
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -466,6 +504,8 @@ export function VoucherForm({
             ) : null}
           </div>
 
+          {edit ? null : (
+            <>
           <div className="space-y-2">
             <Label>Proof of spending</Label>
             <ReceiptUploader
@@ -528,6 +568,9 @@ export function VoucherForm({
             </div>
           ) : null}
 
+            </>
+          )}
+
           {serverError ? (
             <Alert variant="destructive">
               <CircleAlert />
@@ -536,6 +579,15 @@ export function VoucherForm({
           ) : null}
 
           <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            {edit ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => router.push(`/vouchers/${edit.id}`)}
+              >
+                Cancel
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -543,8 +595,13 @@ export function VoucherForm({
               onClick={submitDraft}
             >
               <Save />
-              {submitting === "draft" ? "Saving..." : "Save draft"}
+              {submitting === "draft"
+                ? "Saving..."
+                : edit
+                  ? "Save changes"
+                  : "Save draft"}
             </Button>
+            {edit ? null : (
             <Button
               type="button"
               disabled={submitting !== null}
@@ -559,6 +616,7 @@ export function VoucherForm({
                   ? "Releasing..."
                   : "Save and release cash"}
             </Button>
+            )}
           </div>
         </form>
       </CardContent>

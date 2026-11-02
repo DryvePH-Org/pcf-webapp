@@ -1,3 +1,4 @@
+import { amountInWords } from "@/lib/amount-words";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatPHP } from "@/lib/money";
 import { VOUCHER_STATUS_LABELS } from "@/lib/voucher-status";
@@ -67,7 +68,10 @@ export function VoucherPrint({
               <th className="border border-black px-2 py-1 text-left font-semibold">
                 Particulars
               </th>
-              <th className="w-44 border border-black px-2 py-1 text-right font-semibold">
+              <th className="w-40 border border-black px-2 py-1 text-left font-semibold">
+                Category
+              </th>
+              <th className="w-36 border border-black px-2 py-1 text-right font-semibold">
                 Amount
               </th>
             </tr>
@@ -77,27 +81,30 @@ export function VoucherPrint({
               <tr key={index}>
                 <td className="border border-black px-2 py-2 align-top whitespace-pre-wrap">
                   {line.particulars}
-                  {lines.length > 1 ? (
-                    <span className="block text-[10px] uppercase">
-                      {line.category_name}
-                    </span>
-                  ) : null}
+                </td>
+                <td className="border border-black px-2 py-2 align-top text-xs">
+                  {line.category_name}
                 </td>
                 <td className="border border-black px-2 py-2 text-right align-top font-mono">
                   {formatPHP(line.amount)}
                 </td>
               </tr>
             ))}
-            {lines.length === 1 ? (
-              <tr>
-                <td className="h-16 border border-black" />
+            {/* Blank rows keep the sheet looking like the paper form. */}
+            {Array.from({ length: Math.max(0, 5 - lines.length) }, (_, index) => (
+              <tr key={`blank-${index}`}>
+                <td className="h-8 border border-black" />
+                <td className="border border-black" />
                 <td className="border border-black" />
               </tr>
-            ) : null}
+            ))}
           </tbody>
           <tfoot>
             <tr>
-              <td className="border border-black px-2 py-1 text-right font-semibold">
+              <td
+                colSpan={2}
+                className="border border-black px-2 py-1 text-right font-semibold"
+              >
                 Total
               </td>
               <td className="border border-black px-2 py-1 text-right font-mono font-bold">
@@ -106,6 +113,11 @@ export function VoucherPrint({
             </tr>
           </tfoot>
         </table>
+
+        <p className="mt-3 text-sm">
+          <span className="font-semibold">Amount in words: </span>
+          {amountInWords(amount)}
+        </p>
 
         {noReceiptReason ? (
           <p className="mt-3 text-xs">
@@ -132,7 +144,7 @@ export function VoucherPrint({
             name={approvedByName ?? ""}
             date={approvedAt ? formatDateTime(approvedAt) : undefined}
           />
-          <Signature label="Received by" name={payee} />
+          <Signature label="Received by (payee)" name="" />
         </div>
       </div>
     </div>
