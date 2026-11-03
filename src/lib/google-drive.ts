@@ -9,12 +9,23 @@ const UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const ROOT_FOLDER = "Petty Cash Vouchers";
 
-export function driveConfigured() {
+// Two ways in. A Google Apps Script web app the owner deployed (runs as them,
+// works inside a company Workspace without admin help), or Google's own API
+// with a one-time sign-in (refresh token). The script is preferred if both are set.
+function scriptConfigured() {
+  return Boolean(process.env.GOOGLE_SCRIPT_URL && process.env.GOOGLE_SCRIPT_SECRET);
+}
+
+function oauthConfigured() {
   return Boolean(
     process.env.GOOGLE_CLIENT_ID &&
       process.env.GOOGLE_CLIENT_SECRET &&
       process.env.GOOGLE_REFRESH_TOKEN,
   );
+}
+
+export function driveConfigured() {
+  return scriptConfigured() || oauthConfigured();
 }
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -110,12 +121,44 @@ async function findOrCreateFolder(token: string, name: string, parentId: string 
   return id;
 }
 
-export async function uploadToDrive(input: {
+type UploadInput = {
   folders: string[];
   fileName: string;
   mimeType: string;
   bytes: ArrayBuffer;
-}): Promise<{ id: string; url: string }> {
+};
+
+const DRIVE_URL = /^https:\/\/(drive|docs)\.google\.com\//;
+
+async function uploadViaScript(input: UploadInput) {
+  const response = await fetch(process.env.GOOGLE_SCRIPT_URL ?? "", {
+    method: "POST",
+    // Apps Script answers a POST with a redirect to the result; fetch follows it.
+    redirect: "follow",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      secret: process.env.GOOGLE_SCRIPT_SECRET,
+      folders: input.folders.map(driveSafeName),
+      fileName: driveSafeName(input.fileName),
+      mimeType: input.mimeType,
+      data: Buffer.from(input.bytes).toString("base64"),
+    }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!response.ok) throw new Error(`Drive script failed (${response.status})`);
+  const result = (await response.json().catch(() => null)) as
+    | { ok?: boolean; id?: string; url?: string; error?: string }
+    | null;
+  if (!result?.ok || !result.id || !result.url) {
+    throw new Error(`Drive script refused the upload (${result?.error ?? "no answer"})`);
+  }
+  if (!DRIVE_URL.test(result.url)) throw new Error("Drive script returned an unexpected link");
+  return { id: result.id, url: result.url };
+}
+
+export async function uploadToDrive(input: UploadInput): Promise<{ id: string; url: string }> {
+  if (scriptConfigured()) return uploadViaScript(input);
+
   const token = await accessToken();
 
   let parent: string | null = null;

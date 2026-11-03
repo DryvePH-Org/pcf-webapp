@@ -16,7 +16,47 @@ The app signs in once as **you** (with a refresh token) and uses the narrow
 `drive.file` permission: it can only see the files and folders it created
 itself, never the rest of your Drive. Files count against your Drive storage.
 
-## One-time setup (about 10 minutes)
+## Option 1: an Apps Script in your own Drive (no admin, no Cloud project)
+
+Use this if you are a member of a Google Workspace and cannot create the Google
+Cloud key file. The app sends each photo to a small script you deploy; the
+script runs **as you** and saves the file in your Drive.
+
+1. Make a secret and copy it to the clipboard without showing it:
+   ```bash
+   mkdir -p .secrets && openssl rand -hex 32 > .secrets/drive-script-secret
+   ```
+2. Open <https://script.google.com/> with your work account → **New project**,
+   name it "PCF Voucher Uploads". Replace everything in `Code.gs` with the file
+   `apps-script/Code.gs` from this repository (`pbcopy < apps-script/Code.gs`
+   copies it).
+3. **Project Settings** (gear) → **Script properties** → add
+   `UPLOAD_SECRET` = the contents of `.secrets/drive-script-secret`
+   (`pbcopy < .secrets/drive-script-secret`, then paste). Optional:
+   `ROOT_FOLDER_ID` = the id from the URL of an existing Drive folder you can
+   edit (`drive.google.com/drive/folders/<ID>`); without it a **Petty Cash
+   Vouchers** folder is created in My Drive.
+4. **Deploy → New deployment** → type **Web app** → Execute as **Me**, Who has
+   access **Anyone** → **Deploy**. Approve the permission prompt (*Advanced →
+   Go to ... → Allow*). Copy the **Web app URL** (ends in `/exec`).
+   - If "Anyone" is not offered, your company blocks it; use Option 2 instead.
+   - "Anyone" only means the address can be reached. Nothing is saved without
+     the secret, which is long and random.
+5. Open the URL in a browser: you should see `{"ok":true,...}`.
+6. Save the URL and send both values to Cloudflare:
+   ```bash
+   pbpaste > .secrets/drive-script-url      # with the URL on the clipboard
+   pnpm exec wrangler secret put GOOGLE_SCRIPT_URL < .secrets/drive-script-url
+   pnpm exec wrangler secret put GOOGLE_SCRIPT_SECRET < .secrets/drive-script-secret
+   ```
+7. Deploy (`pnpm run deploy`) and save a voucher with a photo.
+
+If you edit the script later, use **Deploy → Manage deployments → Edit → New
+version** so the same URL keeps working.
+
+## Option 2: Google sign-in with a key file
+
+### One-time setup (about 10 minutes)
 
 1. Go to <https://console.cloud.google.com/>, create a project (for example
    "PCF Vouchers").
