@@ -452,10 +452,13 @@ export type Database = {
           fund_id: string
           id: string
           no_receipt_reason: string | null
+          paper_drive_url: string | null
+          paper_voucher_path: string | null
           particulars: string
           payee: string
           pcv_number: string
           prepared_by: string
+          receipt_drive_url: string | null
           receipt_path: string | null
           reject_reason: string | null
           released_at: string | null
@@ -475,10 +478,13 @@ export type Database = {
           fund_id: string
           id?: string
           no_receipt_reason?: string | null
+          paper_drive_url?: string | null
+          paper_voucher_path?: string | null
           particulars: string
           payee: string
           pcv_number: string
           prepared_by: string
+          receipt_drive_url?: string | null
           receipt_path?: string | null
           reject_reason?: string | null
           released_at?: string | null
@@ -498,10 +504,13 @@ export type Database = {
           fund_id?: string
           id?: string
           no_receipt_reason?: string | null
+          paper_drive_url?: string | null
+          paper_voucher_path?: string | null
           particulars?: string
           payee?: string
           pcv_number?: string
           prepared_by?: string
+          receipt_drive_url?: string | null
           receipt_path?: string | null
           reject_reason?: string | null
           released_at?: string | null

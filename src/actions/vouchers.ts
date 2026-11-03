@@ -17,6 +17,7 @@ import {
   notifyVoucherSubmitted,
   notifyVoucherVoided,
 } from "@/lib/notifications/events";
+import { mirrorVoucherPhoto } from "@/lib/drive-mirror";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -182,6 +183,51 @@ export async function setVoucherReceipt(
     return actionError("Could not attach the receipt to this voucher.");
   }
 
+  queueNotification("drive:receipt", () => mirrorVoucherPhoto(voucher_id, "receipt"));
+  revalidateVoucher(voucher_id);
+  return { ok: true };
+}
+
+// The signed paper voucher the custodian photographed. It is kept with the
+// voucher (and copied to Drive) but is separate from the store receipt.
+export async function attachPaperVoucher(
+  input: z.input<typeof receiptPathSchema>,
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to attach a photo.");
+
+  const parsed = receiptPathSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  const { voucher_id, receipt_path } = parsed.data;
+  const supabase = await createClient();
+
+  const { data: voucher, error: readError } = await supabase
+    .from("vouchers")
+    .select("id, fund_id, status, prepared_by")
+    .eq("id", voucher_id)
+    .maybeSingle();
+  if (readError) return actionError(safeDbMessage(readError));
+  if (!voucher) return actionError("Voucher not found.");
+  if (voucher.status !== "draft") return actionError("Only drafts can take a new photo.");
+  if (voucher.prepared_by !== user.id) {
+    return actionError("Only the person who prepared this voucher can attach its photo.");
+  }
+  if (!receipt_path.startsWith(`${voucher.fund_id}/${voucher.id}/`)) {
+    return actionError("The photo path does not match this voucher.");
+  }
+
+  const { data: updated, error } = await supabase
+    .from("vouchers")
+    .update({ paper_voucher_path: receipt_path })
+    .eq("id", voucher_id)
+    .select("id");
+  if (error) return actionError(safeDbMessage(error));
+  if (!updated || updated.length === 0) {
+    return actionError("Could not attach the photo to this voucher.");
+  }
+
+  queueNotification("drive:paper", () => mirrorVoucherPhoto(voucher_id, "paper"));
   revalidateVoucher(voucher_id);
   return { ok: true };
 }

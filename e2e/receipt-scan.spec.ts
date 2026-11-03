@@ -49,6 +49,15 @@ test.describe("receipt photo fills the voucher form (desktop)", () => {
     await expect(page.getByText("Total")).toContainText("475.50");
     // Scans are spaced out to respect the reading service's rate limit.
     await expect(page.getByRole("button", { name: /Scan again in \d+s/ }).first()).toBeDisabled();
+
+    // The scanned paper photo is kept with the voucher once it is saved.
+    for (let index = 0; index < 3; index += 1) {
+      await page.locator(`#voucher-category-${index}`).click();
+      await page.getByRole("option").first().click();
+    }
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForURL(/\/vouchers\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Paper voucher", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
     await context.close();
   });
 });

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { scanReceipt } from "@/actions/receipt-scan";
 import {
+  attachPaperVoucher,
   createVoucher,
   releaseVoucher,
   updateVoucher,
@@ -108,6 +109,9 @@ export function VoucherForm({
   // The paper voucher photo last read, kept on screen so the custodian can
   // compare it with what the form now says.
   const [comparePhoto, setComparePhoto] = useState<File | null>(null);
+  // Kept (unlike the on-screen note, which can be hidden) so the paper voucher
+  // photo is saved with the voucher.
+  const [paperPhoto, setPaperPhoto] = useState<File | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
@@ -206,7 +210,10 @@ export function VoucherForm({
         lines.replace(scanned);
       }
       setFilledFromPhoto(true);
-      if (kind === "voucher") setComparePhoto(photo);
+      if (kind === "voucher") {
+        setComparePhoto(photo);
+        setPaperPhoto(photo);
+      }
       toast.success("Filled in from the photo. Check every field before saving.");
       for (const warning of warnings) toast.warning(warning, { duration: 12000 });
     } catch {
@@ -295,6 +302,21 @@ export function VoucherForm({
           );
           router.push(`/vouchers/${voucherId}`);
           return;
+        }
+      }
+
+      if (paperPhoto) {
+        try {
+          const path = await uploadReceipt(paperPhoto, values.fund_id, voucherId);
+          const attached = await attachPaperVoucher({
+            voucher_id: voucherId,
+            receipt_path: path,
+          });
+          if (!attached.ok) throw new Error(attached.error);
+        } catch (error) {
+          toast.error(
+            `Voucher saved, but the paper voucher photo was not: ${error instanceof Error ? error.message : "unknown error"}.`,
+          );
         }
       }
 

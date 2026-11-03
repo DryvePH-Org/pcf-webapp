@@ -69,4 +69,16 @@ describe.skipIf(!enabled)('Approvers preparing their own vouchers', () => {
     expect((await clients.approver.rpc('update_voucher_lines', { p_id: id, p_payee: 'x', p_items: item(1) })).error).not.toBeNull();
     expect((await clients.approver.rpc('void_voucher', { p_id: id, p_reason: 'nope' })).error).not.toBeNull();
   });
+
+  it('lets an approver upload a photo for their own voucher', async () => {
+    const { data: id } = await create('approver', 15);
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    const path = `${fundId}/${id}/approver-test.png`;
+    const { error } = await clients.approver.storage.from('receipts').upload(path, png, { contentType: 'image/png' });
+    expect(error).toBeNull();
+    await clients.approver.storage.from('receipts').remove([path]);
+  });
 });

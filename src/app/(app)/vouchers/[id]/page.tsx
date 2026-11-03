@@ -125,6 +125,19 @@ export default async function VoucherDetailPage({
     receiptUrl = signed?.signedUrl ?? null;
   }
 
+  let paperUrl: string | null = null;
+  if (voucher.paper_voucher_path) {
+    const { data: signed } = await supabase.storage
+      .from("receipts")
+      .createSignedUrl(voucher.paper_voucher_path, 3600);
+    paperUrl = signed?.signedUrl ?? null;
+  }
+  // Only ever link to Google's own domains, whatever is stored.
+  const driveLink = (url: string | null) =>
+    url && /^https:\/\/(drive|docs)\.google\.com\//.test(url) ? url : null;
+  const receiptDriveUrl = driveLink(voucher.receipt_drive_url);
+  const paperDriveUrl = driveLink(voucher.paper_drive_url);
+
   const events = buildTimeline({
     createdAt: voucher.created_at,
     submittedAt: voucher.submitted_at,
@@ -329,8 +342,24 @@ export default async function VoucherDetailPage({
                   url={receiptUrl}
                   noReceiptReason={voucher.no_receipt_reason}
                 />
+                {receiptDriveUrl ? <DriveLink href={receiptDriveUrl} /> : null}
               </CardContent>
             </Card>
+
+            {paperUrl ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Paper voucher</CardTitle>
+                  <CardDescription>
+                    Photo of the signed paper copy. Signed link, valid for one hour.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ReceiptViewer url={paperUrl} noReceiptReason={null} />
+                  {paperDriveUrl ? <DriveLink href={paperDriveUrl} /> : null}
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
 
           <div className="space-y-6">
@@ -472,6 +501,23 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="truncate font-medium">{value}</dd>
     </div>
+  );
+}
+
+function DriveLink({ href }: { href: string }) {
+  return (
+    <p className="mt-2 text-xs text-muted-foreground">
+      Also saved in{" "}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-foreground underline underline-offset-2"
+      >
+        Google Drive
+      </a>
+      .
+    </p>
   );
 }
 
