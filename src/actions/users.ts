@@ -31,11 +31,18 @@ function validationError(error: z.ZodError): ActionResult {
 
 
 async function heldFunds(userId: string) {
-  const { data, error } = await createAdminClient()
-    .from("funds")
-    .select("id, name")
+  const admin = createAdminClient();
+  const { data: links, error } = await admin
+    .from("fund_custodians")
+    .select("fund_id")
     .eq("custodian_id", userId);
   if (error) throw error;
+  if (links.length === 0) return [];
+  const { data, error: fundsError } = await admin
+    .from("funds")
+    .select("id, name")
+    .in("id", links.map((link) => link.fund_id));
+  if (fundsError) throw fundsError;
   return data;
 }
 
@@ -186,11 +193,17 @@ export async function setCustodianFunds(input: {
   const { userId } = parsed.data;
   const fundIds = [...new Set(parsed.data.fundIds)];
 
-  // Remember who held what, so everyone affected can be told afterwards.
+  // Remember what this custodian held, so the change can be reported.
   const { data: funds, error: readError } = await createAdminClient()
     .from("funds")
-    .select("id, name, custodian_id");
-  if (readError) return actionError(readError.message);
+    .select("id, name");
+  if (readError) return actionError(safeDbMessage(readError));
+  const { data: held, error: heldError } = await createAdminClient()
+    .from("fund_custodians")
+    .select("fund_id")
+    .eq("custodian_id", userId);
+  if (heldError) return actionError(safeDbMessage(heldError));
+  const heldBefore = new Set(held.map((row) => row.fund_id));
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("assign_custodian_funds", {
@@ -200,23 +213,17 @@ export async function setCustodianFunds(input: {
   if (error) return actionError(safeDbMessage(error));
 
   const selected = new Set(fundIds);
-  const added = funds.filter((fund) => selected.has(fund.id) && fund.custodian_id !== userId);
-  const removed = funds.filter((fund) => !selected.has(fund.id) && fund.custodian_id === userId);
+  const added = funds.filter((fund) => selected.has(fund.id) && !heldBefore.has(fund.id));
+  const removed = funds.filter((fund) => !selected.has(fund.id) && heldBefore.has(fund.id));
 
-  const changes = new Map<string, { added: string[]; removed: string[] }>();
-  const entry = (id: string) => {
-    if (!changes.has(id)) changes.set(id, { added: [], removed: [] });
-    return changes.get(id)!;
-  };
-  for (const fund of added) {
-    entry(userId).added.push(fund.name);
-    if (fund.custodian_id) entry(fund.custodian_id).removed.push(fund.name);
-  }
-  for (const fund of removed) entry(userId).removed.push(fund.name);
-
-  for (const [recipientId, change] of changes) {
+  if (added.length > 0 || removed.length > 0) {
     queueNotification("fund.assignment_changed", () =>
-      notifyFundAssignment({ userId: recipientId, ...change, actorId: admin.id }),
+      notifyFundAssignment({
+        userId,
+        added: added.map((fund) => fund.name),
+        removed: removed.map((fund) => fund.name),
+        actorId: admin.id,
+      }),
     );
   }
 

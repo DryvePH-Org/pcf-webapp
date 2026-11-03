@@ -13,13 +13,6 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatPHP, parseMoney } from "@/lib/money";
 import {
   fundFormSchema,
@@ -32,7 +25,7 @@ const emptyValues: FundFormValues = {
   per_txn_limit: "",
   approval_threshold: "3000.00",
   low_balance_pct: 25,
-  custodian_id: "none",
+  custodian_ids: [],
 };
 
 export function FundFormDialog({
@@ -57,7 +50,7 @@ export function FundFormDialog({
           per_txn_limit: fund.per_txn_limit,
           approval_threshold: fund.approval_threshold,
           low_balance_pct: fund.low_balance_pct,
-          custodian_id: fund.custodian_id ?? "none",
+          custodian_ids: fund.custodian_ids,
         }
       : emptyValues,
   });
@@ -67,14 +60,6 @@ export function FundFormDialog({
     null,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const custodianItems = [
-    { value: "none", label: "Unassigned" },
-    ...custodians.map((custodian) => ({
-      value: custodian.id,
-      label: custodian.full_name,
-    })),
-  ];
 
   async function persist(values: FundFormValues, confirmed: boolean) {
     setSubmitting(true);
@@ -220,33 +205,48 @@ export function FundFormDialog({
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label>Custodian</Label>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Custodians</Label>
               <Controller
                 control={form.control}
-                name="custodian_id"
+                name="custodian_ids"
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? "none")}
-                    items={custodianItems}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Unassigned" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {custodianItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                    {custodians.length === 0 ? (
+                      <li className="px-1 text-sm text-muted-foreground">
+                        No active custodians yet. Create one under Admin → Users.
+                      </li>
+                    ) : (
+                      custodians.map((custodian) => (
+                        <li key={custodian.id}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-1.5 text-sm hover:bg-muted/50">
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-primary"
+                              checked={field.value.includes(custodian.id)}
+                              onChange={(event) =>
+                                field.onChange(
+                                  event.target.checked
+                                    ? [...field.value, custodian.id]
+                                    : field.value.filter((id) => id !== custodian.id),
+                                )
+                              }
+                            />
+                            {custodian.full_name}
+                          </label>
+                        </li>
+                      ))
+                    )}
+                  </ul>
                 )}
               />
-              {errors.custodian_id ? (
+              <p className="text-xs text-muted-foreground">
+                Every ticked custodian can prepare and release their own vouchers for
+                this fund, count its cash and request replenishments.
+              </p>
+              {errors.custodian_ids ? (
                 <p className="text-xs text-destructive">
-                  {errors.custodian_id.message}
+                  {errors.custodian_ids.message}
                 </p>
               ) : null}
             </div>

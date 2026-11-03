@@ -83,7 +83,8 @@ export function FundsManager({
     {
       key: "custodian",
       header: "Custodian",
-      cell: (fund) => fund.custodian_name ?? "Unassigned",
+      cell: (fund) =>
+        fund.custodian_names.length > 0 ? fund.custodian_names.join(", ") : "Unassigned",
     },
     {
       key: "actions",
@@ -102,7 +103,7 @@ export function FundsManager({
     <div className="space-y-6">
       <PageHeader
         title="Funds"
-        description="Fund amounts, per-transaction limits, and assigned custodians."
+        description="Fund amounts, limits, and the custodians who run each fund."
         actions={
           <Button onClick={openCreate}>
             <Plus />
@@ -122,7 +123,9 @@ export function FundsManager({
                 <div className="min-w-0">
                   <p className="truncate font-medium">{fund.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {fund.custodian_name ?? "Unassigned"}
+                    {fund.custodian_names.length > 0
+                      ? fund.custodian_names.join(", ")
+                      : "Unassigned"}
                   </p>
                 </div>
                 <Button

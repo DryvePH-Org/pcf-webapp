@@ -26,7 +26,7 @@ export function AssignFundsDialog({
   const [selected, setSelected] = useState<Set<string>>(
     () =>
       new Set(
-        funds.filter((fund) => fund.custodian_id === user.id).map((fund) => fund.id),
+        funds.filter((fund) => fund.custodian_ids.includes(user.id)).map((fund) => fund.id),
       ),
   );
   const [saving, setSaving] = useState(false);
@@ -62,7 +62,7 @@ export function AssignFundsDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`Funds for ${user.full_name}`}
-      description="A custodian only sees and works with the funds ticked here. Each fund has one custodian, so ticking a fund held by someone else moves it."
+      description="A custodian only sees and works with the funds ticked here. A fund can have several custodians, so ticking one does not take it from anyone else."
     >
       <div className="space-y-4">
         {funds.length === 0 ? (
@@ -72,8 +72,10 @@ export function AssignFundsDialog({
         ) : (
           <ul className="max-h-72 space-y-2 overflow-y-auto">
             {funds.map((fund) => {
-              const heldByOther =
-                fund.custodian_id !== null && fund.custodian_id !== user.id;
+              const others = fund.custodian_ids
+                .map((id, index) => ({ id, name: fund.custodian_names[index] }))
+                .filter((custodian) => custodian.id !== user.id)
+                .map((custodian) => custodian.name);
               return (
                 <li key={fund.id}>
                   <label
@@ -96,13 +98,9 @@ export function AssignFundsDialog({
                         />
                       </span>
                       <span className="block text-xs text-muted-foreground">
-                        {heldByOther
-                          ? selected.has(fund.id)
-                            ? `Moves from ${fund.custodian_name ?? "another custodian"}`
-                            : `Held by ${fund.custodian_name ?? "another custodian"}`
-                          : fund.custodian_id === user.id
-                            ? "Currently assigned"
-                            : "Unassigned"}
+                        {others.length > 0
+                          ? `Also held by ${others.join(", ")}`
+                          : "No other custodian"}
                       </span>
                     </span>
                   </label>

@@ -26,13 +26,9 @@ export const fundFormSchema = z
       .int("Enter a whole number")
       .min(1, "Use 1 to 100")
       .max(100, "Use 1 to 100"),
-    custodian_id: z
-      .string()
-      .trim()
-      .refine(
-        (value) => value === "none" || uuidPattern.test(value),
-        "Select a valid custodian",
-      ),
+    custodian_ids: z
+      .array(z.string().regex(uuidPattern, "Select a valid custodian"))
+      .max(20, "A fund can have at most 20 custodians"),
   })
   .superRefine((value, context) => {
     const limit = parseMoney(value.per_txn_limit);

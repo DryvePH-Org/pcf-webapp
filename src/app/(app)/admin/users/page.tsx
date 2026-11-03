@@ -10,7 +10,7 @@ export default async function AdminUsersPage() {
   const supabase = await createClient();
   const adminClient = createAdminClient();
 
-  const [profilesResult, authUsersResult, fundsResult] = await Promise.all([
+  const [profilesResult, authUsersResult, fundsResult, linksResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, role, is_active, created_at")
@@ -18,20 +18,27 @@ export default async function AdminUsersPage() {
     adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     supabase
       .from("funds")
-      .select("id, name, amount, custodian_id, is_active")
+      .select("id, name, amount, is_active")
       .order("name"),
+    supabase.from("fund_custodians").select("fund_id, custodian_id"),
   ]);
 
   if (profilesResult.error) throw new Error(profilesResult.error.message);
   if (authUsersResult.error) throw new Error(authUsersResult.error.message);
   if (fundsResult.error) throw new Error(fundsResult.error.message);
+  if (linksResult.error) throw new Error(linksResult.error.message);
 
+  const fundNames = new Map(fundsResult.data.map((fund) => [fund.id, fund.name]));
   const heldBy = new Map<string, string[]>();
-  for (const fund of fundsResult.data) {
-    if (!fund.custodian_id) continue;
-    heldBy.set(fund.custodian_id, [
-      ...(heldBy.get(fund.custodian_id) ?? []),
-      fund.name,
+  const custodiansOf = new Map<string, string[]>();
+  for (const link of linksResult.data) {
+    heldBy.set(link.custodian_id, [
+      ...(heldBy.get(link.custodian_id) ?? []),
+      fundNames.get(link.fund_id) ?? "—",
+    ]);
+    custodiansOf.set(link.fund_id, [
+      ...(custodiansOf.get(link.fund_id) ?? []),
+      link.custodian_id,
     ]);
   }
 
@@ -56,8 +63,8 @@ export default async function AdminUsersPage() {
       id: fund.id,
       name: fund.name,
       amount: String(fund.amount),
-      custodian_id: fund.custodian_id,
-      custodian_name: fund.custodian_id ? (names.get(fund.custodian_id) ?? null) : null,
+      custodian_ids: custodiansOf.get(fund.id) ?? [],
+      custodian_names: (custodiansOf.get(fund.id) ?? []).map((id) => names.get(id) ?? "—"),
     }));
 
   return (

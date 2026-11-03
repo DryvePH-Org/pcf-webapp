@@ -178,12 +178,51 @@ export type Database = {
           },
         ]
       }
+      fund_custodians: {
+        Row: {
+          assigned_at: string
+          custodian_id: string
+          fund_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          custodian_id: string
+          fund_id: string
+        }
+        Update: {
+          assigned_at?: string
+          custodian_id?: string
+          fund_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_custodians_custodian_id_fkey"
+            columns: ["custodian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fund_custodians_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "fund_custodians_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funds: {
         Row: {
           amount: number
           approval_threshold: number
           created_at: string
-          custodian_id: string | null
           id: string
           is_active: boolean
           low_balance_pct: number
@@ -194,7 +233,6 @@ export type Database = {
           amount: number
           approval_threshold?: number
           created_at?: string
-          custodian_id?: string | null
           id?: string
           is_active?: boolean
           low_balance_pct?: number
@@ -205,22 +243,13 @@ export type Database = {
           amount?: number
           approval_threshold?: number
           created_at?: string
-          custodian_id?: string | null
           id?: string
           is_active?: boolean
           low_balance_pct?: number
           name?: string
           per_txn_limit?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "funds_custodian_id_fkey"
-            columns: ["custodian_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       notification_log: {
         Row: {
@@ -621,6 +650,10 @@ export type Database = {
       }
       review_replenishment: {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
+      set_fund_custodians: {
+        Args: { p_custodian_ids: string[]; p_fund_id: string }
         Returns: undefined
       }
       submit_replenishment: { Args: { p_id: string }; Returns: undefined }

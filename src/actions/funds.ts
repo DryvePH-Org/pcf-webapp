@@ -29,30 +29,37 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   const parsed = saveFundSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
 
-  const { id, confirmAmountChange, custodian_id, ...values } = parsed.data;
+  const { id, confirmAmountChange, custodian_ids, ...values } = parsed.data;
+  const wanted = [...new Set(custodian_ids)];
   const payload = {
     name: values.name,
     amount: toMoneyNumber(values.amount),
     per_txn_limit: toMoneyNumber(values.per_txn_limit),
     approval_threshold: toMoneyNumber(values.approval_threshold),
     low_balance_pct: values.low_balance_pct,
-    custodian_id: custodian_id === "none" ? null : custodian_id,
   };
 
   const supabase = await createClient();
-  let previousCustodian: string | null = null;
+  let previous: string[] = [];
+  let fundId = id;
 
   if (id) {
     const { data: current, error: readError } = await supabase
       .from("funds")
-      .select("amount, custodian_id")
+      .select("amount")
       .eq("id", id)
       .maybeSingle();
 
-    if (readError) return actionError(readError.message);
+    if (readError) return actionError(safeDbMessage(readError));
     if (!current) return actionError("Fund not found.");
 
-    previousCustodian = current.custodian_id;
+    const { data: links, error: linkError } = await supabase
+      .from("fund_custodians")
+      .select("custodian_id")
+      .eq("fund_id", id);
+    if (linkError) return actionError(safeDbMessage(linkError));
+    previous = links.map((link) => link.custodian_id);
+
     const amountChanged =
       parseMoney(String(current.amount)) !== parseMoney(values.amount);
     if (amountChanged && !confirmAmountChange) {
@@ -64,24 +71,33 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
     const { error } = await supabase.from("funds").update(payload).eq("id", id);
     if (error) return actionError(safeDbMessage(error));
   } else {
-    const { error } = await supabase.from("funds").insert(payload);
+    const { data: created, error } = await supabase
+      .from("funds")
+      .insert(payload)
+      .select("id")
+      .single();
     if (error) return actionError(safeDbMessage(error));
+    fundId = created.id;
   }
 
-  if (previousCustodian !== payload.custodian_id) {
-    const fundName = payload.name;
-    const previous = previousCustodian;
-    const next = payload.custodian_id;
-    if (next) {
-      queueNotification("fund.assignment_changed", () =>
-        notifyFundAssignment({ userId: next, added: [fundName], removed: [], actorId: admin.id }),
-      );
-    }
-    if (previous) {
-      queueNotification("fund.assignment_changed", () =>
-        notifyFundAssignment({ userId: previous, added: [], removed: [fundName], actorId: admin.id }),
-      );
-    }
+  const { error: custodianError } = await supabase.rpc("set_fund_custodians", {
+    p_fund_id: fundId as string,
+    p_custodian_ids: wanted,
+  });
+  if (custodianError) return actionError(safeDbMessage(custodianError));
+
+  const fundName = payload.name;
+  const added = wanted.filter((userId) => !previous.includes(userId));
+  const removed = previous.filter((userId) => !wanted.includes(userId));
+  for (const userId of added) {
+    queueNotification("fund.assignment_changed", () =>
+      notifyFundAssignment({ userId, added: [fundName], removed: [], actorId: admin.id }),
+    );
+  }
+  for (const userId of removed) {
+    queueNotification("fund.assignment_changed", () =>
+      notifyFundAssignment({ userId, added: [], removed: [fundName], actorId: admin.id }),
+    );
   }
 
   revalidatePath("/admin/funds");

@@ -377,7 +377,7 @@ export async function notifyLowBalance(fundId: string) {
   const [{ data: fund }, { data: balance }] = await Promise.all([
     admin
       .from("funds")
-      .select("name, amount, low_balance_pct, custodian_id")
+      .select("name, amount, low_balance_pct")
       .eq("id", fundId)
       .single(),
     admin
@@ -388,13 +388,18 @@ export async function notifyLowBalance(fundId: string) {
   ]);
   if (!fund || !balance) return;
 
+  const { data: custodians } = await admin
+    .from("fund_custodians")
+    .select("custodian_id")
+    .eq("fund_id", fundId);
+
   const threshold = (fund.amount * fund.low_balance_pct) / 100;
   await notify({
     event: "fund.low_balance",
     entityType: "funds",
     entityId: fundId,
     recipients: await recipientsByRole(["admin", "accounting"], {
-      include: [fund.custodian_id],
+      include: (custodians ?? []).map((row) => row.custodian_id),
     }),
     subject: `Low balance: ${fund.name} has ${formatPHP(balance.expected_cash ?? 0)} left`,
     content: () => ({

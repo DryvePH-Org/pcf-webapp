@@ -32,7 +32,7 @@ const validFund = {
   per_txn_limit: '1000.00',
   approval_threshold: '3000.00',
   low_balance_pct: 25,
-  custodian_id: 'none',
+  custodian_ids: [] as string[],
 };
 
 describe('fundFormSchema', () => {
@@ -44,7 +44,7 @@ describe('fundFormSchema', () => {
     expect(
       fundFormSchema.safeParse({
         ...validFund,
-        custodian_id: '00000000-0000-4000-8000-000000000002',
+        custodian_ids: ['00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003'],
       }).success,
     ).toBe(true);
   });
@@ -71,7 +71,7 @@ describe('fundFormSchema', () => {
 
   it('rejects an invalid custodian id and low-balance percentage', () => {
     expect(
-      fundFormSchema.safeParse({ ...validFund, custodian_id: 'nobody' })
+      fundFormSchema.safeParse({ ...validFund, custodian_ids: ['nobody'] })
         .success,
     ).toBe(false);
     expect(

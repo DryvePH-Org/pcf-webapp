@@ -51,11 +51,21 @@ describe.skipIf(!enabled)('Fund-specific custodians', () => {
 
     const { data: main } = await clients.admin
       .from('funds')
-      .select('id, custodian_id')
+      .select('id')
       .eq('name', 'Main Petty Cash')
       .single();
     mainFundId = main!.id;
-    seededCustodianId = main!.custodian_id!;
+    const { data: seededProfile } = await clients.admin
+      .from('profiles')
+      .select('id')
+      .eq('role', 'custodian')
+      .eq('full_name', 'PCF Custodian')
+      .single();
+    seededCustodianId = seededProfile!.id;
+    // Start from the documented seed: this custodian holds the main fund.
+    await service
+      .from('fund_custodians')
+      .upsert({ fund_id: mainFundId, custodian_id: seededCustodianId });
 
     const { data: category } = await clients.admin
       .from('categories')
@@ -142,18 +152,18 @@ describe.skipIf(!enabled)('Fund-specific custodians', () => {
       p_category_id: categoryId,
       p_no_receipt_reason: 'test',
     });
-    expect(voucherError?.message).toMatch(/not the custodian of this fund/);
+    expect(voucherError?.message).toMatch(/not a custodian of this fund/);
 
     const { error: countError } = await clients.custodian.rpc('record_cash_count', {
       p_fund_id: otherFundId,
       p_counted: 5000,
     });
-    expect(countError?.message).toMatch(/not the custodian of this fund/);
+    expect(countError?.message).toMatch(/not a custodian of this fund/);
 
     const { error: replError } = await clients.custodian.rpc('create_replenishment', {
       p_fund_id: otherFundId,
     });
-    expect(replError?.message).toMatch(/not the custodian of this fund/);
+    expect(replError?.message).toMatch(/not a custodian of this fund/);
   });
 
   it('gives a custodian access once the fund is assigned', async () => {
@@ -162,10 +172,10 @@ describe.skipIf(!enabled)('Fund-specific custodians', () => {
 
     const { data: fund } = await clients.custodian2
       .from('funds')
-      .select('id, custodian_id')
+      .select('id')
       .eq('id', otherFundId)
       .single();
-    expect(fund?.custodian_id).toBe(secondCustodianId);
+    expect(fund?.id).toBe(otherFundId);
 
     const { data: voucherId, error: voucherError } = await clients.custodian2.rpc(
       'create_voucher',
@@ -226,26 +236,78 @@ describe.skipIf(!enabled)('Fund-specific custodians', () => {
     expect(approver.error).toBeNull();
   });
 
-  it('moves funds between custodians and unassigns the rest', async () => {
-    const moved = await assign(seededCustodianId, [mainFundId, otherFundId]);
-    expect(moved.error).toBeNull();
+  it('lets several custodians share a fund without taking it from each other', async () => {
+    const shared = await assign(seededCustodianId, [mainFundId, otherFundId]);
+    expect(shared.error).toBeNull();
 
-    const { data: funds } = await service
-      .from('funds')
-      .select('id, custodian_id')
-      .in('id', [mainFundId, otherFundId]);
-    expect(funds?.every((fund) => fund.custodian_id === seededCustodianId)).toBe(true);
+    const { data: holders } = await service
+      .from('fund_custodians')
+      .select('custodian_id')
+      .eq('fund_id', otherFundId);
+    expect(holders?.map((row) => row.custodian_id).sort()).toEqual(
+      [seededCustodianId, secondCustodianId].sort(),
+    );
 
+    // Both can work on the shared fund.
+    for (const who of ['custodian', 'custodian2']) {
+      const { data: visible } = await clients[who].from('funds').select('id').eq('id', otherFundId);
+      expect(visible?.length, who).toBe(1);
+    }
+
+    // Removing one custodian leaves the other in place.
     const cleared = await assign(secondCustodianId, []);
     expect(cleared.error).toBeNull();
-    const { data: mine } = await service
-      .from('funds')
-      .select('id')
-      .eq('custodian_id', secondCustodianId);
-    expect(mine).toEqual([]);
+    const { data: left } = await service
+      .from('fund_custodians')
+      .select('custodian_id')
+      .eq('fund_id', otherFundId);
+    expect(left?.map((row) => row.custodian_id)).toEqual([seededCustodianId]);
 
     // Put the seeded custodian back to owning only the main fund.
     const restored = await assign(seededCustodianId, [mainFundId]);
     expect(restored.error).toBeNull();
   });
+
+  it('sets a fund\'s custodians in one go, admins only, active custodians only', async () => {
+    const asCustodian = await clients.custodian.rpc('set_fund_custodians', {
+      p_fund_id: otherFundId,
+      p_custodian_ids: [secondCustodianId],
+    });
+    expect(asCustodian.error?.message).toMatch(/Not authorized/);
+
+    const { data: approverProfile } = await clients.admin
+      .from('profiles')
+      .select('id')
+      .eq('role', 'approver')
+      .limit(1)
+      .single();
+    const bad = await clients.admin.rpc('set_fund_custodians', {
+      p_fund_id: otherFundId,
+      p_custodian_ids: [approverProfile!.id],
+    });
+    expect(bad.error?.message).toMatch(/active custodian/);
+
+    const ok = await clients.admin.rpc('set_fund_custodians', {
+      p_fund_id: otherFundId,
+      p_custodian_ids: [seededCustodianId, secondCustodianId],
+    });
+    expect(ok.error).toBeNull();
+    const { data: holders } = await service
+      .from('fund_custodians')
+      .select('custodian_id')
+      .eq('fund_id', otherFundId);
+    expect(holders?.length).toBe(2);
+
+    const none = await clients.admin.rpc('set_fund_custodians', {
+      p_fund_id: otherFundId,
+      p_custodian_ids: [],
+    });
+    expect(none.error).toBeNull();
+    const { data: empty } = await service
+      .from('fund_custodians')
+      .select('custodian_id')
+      .eq('fund_id', otherFundId);
+    expect(empty).toEqual([]);
+  });
+
 });

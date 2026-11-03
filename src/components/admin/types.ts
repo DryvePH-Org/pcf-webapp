@@ -7,8 +7,8 @@ export type FundRow = {
   per_txn_limit: string;
   approval_threshold: string;
   low_balance_pct: number;
-  custodian_id: string | null;
-  custodian_name: string | null;
+  custodian_ids: string[];
+  custodian_names: string[];
 };
 
 export type CustodianOption = {
@@ -36,6 +36,6 @@ export type FundAssignmentOption = {
   id: string;
   name: string;
   amount: string;
-  custodian_id: string | null;
-  custodian_name: string | null;
+  custodian_ids: string[];
+  custodian_names: string[];
 };

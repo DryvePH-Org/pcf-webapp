@@ -127,12 +127,15 @@ You can do everything above, plus set the system up.
 - **Admin → Users**: create a user with their email and role (they receive no
   password — they sign in with a code), change roles, deactivate people who
   leave. For a custodian, the **Funds** column shows what they hold; click
-  **Assign** or **Change** and tick the funds they should have (one custodian
-  can hold many; ticking a fund held by someone else moves it). Before you
-  deactivate a custodian or change their role, reassign their funds.
+  **Assign** or **Change** and tick the funds they should have. A custodian can
+  hold many funds, and a fund can have several custodians; ticking a fund never
+  takes it from another custodian. Before you deactivate a custodian or change
+  their role, take them off their funds.
 - **Admin → Funds**: create the fund, set its amount, per-transaction limit,
-  low-balance warning level, and custodian. A fund has one custodian. Changing the fund amount changes the
-  equation, so you're warned first.
+  low-balance warning level, and its custodians (tick as many as you need; each
+  can prepare and release their own vouchers, count cash and request
+  replenishments for it). Changing the fund amount changes the equation, so
+  you're warned first.
 - **Admin → Categories**: add, rename, or deactivate (never delete) categories.
 - **Voiding**: only admins can void a voucher that has been released, and a
   reason is required. Voided records are kept for the audit trail.

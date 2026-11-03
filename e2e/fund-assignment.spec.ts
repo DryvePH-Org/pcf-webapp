@@ -24,11 +24,17 @@ test.describe("admin assigns funds to a custodian (desktop)", () => {
     const admin = adminClient();
     const { data: main } = await admin
       .from("funds")
-      .select("id, custodian_id")
+      .select("id")
       .eq("name", "Main Petty Cash")
       .single();
     mainFundId = main!.id;
-    custodianId = main!.custodian_id!;
+    const { data: holder } = await admin
+      .from("fund_custodians")
+      .select("custodian_id")
+      .eq("fund_id", mainFundId)
+      .limit(1)
+      .single();
+    custodianId = holder!.custodian_id;
 
     const { data: extra, error } = await admin
       .from("funds")
@@ -65,11 +71,13 @@ test.describe("admin assigns funds to a custodian (desktop)", () => {
     await dialog.getByRole("button", { name: "Save funds" }).click();
     await expect(page.getByText("Funds updated").first()).toBeVisible();
 
-    const { data: funds } = await adminClient()
-      .from("funds")
-      .select("id, custodian_id")
-      .in("id", [mainFundId, extraFundId]);
-    expect(funds?.every((fund) => fund.custodian_id === custodianId)).toBe(true);
+    const { data: links } = await adminClient()
+      .from("fund_custodians")
+      .select("fund_id")
+      .eq("custodian_id", custodianId);
+    const held = (links ?? []).map((link) => link.fund_id);
+    expect(held).toContain(mainFundId);
+    expect(held).toContain(extraFundId);
 
     // The custodian now sees both funds on their dashboard.
     const custodianContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
