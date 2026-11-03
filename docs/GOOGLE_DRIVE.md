@@ -22,13 +22,14 @@ itself, never the rest of your Drive. Files count against your Drive storage.
    "PCF Vouchers").
 2. **APIs & Services → Library** → search **Google Drive API** → **Enable**.
 3. **APIs & Services → OAuth consent screen** (Google Auth Platform):
-   - User type **External**, app name "PCF Vouchers", your email as support and
-     developer contact.
+   - **Google Workspace account (recommended):** choose user type **Internal**.
+     Only people in your organisation can use the app, Google needs no review,
+     there is nothing to publish, and the sign-in does not expire. App name
+     "PCF Vouchers", your email as contact.
+   - Personal Gmail instead: choose **External** and then **Publish app**
+     (Audience → "In production"), otherwise the sign-in expires after 7 days.
+     You may see an "unverified app" warning; choose *Advanced → continue*.
    - Data access / Scopes: add `.../auth/drive.file`.
-   - **Publish the app** (Audience → *Publish app* / "In production"). Leave it
-     in "Testing" and Google expires the sign-in after 7 days. Publishing is
-     fine for personal use; `drive.file` needs no Google review. You may see an
-     "unverified app" warning when you sign in; choose *Advanced → continue*.
 4. **Credentials → Create credentials → OAuth client ID** → type **Desktop
    app** → **Download JSON**. Save it as `.secrets/client_secret.json` (the
    folder is git-ignored).
@@ -60,4 +61,9 @@ Without the three settings the feature is simply off.
 - If the refresh token is ever lost or revoked, run step 5 again and re-upload
   `GOOGLE_REFRESH_TOKEN`.
 - Photos in Drive are only as private as that Drive folder: do not share it
-  widely.
+  widely. To let colleagues see the copies, share the **Petty Cash Vouchers**
+  folder with them from Drive. You can also move that folder into a Shared
+  Drive; the app keeps writing to it.
+- If your Workspace administrator blocks third-party or internal apps, ask them
+  to allow the OAuth client (Admin console → Security → API controls), or use
+  an administrator's account for step 5.
