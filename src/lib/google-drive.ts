@@ -1,4 +1,4 @@
-// Minimal Google Drive client (fetch only, so it runs on Cloudflare Workers).
+// Minimal Google Drive client using the standard fetch API.
 // It signs in with a refresh token the owner granted once (scope drive.file:
 // the app can only see files and folders it created itself) and files uploads
 // under "Petty Cash Vouchers / <fund> / <year-month>".

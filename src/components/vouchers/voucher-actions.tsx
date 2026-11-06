@@ -110,7 +110,7 @@ export function VoucherActions({
     isReleased &&
     canPerform(viewer.role, "voucher.reject");
   const canVoid =
-    voucher.status !== "closed" &&
+    !isReleased && voucher.status !== "void" && voucher.status !== "closed" &&
     !voucher.replenishment_id &&
     canPerform(viewer.role, "voucher.void") &&
     (viewer.role === "admin" || (own && (isDraft || isSubmitted)));
@@ -483,7 +483,7 @@ function describeState(
         ? "Approved. The cash has not been handed out yet."
         : "Reviewed and approved. It closes with the next replenishment.";
     case "rejected":
-      return "Flagged. Cash stays counted until this is corrected or voided.";
+      return "Flagged. Cash stays counted. Resolve the flag and settle through liquidation.";
     case "closed":
       return "Closed in a replenishment.";
     case "void":

@@ -13,6 +13,14 @@ export type Recipient = {
 };
 
 export type NotificationEvent =
+  | "liquidation.submitted"
+  | "liquidation.reviewed"
+  | "liquidation.settled"
+  | "liquidation.reimbursement_approved"
+  | "budget.submitted"
+  | "budget.reviewed"
+  | "budget.cancelled"
+  | "budget.voucher_created"
   | "voucher.submitted"
   | "voucher.pre_approved"
   | "voucher.returned"
@@ -26,7 +34,6 @@ export type NotificationEvent =
   | "replenishment.closed"
   | "fund.low_balance"
   | "fund.assignment_changed"
-  | "cash_count.variance"
   | "user.welcome"
   | "user.role_changed"
   | "user.access_changed"
@@ -82,6 +89,7 @@ export async function notify(options: {
   subject: string;
   content: (recipient: Recipient) => Omit<EmailContent, "greeting">;
 }) {
+  if (process.env.NOTIFICATIONS_ENABLED !== "true") return;
   const admin = createAdminClient();
   // In development set NOTIFY_REDIRECT_TO so test accounts never email anyone.
   const redirectTo = process.env.NOTIFY_REDIRECT_TO;

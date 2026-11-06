@@ -17,6 +17,7 @@ function wait(ms: number) {
 // Resend allows about 2 requests per second, so a 429 is retried after the
 // delay it asks for.
 export async function sendEmail(email: OutgoingEmail, attempt = 0): Promise<void> {
+  if (process.env.NOTIFICATIONS_ENABLED !== "true") throw new EmailError("Notification email delivery is disabled");
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new EmailError("Missing RESEND_API_KEY");
 
@@ -44,13 +45,4 @@ export async function sendEmail(email: OutgoingEmail, attempt = 0): Promise<void
   if (!response.ok) {
     throw new EmailError(`Resend responded ${response.status}: ${await response.text()}`);
   }
-}
-
-export async function sendSignInCode(to: string, code: string) {
-  await sendEmail({
-    to,
-    subject: `Your Petty Cash sign-in code: ${code}`,
-    text: `Your Petty Cash Fund sign-in code is ${code}.\n\nIt expires in 1 hour. If you didn't request it, you can ignore this email.`,
-    html: `<p>Your Petty Cash Fund sign-in code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;font-family:monospace">${code}</p><p>It expires in 1 hour. If you didn't request it, you can ignore this email.</p>`,
-  });
 }

@@ -17,15 +17,15 @@ describe('canAccessRoute', () => {
     ['admin', '/vouchers', true],
     ['admin', '/approvals', true],
     ['admin', '/replenishments', true],
-    ['admin', '/cash-count', true],
-    ['admin', '/reports', true],
+    ['admin', '/cash-count', false],
+    ['admin', '/reports', false],
     ['admin', '/audit', true],
     ['admin', '/admin/users', true],
     ['admin', '/admin/funds', true],
     ['admin', '/admin/categories', true],
     ['custodian', '/vouchers', true],
     ['custodian', '/vouchers/new', true],
-    ['custodian', '/cash-count', true],
+    ['custodian', '/cash-count', false],
     ['custodian', '/approvals', false],
     ['custodian', '/reports', false],
     ['custodian', '/audit', false],
@@ -36,7 +36,10 @@ describe('canAccessRoute', () => {
     ['approver', '/replenishments', false],
     ['approver', '/admin/funds', false],
     ['accounting', '/replenishments', true],
-    ['accounting', '/reports', true],
+    ['accounting', '/funds', true],
+    ['custodian', '/funds', false],
+    ['requester', '/funds', false],
+    ['accounting', '/reports', false],
     ['accounting', '/audit', true],
     ['accounting', '/vouchers', true],
     ['accounting', '/vouchers/new', false],
@@ -83,7 +86,6 @@ describe('canPerform', () => {
       'voucher.void',
       'replenishment.create',
       'replenishment.submit',
-      'cash.count',
     ];
     for (const action of custodianActions) {
       expect(canPerform('custodian', action)).toBe(true);
@@ -95,7 +97,7 @@ describe('canPerform', () => {
     for (const action of ['voucher.create', 'voucher.submit', 'voucher.release', 'voucher.void'] as const) {
       expect(canPerform('approver', action)).toBe(true);
     }
-    for (const action of ['replenishment.create', 'replenishment.submit', 'cash.count'] as const) {
+    for (const action of ['replenishment.create', 'replenishment.submit'] as const) {
       expect(canPerform('approver', action)).toBe(false);
     }
     expect(canPerform('accounting', 'voucher.create')).toBe(false);

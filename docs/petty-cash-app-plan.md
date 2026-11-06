@@ -1,5 +1,9 @@
 # Petty Cash Fund and Voucher App: Build Plan
 
+> Historical reference. Current requirements and implementation status are in
+> [WORKFLOW_UPDATE.md](WORKFLOW_UPDATE.md). That document supersedes conflicting
+> workflow, authentication, hosting, and feature requirements below.
+
 > This document is the single source of truth for an AI coding agent. Build phase by phase, in order. Do not skip phases. Do not add features that are not in this plan.
 
 ---

@@ -1,25 +1,87 @@
-name: CI
+name: CI and deploy
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: pcf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUN_DB_TESTS: "false"
+      NOTIFICATIONS_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
-          cache: pnpm
+          package-manager-cache: false
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Check deployment guards and rollback
+        run: python3 -m unittest discover -s deploy/ci -p 'test_*.py'
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://pcf.dryveph.io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build Linux production image
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$NEXT_PUBLIC_SUPABASE_URL"
+          test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          docker build --platform linux/amd64 \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            --build-arg NEXT_PUBLIC_APP_TIMEZONE=Asia/Manila \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "pcf/app:$GITHUB_SHA" .
+      - name: Deploy PCF and verify live health
+        env:
+          PCF_DEPLOY_SSH_KEY: ${{ secrets.PCF_DEPLOY_SSH_KEY }}
+          PCF_SSH_KNOWN_HOSTS: ${{ vars.PCF_SSH_KNOWN_HOSTS }}
+          PCF_SSH_HOST: ${{ vars.PCF_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$RUNNER_TEMP/pcf-ssh"
+          key="$RUNNER_TEMP/pcf-ssh/key"
+          known_hosts="$RUNNER_TEMP/pcf-ssh/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"' EXIT
+          printf '%s\n' "$PCF_DEPLOY_SSH_KEY" > "$key"
+          printf '%s\n' "$PCF_SSH_KNOWN_HOSTS" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          schema=$(python3 scripts/migration-fingerprint.py)
+          docker save "pcf/app:$GITHUB_SHA" | gzip -1 | \
+            ssh -T -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$known_hosts" \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=12 \
+              "root@$PCF_SSH_HOST" "deploy $GITHUB_SHA $schema"
+      - name: Deployment link
+        run: |
+          printf '### PCF deployed\n\nhttps://pcf.dryveph.io\n\nCommit: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

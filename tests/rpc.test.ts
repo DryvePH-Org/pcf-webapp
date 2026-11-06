@@ -256,7 +256,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
     expect(reapproved.reject_reason).toBeNull();
   });
 
-  it('releases before approval and closes replenishment without waiting for reviews', async () => {
+  it('releases cash first and requires approved liquidation before replenishment', async () => {
     const before = await balance();
     const id = await makeVoucher('custodian', 50);
     expect((await clients.custodian.rpc('release_voucher', { p_id: id })).error).toBeNull();
@@ -271,6 +271,18 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
     const afterRelease = await balance();
     expect(afterRelease.expectedCash).toBeCloseTo(before.expectedCash - 75, 2);
     expect(afterRelease.releasedTotal).toBeCloseTo(before.releasedTotal + 75, 2);
+
+    for (const voucherId of [id, unreviewedId]) {
+      const voucher = await getVoucher(voucherId);
+      const created = await clients.custodian.rpc('create_liquidation', { p_voucher_id: voucherId });
+      expect(created.error).toBeNull();
+      expect((await clients.custodian.rpc('save_liquidation', {
+        p_id: created.data, p_department: 'Test Operations', p_filing_date: voucher.voucher_date,
+        p_items: [{ id: crypto.randomUUID(), particulars: 'Actual test expense', amount: Number(voucher.amount), category_id: categoryId, no_receipt_reason: 'Vendor did not issue receipt' }],
+      })).error).toBeNull();
+      expect((await clients.custodian.rpc('submit_liquidation', { p_id: created.data })).error).toBeNull();
+      expect((await clients.admin.rpc('review_liquidation', { p_id: created.data, p_approve: true })).error).toBeNull();
+    }
 
     const { data: replId, error: replError } = await clients.custodian.rpc(
       'create_replenishment',
@@ -287,7 +299,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
     const { error: closeDraft } = await clients.accounting.rpc('close_replenishment', {
       p_id: replId,
     });
-    expect(closeDraft?.message).toMatch(/cannot be closed from status draft/);
+    expect(closeDraft?.message).toMatch(/Approve this replenishment/);
 
     expect((await clients.custodian.rpc('submit_replenishment', { p_id: replId })).error).toBeNull();
 
@@ -296,7 +308,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
       p_approve: false,
       p_note: ' ',
     });
-    expect(rejectNoNote?.message).toMatch(/note/i);
+    expect(rejectNoNote?.message).toMatch(/note|reason/i);
 
     const { error: rejectError } = await clients.accounting.rpc('review_replenishment', {
       p_id: replId,
@@ -329,7 +341,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
       .single();
     const replTotal = Number(repl2!.total);
 
-    // Close without reviewing every voucher: accounting alone can restore the fund.
+    // Approved liquidations are settled with no difference; accounting confirms cash received.
     expect((await clients.accounting.rpc('close_replenishment', { p_id: repl2Id })).error).toBeNull();
 
     const closed = await getVoucher(id);
@@ -352,7 +364,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
 
   it('refuses to create an empty replenishment', async () => {
     const { error } = await clients.custodian.rpc('create_replenishment', { p_fund_id: fundId });
-    expect(error?.message).toMatch(/No released vouchers/);
+    expect(error?.message).toMatch(/No approved, settled/);
   });
 
   it('enforces void rules', async () => {
@@ -383,8 +395,8 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
       p_id: releasedId,
       p_reason: 'Cancelled by admin',
     });
-    expect(adminVoid).toBeNull();
-    expect((await getVoucher(releasedId)).status).toBe('void');
+    expect(adminVoid?.message).toMatch(/Released cash cannot be voided/);
+    expect((await getVoucher(releasedId)).status).toBe('released');
 
     const approverVoidId = await makeVoucher('custodian', 5);
     const { error: approverVoid } = await clients.approver.rpc('void_voucher', {
@@ -400,41 +412,9 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
     expect(closedVoid?.message).toMatch(/Closed vouchers cannot be voided/);
   });
 
-  it('records cash counts and requires a note on variance', async () => {
-    const { expectedCash } = await balance();
-
-    expect(
-      (
-        await clients.custodian.rpc('record_cash_count', {
-          p_fund_id: fundId,
-          p_counted: expectedCash,
-        })
-      ).error,
-    ).toBeNull();
-
-    const { error: missingNote } = await clients.custodian.rpc('record_cash_count', {
-      p_fund_id: fundId,
-      p_counted: expectedCash - 5,
-    });
-    expect(missingNote?.message).toMatch(/note/i);
-
-    const { data: countId, error: varianceError } = await clients.custodian.rpc(
-      'record_cash_count',
-      {
-        p_fund_id: fundId,
-        p_counted: expectedCash - 5,
-        p_note: 'Short by 5 (integration test)',
-      },
-    );
-    expect(varianceError).toBeNull();
-
-    const { data: row } = await clients.custodian
-      .from('cash_counts')
-      .select('*')
-      .eq('id', countId)
-      .single();
-    expect(Number(row!.expected_cash)).toBeCloseTo(expectedCash, 2);
-    expect(Number(row!.variance)).toBeCloseTo(-5, 2);
+  it('rejects the retired cash-count RPC', async () => {
+    const result = await clients.custodian.rpc('record_cash_count', { p_fund_id: fundId, p_counted: 100 });
+    expect(result.error?.message).toMatch(/permission denied/);
   });
 
   it('hides the audit log from custodians and shows it to accounting', async () => {

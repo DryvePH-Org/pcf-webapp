@@ -25,6 +25,7 @@ export type VoucherLineValues = z.infer<typeof voucherLineSchema>;
 
 export const createVoucherSchema = z.object({
   fund_id: z.uuid("Choose a fund."),
+  budget_request_id: z.uuid().optional(),
   voucher_date: z
     .string()
     .regex(datePattern, "Choose a valid voucher date."),
@@ -47,7 +48,7 @@ export const createVoucherSchema = z.object({
 export type CreateVoucherValues = z.infer<typeof createVoucherSchema>;
 
 export const updateVoucherSchema = createVoucherSchema
-  .omit({ fund_id: true, no_receipt_reason: true })
+  .omit({ fund_id: true, no_receipt_reason: true, budget_request_id: true })
   .extend({ voucher_id: z.uuid() });
 
 export type UpdateVoucherValues = z.infer<typeof updateVoucherSchema>;

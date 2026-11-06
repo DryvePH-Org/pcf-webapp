@@ -12,8 +12,6 @@ const PAGES = [
   "/vouchers",
   "/approvals",
   "/replenishments",
-  "/cash-count",
-  "/reports",
   "/audit",
   "/admin/users",
   "/admin/funds",

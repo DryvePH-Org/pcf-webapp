@@ -82,9 +82,13 @@ set full_name = excluded.full_name,
     role = excluded.role,
     is_active = true;
 
-insert into public.funds (name, amount, per_txn_limit, low_balance_pct, custodian_id)
-select 'Main Petty Cash', 10000.00, 1000.00, 25, '00000000-0000-4000-8000-000000000002'
+insert into public.funds (name, amount, per_txn_limit, low_balance_pct)
+select 'Main Petty Cash', 10000.00, 1000.00, 25
 where not exists (select 1 from public.funds where name = 'Main Petty Cash');
+
+insert into public.fund_custodians(fund_id,custodian_id)
+select id,'00000000-0000-4000-8000-000000000002'::uuid from public.funds where name='Main Petty Cash'
+on conflict do nothing;
 
 insert into public.categories (name)
 values

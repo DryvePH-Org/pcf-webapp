@@ -243,7 +243,7 @@ export async function notifyVoucherFlagged(voucherId: string, actorId: string) {
       tone: "alert",
       heading: `${voucher.pcv_number} was flagged`,
       paragraphs: [
-        `${actor} flagged this voucher. The cash stays counted against the fund until an admin voids it or the approver approves it once the issue is resolved.`,
+        `${actor} flagged this voucher. Cash stays counted against the fund. Resolve the flag with the approver; actual returns and payments are recorded through liquidation settlement.`,
       ],
       rows: [{ label: "Reason", value: voucher.reject_reason ?? "—" }, ...rows],
       cta: { label: "Open voucher", path: `/vouchers/${voucherId}` },
@@ -410,7 +410,7 @@ export async function notifyLowBalance(fundId: string) {
       ],
       rows: [
         { label: "Cash on hand", value: formatPHP(balance.expected_cash ?? 0) },
-        { label: "Released vouchers", value: formatPHP(balance.released_vouchers_total ?? 0) },
+        { label: "Unreplenished cash out", value: formatPHP(balance.released_vouchers_total ?? 0) },
         { label: "Fund amount", value: formatPHP(fund.amount) },
         {
           label: "Warning level",
@@ -418,50 +418,6 @@ export async function notifyLowBalance(fundId: string) {
         },
       ],
       cta: { label: "Create a replenishment", path: "/replenishments" },
-    }),
-  });
-}
-
-export async function notifyCashCountVariance(input: {
-  fundId: string;
-  countedCentavos: number;
-  expectedCentavos: number;
-  note: string | null;
-  actorId: string;
-}) {
-  const variance = (input.countedCentavos - input.expectedCentavos) / 100;
-  if (variance === 0) return;
-
-  const { data: fund } = await createAdminClient()
-    .from("funds")
-    .select("name")
-    .eq("id", input.fundId)
-    .maybeSingle();
-  const actor = await nameOf(input.actorId);
-  const signed = `${variance > 0 ? "+" : "-"}${formatPHP(Math.abs(variance))}`;
-
-  await notify({
-    event: "cash_count.variance",
-    entityType: "funds",
-    entityId: input.fundId,
-    recipients: await recipientsByRole(["admin", "accounting"], {
-      exclude: exclude(input.actorId),
-    }),
-    subject: `Cash count variance: ${fund?.name ?? "fund"} ${signed}`,
-    content: () => ({
-      tone: "alert",
-      heading: `Cash count is ${variance > 0 ? "over" : "short"} by ${formatPHP(Math.abs(variance))}`,
-      paragraphs: [
-        `${actor} counted the cash and it does not match what the system expects.`,
-      ],
-      rows: [
-        { label: "Fund", value: fund?.name ?? "—" },
-        { label: "Counted", value: formatPHP(input.countedCentavos / 100) },
-        { label: "Expected", value: formatPHP(input.expectedCentavos / 100) },
-        { label: "Variance", value: signed },
-        { label: "Note", value: input.note || "—" },
-      ],
-      cta: { label: "Open cash counts", path: "/cash-count" },
     }),
   });
 }
@@ -525,7 +481,7 @@ export async function notifyUserWelcome(userId: string, role: Role, actorId: str
       heading: "Your account is ready",
       paragraphs: [
         `${actor} added you to Petty Cash Fund as ${ROLE_LABELS[role]}.`,
-        "There is no password. Open the app, enter this email address, and type the 8-digit code we email you.",
+        "Sign in with this email address and the password your administrator provides privately.",
       ],
       cta: { label: "Open the app", path: "/login" },
     }),

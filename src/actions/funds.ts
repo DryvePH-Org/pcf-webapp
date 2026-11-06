@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { safeDbMessage } from "@/lib/db-error";
 import { actionError, type ActionResult } from "@/lib/action-result";
-import { getAdminUser } from "@/lib/auth";
+import { getAdminUser, getCurrentUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { notifyFundAssignment } from "@/lib/notifications/events";
@@ -101,5 +101,18 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   }
 
   revalidatePath("/admin/funds");
+  return { ok: true };
+}
+
+const assignFundSchema = z.object({ fundId: z.uuid(), custodianIds: z.array(z.uuid()).max(20) });
+export async function assignFundCustodians(input: z.input<typeof assignFundSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || !["admin", "accounting"].includes(user.role)) return actionError("Only accounting and administrators can assign custodians.");
+  const parsed = assignFundSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  const db = await createClient();
+  const { error } = await db.rpc("set_fund_custodians", { p_fund_id: parsed.data.fundId, p_custodian_ids: [...new Set(parsed.data.custodianIds)] });
+  if (error) return actionError(safeDbMessage(error));
+  for (const path of ["/funds", "/admin/funds", "/admin/users", "/dashboard", "/requests"]) revalidatePath(path);
   return { ok: true };
 }

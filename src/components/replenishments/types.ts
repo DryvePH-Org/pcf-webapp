@@ -19,6 +19,8 @@ export type ReplenishmentFundOption = {
 };
 
 export type ReplenishmentVoucherRow = {
+  liquidation_id: string | null;
+  advance_amount: string;
   id: string;
   pcv_number: string;
   voucher_date: string;

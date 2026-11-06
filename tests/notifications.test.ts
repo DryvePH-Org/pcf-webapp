@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Keep link expectations independent of local/production environment files.
+vi.hoisted(() => { process.env.APP_URL = "https://pcf.example.test"; });
 
 import { digestItemsFor, type DigestStats } from "@/lib/notifications/digest";
 import { escapeHtml, renderEmail } from "@/lib/notifications/layout";
@@ -33,8 +36,8 @@ describe("renderEmail", () => {
 
   it("links the button to the app and repeats it in the text version", () => {
     const { html, text } = renderEmail(content);
-    expect(html).toContain('href="https://pcf-webapp.aaron-custodio.workers.dev/vouchers/abc"');
-    expect(text).toContain("Open voucher: https://pcf-webapp.aaron-custodio.workers.dev/vouchers/abc");
+    expect(html).toContain('href="https://pcf.example.test/vouchers/abc"');
+    expect(text).toContain("Open voucher: https://pcf.example.test/vouchers/abc");
     expect(text).toContain("Reason: <script>alert(1)</script> & more");
   });
 

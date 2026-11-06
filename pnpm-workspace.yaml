@@ -2,4 +2,3 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
-  workerd: true

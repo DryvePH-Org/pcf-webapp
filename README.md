@@ -1,216 +1,117 @@
 # Petty Cash Fund and Voucher App
 
-Web app for an imprest petty cash fund: vouchers with receipts, approvals, cash
-release, live balance, replenishment, and an audit trail.
+Petty cash management using Next.js 16, React 19, TypeScript, Tailwind CSS 4,
+shadcn/ui, and Supabase (Postgres, Auth, private Storage, and RLS).
+Hosting target: a shared Hostinger KVM2 VPS running Node.js. Not deployed there yet.
 
-- Build plan and decision records: [`docs/petty-cash-app-plan.md`](docs/petty-cash-app-plan.md)
-- How each role uses the app: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)
-- Live site: https://pcf-webapp.aaron-custodio.workers.dev
+## Current status
 
-## Stack
+Implemented: admin-created email/password accounts, funds with multiple custodians,
+vouchers and approval limits, paper voucher photos, replenishments, audit history,
+CSV export, voucher/replenishment printing, installable PWA support, and budget
+requests with custodian review, linked vouchers, request printing, and CSV.
 
-Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui ·
-Supabase (Postgres, Auth, Storage, RLS) · Cloudflare Workers
-(`@opennextjs/cloudflare`) · Resend (sign-in emails) · react-hook-form + zod ·
-Recharts · Vitest · Playwright · pnpm.
+Removed: AI scanning, cash-count screens, reports, and Cloudflare deployment tooling.
+Historical database tables and migrations are retained.
 
-## Two Supabase projects
+The standalone Requester role, budget requests, liquidation/reimbursement forms,
+per-line private receipt uploads, correction history, cash settlement, and
+liquidation-based replenishment are implemented. All financial forms have print
+views and CSV export. Request/liquidation notification hooks are prepared;
+email-provider configuration and delivery verification come last. Google Sheets
+automation is deferred. The standalone production build and short desktop/mobile browser smoke tests
+passed. Public VPS deployment is waiting for SSH access and the chosen domain.
 
-| | Project | Used by | Data |
-|---|---|---|---|
-| Development / test | `PCFproject` (`qjfbeaeqeorpllvfrgpg`) | local dev, tests | seeded `@pcf.local` users, throwaway vouchers |
-| Production | `PCFprojectProd` (`ltkzkgkvxztjxwqtnklj`) | the live site | real data only, never seeded |
+- [Confirmed workflow and implementation phases](docs/WORKFLOW_UPDATE.md)
+- [Fresh Supabase setup](docs/SUPABASE_SETUP.md)
+- [Current user guide](docs/USER_GUIDE.md)
+- [Design guide](docs/DESIGN.md)
+- [Security](docs/SECURITY.md)
+- [Google Drive photo copies](docs/GOOGLE_DRIVE.md)
+- [Original build plan — historical reference](docs/petty-cash-app-plan.md)
 
-`.env.local` points at the **development** project. `pnpm run deploy` builds
-against **production** (it pins the production URL and publishable key, since
-`NEXT_PUBLIC_*` values are inlined into the bundle at build time).
+## Local development
 
-## Local setup
-
-Prerequisites: Node 22+, pnpm 12+, Supabase CLI.
+Use Node.js 22+ and pnpm 12+.
 
 ```bash
-pnpm install
-cp .env.example .env.local   # fill in the development project's values
+pnpm install --frozen-lockfile
+# New checkout only: copy .env.example to .env.local and fill in credentials.
+# Do not overwrite an existing configured .env.local.
 pnpm dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. Admins create accounts with name, email, password
+(8–128 characters), and role. Users sign in directly with email/password; no
+code or notification email service is needed. Public signup is disabled.
 
-| Variable | Where | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | client + server | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client + server | Publishable key |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | Never prefix with `NEXT_PUBLIC_` |
-| `NEXT_PUBLIC_APP_TIMEZONE` | client + server | `Asia/Manila` |
-| `RESEND_API_KEY` | server only | Sends the sign-in code emails |
-| `GROQ_API_KEY` | server only, optional | Reads receipt photos to pre-fill vouchers (without it the form just stays manual) |
-| `GROQ_MODEL` | server only, optional | Groq vision model; defaults to `qwen/qwen3.8-27b` |
-| `RESEND_FROM` | server only, optional | Sender, e.g. `Petty Cash <noreply@your-domain>`; defaults to Resend's shared test sender |
-| `APP_URL` | server only, optional | Base URL used in email links; defaults to the live site |
-| `CRON_SECRET` | server only | Protects `/api/cron/digest`; must match the GitHub secret of the same name |
-| `NOTIFY_REDIRECT_TO` | dev only | Sends every notification to this one address (subject shows the intended recipient). Set it in `.env.local` so test accounts never email anyone |
+The configured project is `pcfwebapp` (`zrnutmybqvmbzxvcdqza`). Aaron's initial
+administrator is provisioned. Credentials and historical backups are private,
+gitignored files under `.secrets/`; do not include them in deployment archives.
 
-Local preview in the Workers runtime also reads `.dev.vars` (gitignored).
+## Configuration
 
-## Signing in
+See `.env.example` for variables. Required:
 
-There are no passwords. An admin creates a user (email + role) under
-**Admin → Users**; the user enters their email on the login page and types the
-8-digit code that arrives by email. Only emails with an active, admin-created
-account get a code.
+- `NEXT_PUBLIC_SUPABASE_URL`: project API URL.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: public/publishable API key.
+- `SUPABASE_SERVICE_ROLE_KEY`: server-only secret key; never expose to clients.
+- `NEXT_PUBLIC_APP_TIMEZONE`: `Asia/Manila`.
 
-Until a sending domain is verified in Resend, the shared sender only delivers
-to the Resend account owner, so other staff can't receive codes. Verify a domain
-in Resend, then set `RESEND_FROM` to an address on it.
+For notifications, configure `APP_URL`, `RESEND_API_KEY`, `RESEND_FROM`, and
+`CRON_SECRET` when delivery is enabled. `NOTIFICATIONS_ENABLED` defaults to false
+and remains disabled for this launch. `NOTIFY_REDIRECT_TO` can redirect test
+notifications. Google Drive configuration is optional and documented separately.
 
-For tests and local work, the `@pcf.local` seed accounts can't receive email;
-the Playwright helpers sign them in by generating a code with the Admin API.
-
-## Funds and custodians
-
-A fund has **one accountable custodian**, and a custodian can hold **many
-funds**. Admins assign them from **Admin → Users** (the Funds column: Assign /
-Change, tick the funds) or from **Admin → Funds** (the custodian dropdown).
-
-- A custodian only sees, and can only act on, their own funds: vouchers,
-  replenishments, cash counts, and receipt photos for other funds are hidden by
-  row-level security, and recording, releasing, replenishing, or counting cash
-  on someone else's fund is rejected by the database.
-- Admins, approvers, and accounting work across every fund.
-- A custodian who still holds a fund can't be deactivated or moved to another
-  role until the fund is reassigned.
-- Voucher numbers (`PCV-YYYY-NNNN`) run sequentially across all funds per year,
-  because the number must be unique system-wide.
-
-## Email notifications
-
-Emails are sent through Resend from the server actions, after the response, so a
-slow or failing email never blocks or breaks the action. Every attempt is
-recorded in `notification_log` and shown to admins at **Admin → Notifications**.
-
-| Event | Who is told |
-|---|---|
-| Voucher released | Approvers — needs review |
-| Voucher approved | The person who prepared it |
-| Voucher flagged | Preparer + admins (with the reason) |
-| Voucher voided | Preparer + admins (with the reason) |
-| Replenishment submitted | Accounting — needs review |
-| Replenishment approved | The requester |
-| Replenishment rejected | Requester + admins (with the note) |
-| Replenishment closed | Requester + admins — fund restored |
-| Fund drops below its warning level | The fund's custodian + admins + accounting |
-| Funds assigned to / removed from a custodian | That custodian (and the one who lost a fund) |
-| Cash count doesn't match | Admins + accounting |
-| User created / role changed / access changed | That user |
-| Daily summary (08:00 Manila) | Each role, only if something is waiting on them |
-
-The person who performed an action is never emailed about it.
-
-The daily summary is triggered by `.github/workflows/daily-digest.yml`, which
-calls `POST /api/cron/digest` with `Authorization: Bearer $CRON_SECRET`. Set the
-same secret on the Worker and in GitHub (**Settings → Secrets → Actions**), then
-run the workflow once by hand to check it.
-
-Delivery to anyone but the Resend account owner needs a verified sending domain
-(see Signing in). Failures show up in **Admin → Notifications** until then.
-
-## Database
-
-Migrations live in `supabase/migrations`.
-
-```bash
-supabase link --project-ref <ref>
-SUPABASE_DB_PASSWORD=... supabase db push --linked
-```
-
-**Development only** — seed a fund, categories, and one test user per role:
-
-```bash
-supabase db query --linked -f supabase/seed.sql
-```
-
-**Production** — never run `seed.sql`. Insert categories, then create the first
-admin through the Admin API (`auth.admin.createUser` with `email_confirm: true`)
-and add a matching `profiles` row with `role = 'admin'`. Create the fund from
-**Admin → Funds**.
-
-Regenerate types after schema changes:
-
-```bash
-supabase gen types typescript --linked --schema public > src/lib/database.types.ts
-```
-
-## Scripts
+## Commands
 
 | Command | Purpose |
 |---|---|
-| `pnpm dev` | Dev server |
-| `pnpm build` | Next.js production build |
-| `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit` |
-| `pnpm test` | Vitest (set `RUN_DB_TESTS=true` in `.env.local` for the RPC/RLS suite) |
-| `pnpm test:e2e` | Playwright (see below) |
-| `pnpm preview` | Build and run in the Workers runtime locally |
-| `pnpm run deploy` | Build against production and deploy to Cloudflare |
+| `pnpm dev` | Local Next.js development server |
+| `pnpm build` | Production build |
+| `pnpm start` | Run the production Node server |
+| `pnpm lint` | ESLint |
+| `pnpm typecheck` | Regenerate routes and check TypeScript |
+| `pnpm test` | Unit tests; database suites are opt-in |
+| `pnpm test:e2e` | Browser tests; authenticated suites are opt-in |
 
-### End-to-end tests
+`NEXT_PUBLIC_*` variables are embedded at build time. Build with the intended
+project configuration. The old Cloudflare deployment commands have been removed.
 
-```bash
-# Public checks against the live site (read-only, safe on production)
-E2E_BASE_URL=https://pcf-webapp.aaron-custodio.workers.dev pnpm test:e2e
+## Database and tests
 
-# Full happy path + layout checks against the DEVELOPMENT project
-E2E_AUTHENTICATED=true pnpm test:e2e
-```
+Migrations live in `supabase/migrations`. The CLI is linked to the fresh PCF
+project. Always confirm the project ref before remote changes. Generate types
+from the schema rather than editing `src/lib/database.types.ts` by hand.
 
-The authenticated run wipes vouchers, replenishments, and cash counts in the
-project that `.env.local` points to, and refuses to run if that is production.
+Do not run `supabase/seed.sql`, database resets, or database-writing tests against
+the real PCF project. The seed is development-only. `RUN_DB_TESTS` defaults to false; leave it false here. Use a
+separate disposable project for integration and authenticated browser tests.
+Authenticated E2E tests can erase financial data and explicitly deny the real PCF
+project. Default CI runs lint, typecheck, and unit tests.
 
-## Deploying
+## Deployment and operations
 
-Deploys are manual. Secrets live on the Worker, not in git.
+Deployment templates and the runbook are in [`deploy/`](deploy/README.md).
+VPS deployment is pending SSH access and inspection of the two existing projects, reverse proxy,
+ports, and resource use. Run PCF as an isolated Node service behind HTTPS with its
+own environment and process/container limits. Final deployment configuration,
+backup schedule, and rollback procedure will be prepared after that inspection.
+No VPS services have been changed.
 
-```bash
-pnpm wrangler login                       # once
-pnpm wrangler secret put <NAME>           # NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-                                          # NEXT_PUBLIC_APP_TIMEZONE, SUPABASE_SERVICE_ROLE_KEY,
-                                          # RESEND_API_KEY, CRON_SECRET
-pnpm run deploy
-```
+Daily digest and keep-alive workflows use the GitHub repository variable
+`APP_URL`; they skip when it is unset. The digest requires repository variable `NOTIFICATIONS_ENABLED=true` and the GitHub secret
+`CRON_SECRET`, matching the server. Set these only after the final site is ready.
+Notification links use the server's `APP_URL`, defaulting to localhost for development.
 
-Type the secret **name** as the argument and paste the **value** at the prompt.
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, and unit tests on every
-push to `main` and on pull requests.
+Keep database backups and private receipt-storage backups separately. Test a
+restore before relying on them; a database dump does not include receipt files.
+Never hard-delete financial records. Only unreleased vouchers can be voided;
+released cash is resolved through liquidation and recorded cash settlement.
 
-## Keep-alive
+## Automatic deployment
 
-Supabase pauses free projects after about a week without activity.
-`.github/workflows/keepalive.yml` calls `/api/health` every 3 days, which runs a
-real query against the production database. Run it by hand from the Actions
-tab (**Keep-alive → Run workflow**) to verify.
-
-## Backups
-
-Supabase's free plan has no automatic backups, so back up regularly:
-
-- **Weekly** (set a calendar reminder): run
-  `SUPABASE_DB_PASSWORD=... supabase db dump --linked -f backup-$(date +%F).sql`
-  against the production project and store the file somewhere private (not in
-  git).
-- **Receipts** live in the private `receipts` Storage bucket and are not in the
-  database dump. Download the bucket from Supabase → Storage periodically.
-- Financial records are never hard-deleted (vouchers are voided with a reason),
-  so the audit log plus a recent dump is enough to reconstruct history.
-
-## Decisions (plan rule 10)
-
-- shadcn/ui v4 no longer ships a `form` component; forms use `field` +
-  `react-hook-form` instead.
-- The Supabase publishable key (`sb_publishable_...`) is used in place of the
-  legacy anon key; `@supabase/ssr` accepts it.
-- Voucher and replenishment state changes go through `security definer` RPCs;
-  the only direct client write allowed on `vouchers` is editing descriptive
-  fields on your own draft/rejected rows, guarded by a column trigger.
-- Replenishment request numbers use a Postgres sequence (the plan only
-  requires uniqueness); PCV numbers use `fund_counters` per fund and year.
-- Hosting and sign-in decisions are recorded in the plan document.
+Pushes to `main` run checks, build PCF on GitHub, and deploy only the PCF service
+at https://pcf.dryveph.io. Failed health checks restore the previous app image.
+See [CI/CD and development instructions](docs/CI_CD.md) for setup, database
+migration handling, run logs, and rollback.

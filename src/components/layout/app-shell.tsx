@@ -23,7 +23,7 @@ export function AppShell({
     <div className="min-h-svh bg-background">
       <SidebarNav groups={groups} user={user} />
 
-      <div className="flex min-h-svh flex-col lg:pl-64">
+      <div className="flex min-h-svh flex-col lg:pl-64 print:pl-0">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden print:hidden">
           <Link
             href="/dashboard"

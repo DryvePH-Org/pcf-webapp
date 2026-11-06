@@ -1,0 +1,40 @@
+name: pcf
+services:
+  app:
+    image: ${PCF_IMAGE:?Set an immutable PCF image tag before deployment}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PCF_PORT:-3107}:3000"
+    env_file:
+      - .env.runtime
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      NOTIFICATIONS_ENABLED: "false"
+      RUN_DB_TESTS: "false"
+    cpus: ${PCF_CPUS:-0.5}
+    mem_limit: ${PCF_MEMORY_LIMIT:-512m}
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - cache:/app/.next/cache
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
+volumes:
+  cache:

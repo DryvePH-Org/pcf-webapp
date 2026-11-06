@@ -1,20 +1,15 @@
 import { ALL_ROLES } from "@/lib/permissions";
 import { z } from "zod";
 
+import { newPasswordSchema } from "@/lib/validators/auth";
 import { emailField, personName } from "@/lib/validators/text";
 
-const roleValues = ALL_ROLES as readonly [
-  "admin",
-  "custodian",
-  "approver",
-  "accounting",
-];
-
-export const roleSchema = z.enum(roleValues);
+export const roleSchema = z.enum(ALL_ROLES);
 
 export const createUserSchema = z.object({
   full_name: personName(100),
   email: emailField,
+  password: newPasswordSchema,
   role: roleSchema,
 });
 

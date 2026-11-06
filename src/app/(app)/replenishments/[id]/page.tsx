@@ -1,3 +1,4 @@
+import { CsvExportButton } from "@/components/shared/csv-export-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Lock, XCircle } from "lucide-react";
@@ -49,6 +50,13 @@ export default async function ReplenishmentDetailPage({
   if (error) throw new Error(error.message);
   if (!replenishment) notFound();
 
+  const { data: snapshots, error: snapshotError } = await supabase.from("replenishment_items").select("voucher_id,liquidation_id,amount").eq("replenishment_id", id);
+  if (snapshotError) throw new Error(snapshotError.message);
+  const snapshotByVoucher = new Map(snapshots.map(item => [item.voucher_id, item]));
+  const liquidationIds = snapshots.map(item => item.liquidation_id).filter((value): value is string => Boolean(value));
+  const { data: expenseLines, error: expenseError } = await supabase.from("liquidation_items").select("liquidation_id,amount,category_id").in("liquidation_id", liquidationIds);
+  if (expenseError) throw new Error(expenseError.message);
+
   const profileIds = [
     replenishment.requested_by,
     replenishment.reviewed_by,
@@ -70,7 +78,7 @@ export default async function ReplenishmentDetailPage({
       .select(
         "id, pcv_number, voucher_date, payee, particulars, amount, category_id, receipt_path, no_receipt_reason, voucher_items(amount, category_id)",
       )
-      .eq("replenishment_id", replenishment.id)
+      .in("id", snapshots.map(item => item.voucher_id))
       .order("voucher_date", { ascending: true })
       .order("pcv_number", { ascending: true }),
     supabase.from("categories").select("id, name"),
@@ -105,8 +113,10 @@ export default async function ReplenishmentDetailPage({
   );
 
   const vouchers: ReplenishmentVoucherRow[] = vouchersData.map((voucher) => {
+    const snapshot = snapshotByVoucher.get(voucher.id);
+    const actualLines = expenseLines.filter(line => line.liquidation_id === snapshot?.liquidation_id);
     const lines = (
-      voucher.voucher_items.length
+      snapshot?.liquidation_id ? actualLines : voucher.voucher_items.length
         ? voucher.voucher_items
         : [{ amount: voucher.amount, category_id: voucher.category_id }]
     ).map((line) => ({
@@ -116,11 +126,13 @@ export default async function ReplenishmentDetailPage({
     const distinct = new Set(lines.map((line) => line.category_name));
     return {
       id: voucher.id,
+      liquidation_id: snapshot?.liquidation_id ?? null,
+      advance_amount: String(voucher.amount),
       pcv_number: voucher.pcv_number,
       voucher_date: voucher.voucher_date,
       payee: voucher.payee,
       particulars: voucher.particulars,
-      amount: String(voucher.amount),
+      amount: String(snapshot?.amount ?? voucher.amount),
       category_id: voucher.category_id,
       category_name:
         distinct.size > 1
@@ -169,13 +181,18 @@ export default async function ReplenishmentDetailPage({
       cell: (voucher) => voucher.category_name,
     },
     {
+      key: "advance",
+      header: "Advance",
+      cell: voucher => <MoneyText value={voucher.advance_amount} />,
+    },
+    {
       key: "receipt",
       header: "Receipt",
       cell: (voucher) => <ReceiptThumb voucher={voucher} />,
     },
     {
       key: "amount",
-      header: "Amount",
+      header: "Actual expense",
       headerClassName: "text-right",
       className: "text-right",
       cell: (voucher) => <MoneyText value={voucher.amount} />,
@@ -192,6 +209,7 @@ export default async function ReplenishmentDetailPage({
             <>
               <ReplenishmentStatusBadge status={status} />
               <PrintButton />
+              <CsvExportButton filename={`${replenishment.request_no}.csv`} header={["PCV", "Payee", "Advance", "Actual expenses", "Liquidation"]} rows={vouchers.map(v => [v.pcv_number, v.payee, v.advance_amount, v.amount, v.liquidation_id ? "Approved and settled" : "Legacy record"])} />
               <Button
                 variant="outline"
                 nativeButton={false}
@@ -401,6 +419,7 @@ export default async function ReplenishmentDetailPage({
             payee: voucher.payee,
             category_name: voucher.category_name,
             amount: voucher.amount,
+            advance_amount: voucher.advance_amount,
           }))}
           categoryTotals={categoryTotals.map((category) => ({
             name: category.name,
@@ -417,6 +436,7 @@ export default async function ReplenishmentDetailPage({
 }
 
 function ReceiptThumb({ voucher }: { voucher: ReplenishmentVoucherRow }) {
+  if (voucher.liquidation_id) return <Link className="text-sm underline" href={`/liquidations/${voucher.liquidation_id}`}>Liquidation and receipts</Link>;
   if (!voucher.receipt_url) {
     return (
       <span

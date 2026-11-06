@@ -1,0 +1,13 @@
+
+# BEGIN pcf
+pcf.dryveph.io {
+	encode zstd gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy pcf-web:3000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up -CF-Connecting-IP
+	}
+}
+# END pcf

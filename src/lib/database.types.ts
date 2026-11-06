@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.18"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       audit_log: {
@@ -71,6 +46,89 @@ export type Database = {
           old_data?: Json | null
         }
         Relationships: []
+      }
+      budget_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          fund_id: string
+          fund_name: string
+          id: string
+          purpose: string
+          request_no: string
+          requester_id: string
+          requester_name: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_name: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          fund_id: string
+          fund_name: string
+          id?: string
+          purpose: string
+          request_no: string
+          requester_id: string
+          requester_name: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          fund_id?: string
+          fund_name?: string
+          id?: string
+          purpose?: string
+          request_no?: string
+          requester_id?: string
+          requester_name?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_requests_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "budget_requests_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cash_counts: {
         Row: {
@@ -123,6 +181,95 @@ export type Database = {
             columns: ["fund_id"]
             isOneToOne: false
             referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_settlements: {
+        Row: {
+          amount: number
+          created_at: string
+          fund_id: string
+          id: string
+          kind: string
+          liquidation_id: string
+          note: string | null
+          recorded_by: string
+          recorder_name: string
+          voucher_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          fund_id: string
+          id?: string
+          kind: string
+          liquidation_id: string
+          note?: string | null
+          recorded_by: string
+          recorder_name: string
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          fund_id?: string
+          id?: string
+          kind?: string
+          liquidation_id?: string
+          note?: string | null
+          recorded_by?: string
+          recorder_name?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_settlements_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "vouchers"
             referencedColumns: ["id"]
           },
         ]
@@ -251,6 +398,237 @@ export type Database = {
         }
         Relationships: []
       }
+      liquidation_items: {
+        Row: {
+          amount: number
+          category_id: string
+          id: string
+          liquidation_id: string
+          no_receipt_reason: string | null
+          particulars: string
+          position: number
+          receipt_path: string | null
+        }
+        Insert: {
+          amount: number
+          category_id: string
+          id?: string
+          liquidation_id: string
+          no_receipt_reason?: string | null
+          particulars: string
+          position: number
+          receipt_path?: string | null
+        }
+        Update: {
+          amount?: number
+          category_id?: string
+          id?: string
+          liquidation_id?: string
+          no_receipt_reason?: string | null
+          particulars?: string
+          position?: number
+          receipt_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+        ]
+      }
+      liquidation_revisions: {
+        Row: {
+          created_at: string
+          id: string
+          liquidation_id: string
+          payload: Json
+          review_note: string | null
+          reviewed_at: string | null
+          reviewer_name: string | null
+          revision: number
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          liquidation_id: string
+          payload: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_name?: string | null
+          revision: number
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          liquidation_id?: string
+          payload?: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_name?: string | null
+          revision?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_revisions_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_revisions_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+        ]
+      }
+      liquidations: {
+        Row: {
+          amount_received: number
+          created_at: string
+          department: string
+          employee_name: string
+          filing_date: string
+          fund_id: string
+          fund_name: string
+          id: string
+          owner_id: string
+          pcv_number: string
+          reimbursement_approved_at: string | null
+          reimbursement_approved_by: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_name: string | null
+          revision: number
+          status: string
+          total_spent: number
+          unspent_reason: string | null
+          updated_at: string
+          voucher_id: string
+        }
+        Insert: {
+          amount_received: number
+          created_at?: string
+          department?: string
+          employee_name: string
+          filing_date?: string
+          fund_id: string
+          fund_name: string
+          id?: string
+          owner_id: string
+          pcv_number: string
+          reimbursement_approved_at?: string | null
+          reimbursement_approved_by?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          revision?: number
+          status?: string
+          total_spent?: number
+          unspent_reason?: string | null
+          updated_at?: string
+          voucher_id: string
+        }
+        Update: {
+          amount_received?: number
+          created_at?: string
+          department?: string
+          employee_name?: string
+          filing_date?: string
+          fund_id?: string
+          fund_name?: string
+          id?: string
+          owner_id?: string
+          pcv_number?: string
+          reimbursement_approved_at?: string | null
+          reimbursement_approved_by?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          revision?: number
+          status?: string
+          total_spent?: number
+          unspent_reason?: string | null
+          updated_at?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidations_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "liquidations_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_reimbursement_approved_by_fkey"
+            columns: ["reimbursement_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "liquidations_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_log: {
         Row: {
           created_at: string
@@ -331,6 +709,83 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      replenishment_items: {
+        Row: {
+          amount: number
+          fund_id: string
+          id: string
+          liquidation_id: string | null
+          replenishment_id: string
+          voucher_id: string
+        }
+        Insert: {
+          amount: number
+          fund_id: string
+          id?: string
+          liquidation_id?: string | null
+          replenishment_id: string
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          fund_id?: string
+          id?: string
+          liquidation_id?: string | null
+          replenishment_id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replenishment_items_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_replenishment_id_fkey"
+            columns: ["replenishment_id"]
+            isOneToOne: false
+            referencedRelation: "replenishments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       replenishments: {
         Row: {
@@ -437,6 +892,13 @@ export type Database = {
             foreignKeyName: "voucher_items_voucher_id_fkey"
             columns: ["voucher_id"]
             isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "voucher_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
             referencedRelation: "vouchers"
             referencedColumns: ["id"]
           },
@@ -447,12 +909,14 @@ export type Database = {
           amount: number
           approved_at: string | null
           approved_by: string | null
+          budget_request_id: string | null
           category_id: string
           created_at: string
           fund_id: string
           id: string
           no_receipt_reason: string | null
           paper_drive_url: string | null
+          paper_pcv_number: string | null
           paper_voucher_path: string | null
           particulars: string
           payee: string
@@ -473,12 +937,14 @@ export type Database = {
           amount: number
           approved_at?: string | null
           approved_by?: string | null
+          budget_request_id?: string | null
           category_id: string
           created_at?: string
           fund_id: string
           id?: string
           no_receipt_reason?: string | null
           paper_drive_url?: string | null
+          paper_pcv_number?: string | null
           paper_voucher_path?: string | null
           particulars: string
           payee: string
@@ -499,12 +965,14 @@ export type Database = {
           amount?: number
           approved_at?: string | null
           approved_by?: string | null
+          budget_request_id?: string | null
           category_id?: string
           created_at?: string
           fund_id?: string
           id?: string
           no_receipt_reason?: string | null
           paper_drive_url?: string | null
+          paper_pcv_number?: string | null
           paper_voucher_path?: string | null
           particulars?: string
           payee?: string
@@ -527,6 +995,13 @@ export type Database = {
             columns: ["approved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vouchers_budget_request_id_fkey"
+            columns: ["budget_request_id"]
+            isOneToOne: true
+            referencedRelation: "budget_requests"
             referencedColumns: ["id"]
           },
           {
@@ -570,14 +1045,56 @@ export type Database = {
     Views: {
       fund_balance_v: {
         Row: {
+          advances_pending_liquidation: number | null
           expected_cash: number | null
           fund_amount: number | null
           fund_id: string | null
           is_low: boolean | null
           name: string | null
+          reimbursements_due: number | null
           released_vouchers_total: number | null
+          returns_due: number | null
         }
         Relationships: []
+      }
+      replenishment_eligibility_v: {
+        Row: {
+          advance_amount: number | null
+          eligible: boolean | null
+          exclusion_reason: string | null
+          fund_id: string | null
+          liquidation_id: string | null
+          liquidation_status: string | null
+          payee: string | null
+          pcv_number: string | null
+          replenishment_id: string | null
+          total_spent: number | null
+          voucher_id: string | null
+          voucher_status: Database["public"]["Enums"]["voucher_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "vouchers_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vouchers_replenishment_id_fkey"
+            columns: ["replenishment_id"]
+            isOneToOne: false
+            referencedRelation: "replenishments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -585,17 +1102,38 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      approve_liquidation_reimbursement: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       approve_voucher: { Args: { p_id: string }; Returns: undefined }
       assign_custodian_funds: {
         Args: { p_fund_ids: string[]; p_user_id: string }
         Returns: undefined
       }
       can_access_fund: { Args: { p_fund_id: string }; Returns: boolean }
+      can_edit_liquidation: { Args: { p_id: string }; Returns: boolean }
+      can_read_liquidation: { Args: { p_id: string }; Returns: boolean }
+      cancel_budget_request: { Args: { p_id: string }; Returns: undefined }
       check_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
       }
+      clean_paper_pcv: {
+        Args: { p_exclude?: string; p_fund_id: string; p_value: string }
+        Returns: string
+      }
       close_replenishment: { Args: { p_id: string }; Returns: undefined }
+      create_budget_request: {
+        Args: {
+          p_amount: number
+          p_fund_id: string
+          p_name: string
+          p_purpose: string
+        }
+        Returns: string
+      }
+      create_liquidation: { Args: { p_voucher_id: string }; Returns: string }
       create_replenishment: { Args: { p_fund_id: string }; Returns: string }
       create_voucher: {
         Args: {
@@ -610,16 +1148,52 @@ export type Database = {
         }
         Returns: string
       }
+      create_voucher_from_request: {
+        Args: {
+          p_items: Json
+          p_no_receipt_reason?: string
+          p_request_id: string
+          p_voucher_date?: string
+        }
+        Returns: string
+      }
       create_voucher_lines: {
         Args: {
           p_fund_id: string
           p_items: Json
           p_no_receipt_reason?: string
+          p_paper_pcv?: string
           p_payee: string
           p_receipt_path?: string
           p_voucher_date?: string
         }
         Returns: string
+      }
+      liquidation_context: {
+        Args: { p_voucher_id: string }
+        Returns: {
+          amount_received: number
+          approval_threshold: number
+          employee_name: string
+          fund_id: string
+          fund_name: string
+          liquidation_id: string
+          owner_id: string
+          pcv_number: string
+          per_txn_limit: number
+          prepared_by: string
+          released_at: string
+          voucher_id: string
+          voucher_status: Database["public"]["Enums"]["voucher_status"]
+        }[]
+      }
+      list_request_funds: {
+        Args: never
+        Returns: {
+          custodian_names: string[]
+          id: string
+          name: string
+        }[]
       }
       next_pcv_number: { Args: { p_fund_id: string }; Returns: string }
       notification_recipients: {
@@ -639,11 +1213,34 @@ export type Database = {
         Args: { p_counted: number; p_fund_id: string; p_note?: string }
         Returns: string
       }
+      record_liquidation_settlement: {
+        Args: { p_amount: number; p_id: string; p_note?: string }
+        Returns: undefined
+      }
       reject_voucher: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
       release_voucher: { Args: { p_id: string }; Returns: undefined }
+      replenishment_fund_options: {
+        Args: never
+        Returns: {
+          fund_id: string
+          fund_name: string
+          total: number
+          voucher_count: number
+        }[]
+      }
+      request_voucher_summary: {
+        Args: { p_request_id: string }
+        Returns: {
+          amount: number
+          id: string
+          pcv_number: string
+          released_at: string
+          status: Database["public"]["Enums"]["voucher_status"]
+        }[]
+      }
       require_fund_access: { Args: { p_fund_id: string }; Returns: undefined }
       require_role: {
         Args: { p_roles: Database["public"]["Enums"]["user_role"][] }
@@ -657,25 +1254,46 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      review_budget_request: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
+      review_liquidation: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
       review_replenishment: {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
+      save_liquidation: {
+        Args: {
+          p_department: string
+          p_filing_date: string
+          p_id: string
+          p_items: Json
+          p_unspent_reason?: string
+        }
         Returns: undefined
       }
       set_fund_custodians: {
         Args: { p_custodian_ids: string[]; p_fund_id: string }
         Returns: undefined
       }
+      submit_liquidation: { Args: { p_id: string }; Returns: undefined }
       submit_replenishment: { Args: { p_id: string }; Returns: undefined }
       submit_voucher: { Args: { p_id: string }; Returns: undefined }
       update_voucher_lines: {
         Args: {
           p_id: string
           p_items: Json
+          p_paper_pcv?: string
           p_payee: string
           p_voucher_date?: string
         }
         Returns: undefined
       }
+      validate_replenishment: { Args: { p_id: string }; Returns: undefined }
       void_voucher: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
@@ -688,7 +1306,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "closed"
-      user_role: "admin" | "custodian" | "approver" | "accounting"
+      user_role: "admin" | "custodian" | "approver" | "accounting" | "requester"
       voucher_status:
         | "draft"
         | "submitted"
@@ -822,9 +1440,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       replenishment_status: [
@@ -834,7 +1449,7 @@ export const Constants = {
         "rejected",
         "closed",
       ],
-      user_role: ["admin", "custodian", "approver", "accounting"],
+      user_role: ["admin", "custodian", "approver", "accounting", "requester"],
       voucher_status: [
         "draft",
         "submitted",

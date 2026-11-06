@@ -1,6 +1,7 @@
 import {
-  BarChart3,
   Bell,
+  ClipboardList,
+  Files,
   ClipboardCheck,
   Landmark,
   LayoutDashboard,
@@ -9,7 +10,6 @@ import {
   ScrollText,
   Tags,
   Users,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +29,9 @@ export type NavGroup = {
 
 const OPERATIONS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/funds", label: "Fund assignments", shortLabel: "Funds", icon: Landmark },
+  { href: "/requests", label: "Budget Requests", shortLabel: "Requests", icon: ClipboardList },
+  { href: "/liquidations", label: "Liquidations", icon: Files },
   { href: "/vouchers", label: "Vouchers", icon: ReceiptText },
   { href: "/approvals", label: "Approvals", icon: ClipboardCheck },
   {
@@ -37,8 +40,6 @@ const OPERATIONS: NavItem[] = [
     shortLabel: "Replenish",
     icon: RefreshCw,
   },
-  { href: "/cash-count", label: "Cash Count", icon: Wallet },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/audit", label: "Audit Trail", icon: ScrollText },
 ];
 

@@ -2,8 +2,8 @@ import { headers } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// The caller's address as Cloudflare reports it (not spoofable by the client
-// when the app is served through Cloudflare).
+// The deployment proxy must overwrite forwarded IP headers and block direct
+// access to the Node server. Configure this when preparing the shared VPS.
 export async function clientIp() {
   const list = await headers();
   return (

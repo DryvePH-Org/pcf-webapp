@@ -23,24 +23,19 @@ import {
 import { requireUser } from "@/lib/auth";
 import {
   formatDate,
-  formatDateTime,
   formatMonth,
   monthStartInAppTz,
   todayInAppTz,
 } from "@/lib/dates";
 import { canPerform, ROLE_LABELS } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 import { isVoucherStatus } from "@/lib/voucher-status";
-
-function varianceClass(value: number) {
-  return value === 0
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-destructive";
-}
 
 export default async function DashboardPage() {
   const user = await requireUser("/dashboard");
+  const requestClient = await createClient();
+  const { count: myRequestCount, error: requestError } = await requestClient.from("budget_requests").select("id", { count: "exact", head: true }).eq("requester_id", user.id).in("status", ["submitted", "approved"]);
+  if (requestError) throw new Error(requestError.message);
   const firstName = user.full_name.split(" ")[0] || user.full_name;
   const isAdmin = user.role === "admin";
   const seesCash = user.role === "custodian" || isAdmin;
@@ -65,17 +60,16 @@ export default async function DashboardPage() {
     profilesResult,
     draftsResult,
     flaggedResult,
-    lastCountResult,
     pendingResult,
     recentResult,
     replenishmentsResult,
     spendResult,
   ] = await Promise.all([
-    seesCash
+    seesCash || canAccounting
       ? supabase
           .from("fund_balance_v")
           .select(
-            "fund_id, name, fund_amount, released_vouchers_total, expected_cash, is_low",
+            "fund_id, name, fund_amount, released_vouchers_total, expected_cash, is_low, advances_pending_liquidation, returns_due, reimbursements_due",
           )
           .order("name")
       : null,
@@ -102,16 +96,6 @@ export default async function DashboardPage() {
           .order("voucher_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(5)
-      : null,
-    seesCash
-      ? supabase
-          .from("cash_counts")
-          .select(
-            "fund_id, counted_cash, expected_cash, variance, note, counted_by, created_at",
-          )
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
       : null,
     canApprove
       ? supabase
@@ -162,7 +146,6 @@ export default async function DashboardPage() {
     profilesResult?.error ??
     draftsResult?.error ??
     flaggedResult?.error ??
-    lastCountResult?.error ??
     pendingResult?.error ??
     recentResult?.error ??
     replenishmentsResult?.error ??
@@ -194,6 +177,9 @@ export default async function DashboardPage() {
           ),
           expected_cash: Number(balance.expected_cash ?? 0),
           is_low: Boolean(balance.is_low),
+          advances_pending_liquidation: Number(balance.advances_pending_liquidation ?? 0),
+          returns_due: Number(balance.returns_due ?? 0),
+          reimbursements_due: Number(balance.reimbursements_due ?? 0),
         },
       ];
     },
@@ -204,8 +190,6 @@ export default async function DashboardPage() {
 
   const flagged = flaggedResult?.data ?? [];
   const flaggedCount = flaggedResult?.count ?? flagged.length;
-
-  const lastCount = lastCountResult?.data ?? null;
 
   const pending = pendingResult?.data ?? [];
   const pendingCount = pendingResult?.count ?? pending.length;
@@ -235,6 +219,13 @@ export default async function DashboardPage() {
         description="Your petty cash overview and next actions."
         actions={<Badge variant="secondary">{ROLE_LABELS[user.role]}</Badge>}
       />
+
+      <Card>
+        <CardHeader><CardTitle>My budget requests</CardTitle><CardDescription>{myRequestCount ?? 0} requests awaiting review or voucher preparation. Every role can request a budget.</CardDescription></CardHeader>
+        <CardContent className="flex flex-wrap gap-2"><Button nativeButton={false} render={<Link href="/requests/new" />}>Request a budget</Button><Button variant="outline" nativeButton={false} render={<Link href="/requests?mine=1" />}>My requests</Button>{canPerform(user.role, "request.review") ? <Button variant="outline" nativeButton={false} render={<Link href="/requests?status=submitted" />}>Review requests</Button> : null}</CardContent>
+      </Card>
+
+      <p className="text-sm"><Link className="underline" href="/liquidations">Open liquidations, review, and cash settlement</Link></p>
 
       {balanceFunds.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2">
@@ -375,7 +366,7 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Flagged vouchers</CardTitle>
               <CardDescription>
-                Cash stays counted until an admin voids or corrects these.
+                Cash stays counted. Resolve flags and settle actual expenses through liquidation.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -415,75 +406,6 @@ export default async function DashboardPage() {
                 </ul>
               )}
             </CardContent>
-          </Card>
-        ) : null}
-
-        {seesCash ? (
-          <Card>
-            <CardHeader>
-              <CardAction>
-                <Badge variant="secondary">Last count</Badge>
-              </CardAction>
-              <CardTitle>Cash count</CardTitle>
-              <CardDescription>
-                The most recent physical cash count across funds.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!lastCount ? (
-                <p className="text-sm text-muted-foreground">
-                  No cash counts recorded yet.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="font-medium">
-                    {fundNames.get(lastCount.fund_id) ?? "Fund"}
-                  </p>
-                  <dl className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <dt className="text-muted-foreground">Counted</dt>
-                      <dd>
-                        <MoneyText value={lastCount.counted_cash} />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Expected</dt>
-                      <dd>
-                        <MoneyText value={lastCount.expected_cash} />
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="text-sm">
-                    Variance:{" "}
-                    <MoneyText
-                      value={lastCount.variance ?? 0}
-                      className={cn(
-                        "font-medium",
-                        varianceClass(Number(lastCount.variance ?? 0)),
-                      )}
-                    />
-                  </p>
-                  {lastCount.note ? (
-                    <p className="text-sm text-pretty text-muted-foreground">
-                      {lastCount.note}
-                    </p>
-                  ) : null}
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(lastCount.created_at)} ·{" "}
-                    {profileNames.get(lastCount.counted_by) ?? "Unknown"}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={<Link href="/cash-count" />}
-              >
-                Record cash count
-              </Button>
-            </CardFooter>
           </Card>
         ) : null}
 
@@ -596,9 +518,9 @@ export default async function DashboardPage() {
         {canAccounting ? (
           <Card>
             <CardHeader>
-              <CardTitle>Monthly spend</CardTitle>
+              <CardTitle>Voucher advances</CardTitle>
               <CardDescription>
-                Vouchers dated in {formatMonth(monthStart)}.
+                Original advance amounts dated in {formatMonth(monthStart)}, before liquidation adjustments.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">

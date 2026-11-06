@@ -67,7 +67,7 @@ export function NewReplenishmentButton({
         disabled={funds.length === 0}
         title={
           funds.length === 0
-            ? "No released, approved, or flagged vouchers are waiting to be replenished."
+            ? "No approved, settled liquidations are ready for replenishment."
             : undefined
         }
       >
@@ -82,7 +82,7 @@ export function NewReplenishmentButton({
             if (!next) setOpen(false);
           }}
           title="New replenishment"
-          description="This bundles every released, approved, and flagged voucher that is not yet in a request. The fund stays as it is until the request is reviewed and closed."
+          description="This bundles up to 100 oldest vouchers with approved liquidation and completed cash settlement. Flagged vouchers are excluded. The total uses actual expenses. Cash changes only when accounting confirms replenishment received."
         >
           <div className="space-y-2">
             <Label htmlFor="replenishment-fund">Fund</Label>

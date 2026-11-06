@@ -10,12 +10,14 @@ on:
 
 jobs:
   digest:
+    if: ${{ vars.APP_URL != '' && vars.NOTIFICATIONS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger the digest
         env:
+          APP_URL: ${{ vars.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl --fail --silent --show-error --retry 3 --retry-delay 10 \
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            https://pcf-webapp.aaron-custodio.workers.dev/api/cron/digest
+            "${APP_URL%/}/api/cron/digest"

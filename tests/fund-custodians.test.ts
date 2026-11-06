@@ -158,7 +158,7 @@ describe.skipIf(!enabled)('Fund-specific custodians', () => {
       p_fund_id: otherFundId,
       p_counted: 5000,
     });
-    expect(countError?.message).toMatch(/not a custodian of this fund/);
+    expect(countError?.message).toMatch(/permission denied/);
 
     const { error: replError } = await clients.custodian.rpc('create_replenishment', {
       p_fund_id: otherFundId,

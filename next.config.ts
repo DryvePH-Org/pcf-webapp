@@ -19,6 +19,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
@@ -26,10 +27,6 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "1mb" },
   },
-  /* config options here */
-  // DECISION: Cache Components is off — on Cloudflare Workers its reliance
-  // on setTimeout() made every request hang until the runtime killed it.
-  // Nothing in this app uses "use cache", so this has no functional cost.
   turbopack: {
     rules: {
       "*.css": {
@@ -41,5 +38,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-import('@opennextjs/cloudflare').then(m => m.initOpenNextCloudflareForDev());

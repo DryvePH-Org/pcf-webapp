@@ -25,6 +25,8 @@ async function handle(request: Request) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
+  if (process.env.NOTIFICATIONS_ENABLED !== "true") return NextResponse.json({ ok: true, skipped: "notifications_disabled" });
+
   try {
     const { recipients, stats } = await sendDailyDigest();
     return NextResponse.json({ ok: true, recipients, stats });

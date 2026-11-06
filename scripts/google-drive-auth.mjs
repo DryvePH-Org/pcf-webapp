@@ -6,7 +6,7 @@
 //    can only see the files and folders it creates itself).
 // 2. Receives the answer on http://127.0.0.1:53682 (this computer only).
 // 3. Saves the three secrets to .secrets/ (git-ignored) and adds them to
-//    .env.local. Nothing is printed. Then upload them to Cloudflare with the
+//    .env.local. Nothing is printed. Then configure the server environment with the
 //    commands this script ends with.
 import { execFile } from "node:child_process";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -101,9 +101,7 @@ for (const [name, value] of Object.entries(values)) {
 
 console.log(`
 Saved to .secrets/ and .env.local (nothing printed).
-Now send them to Cloudflare, one at a time:
-
-  pnpm exec wrangler secret put GOOGLE_CLIENT_ID < .secrets/google-client-id
-  pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET < .secrets/google-client-secret
-  pnpm exec wrangler secret put GOOGLE_REFRESH_TOKEN < .secrets/google-refresh-token
+For VPS deployment, configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and
+GOOGLE_REFRESH_TOKEN in the PCF service's private environment, then restart it.
+Do not print or commit these values.
 `);

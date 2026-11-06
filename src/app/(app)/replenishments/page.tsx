@@ -1,3 +1,5 @@
+import { ReplenishmentEligibilityPanel } from "@/components/replenishments/eligibility-panel";
+import { CsvExportButton } from "@/components/shared/csv-export-button";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 
@@ -22,45 +24,33 @@ import { canPerform } from "@/lib/permissions";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
 import { createClient } from "@/lib/supabase/server";
 
-const ELIGIBLE_STATUSES = ["released", "approved", "rejected"] as const;
 
-export default async function ReplenishmentsPage() {
+export default async function ReplenishmentsPage({ searchParams }: { searchParams: Promise<{ page?: string; queue?: string }> }) {
+  const params = await searchParams;
+  const page = /^\d+$/.test(params.page ?? "") ? Math.max(1, Math.min(100000, Number(params.page))) : 1;
+  const queue = /^\d+$/.test(params.queue ?? "") ? Math.max(1, Math.min(100000, Number(params.queue))) : 1;
   const user = await requireUser("/replenishments");
   const supabase = await createClient();
 
-  const [replenishmentsResult, fundsResult, eligibleResult, linkedResult] =
+  const [replenishmentsResult, fundsResult, eligibleResult] =
     await Promise.all([
       supabase
         .from("replenishments")
         .select(
-          "id, request_no, fund_id, status, total, requested_by, created_at",
+          "id, request_no, fund_id, status, total, requested_by, created_at", { count: "exact" },
         )
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false }).order("id").range((page - 1) * 20, page * 20 - 1),
       supabase.from("funds").select("id, name, is_active"),
-      supabase
-        .from("vouchers")
-        .select("fund_id, amount")
-        .in("status", ELIGIBLE_STATUSES)
-        .not("released_at", "is", null)
-        .is("replenishment_id", null),
-      supabase
-        .from("vouchers")
-        .select("replenishment_id")
-        .not("replenishment_id", "is", null),
+      supabase.rpc("replenishment_fund_options"),
     ]);
 
   if (replenishmentsResult.error) throw new Error(replenishmentsResult.error.message);
   if (fundsResult.error) throw new Error(fundsResult.error.message);
   if (eligibleResult.error) throw new Error(eligibleResult.error.message);
-  if (linkedResult.error) throw new Error(linkedResult.error.message);
 
   const replenishments = replenishmentsResult.data;
   const funds = fundsResult.data;
   const fundNames = new Map(funds.map((fund) => [fund.id, fund.name]));
-  const activeFundIds = new Set(
-    funds.filter((fund) => fund.is_active).map((fund) => fund.id),
-  );
-
   const requestedByIds = [
     ...new Set(
       replenishments
@@ -81,13 +71,11 @@ export default async function ReplenishmentsPage() {
   }
 
   const voucherCounts = new Map<string, number>();
-  for (const voucher of linkedResult.data) {
-    if (!voucher.replenishment_id) continue;
-    voucherCounts.set(
-      voucher.replenishment_id,
-      (voucherCounts.get(voucher.replenishment_id) ?? 0) + 1,
-    );
-  }
+  await Promise.all(replenishments.map(async r => {
+    const { count, error } = await supabase.from("replenishment_items").select("id", { count: "exact", head: true }).eq("replenishment_id", r.id);
+    if (error) throw new Error(error.message);
+    voucherCounts.set(r.id, count ?? 0);
+  }));
 
   const rows: ReplenishmentListRow[] = replenishments.map(
     (replenishment) => ({
@@ -106,31 +94,7 @@ export default async function ReplenishmentsPage() {
     }),
   );
 
-  const eligibleByFund = new Map<string, { count: number; total: number }>();
-  for (const voucher of eligibleResult.data) {
-    const current = eligibleByFund.get(voucher.fund_id) ?? {
-      count: 0,
-      total: 0,
-    };
-    current.count += 1;
-    current.total += Number(voucher.amount);
-    eligibleByFund.set(voucher.fund_id, current);
-  }
-
-  const fundOptions: ReplenishmentFundOption[] = funds
-    .filter(
-      (fund) =>
-        activeFundIds.has(fund.id) && (eligibleByFund.get(fund.id)?.count ?? 0) > 0,
-    )
-    .map((fund) => {
-      const available = eligibleByFund.get(fund.id);
-      return {
-        fund_id: fund.id,
-        fund_name: fund.name,
-        voucher_count: available?.count ?? 0,
-        total: String(available?.total ?? 0),
-      };
-    });
+  const fundOptions: ReplenishmentFundOption[] = eligibleResult.data.map(f => ({ ...f, total: String(f.total) }));
 
   const columns: ResponsiveListColumn<ReplenishmentListRow>[] = [
     {
@@ -203,14 +167,15 @@ export default async function ReplenishmentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Replenishments"
-        description="Bundle released cash into a request, review it, and restore the fund when it is closed."
+        description="Replenish approved, settled expenses. Accounting confirms when cash has actually been received."
         actions={
-          canPerform(user.role, "replenishment.create") ? (
-            <NewReplenishmentButton funds={fundOptions} />
-          ) : null
+          <><CsvExportButton filename={`replenishments-page-${page}.csv`} label="Export this page" header={["Request", "Fund", "Total expenses", "Status", "Vouchers"]} rows={rows.map(r => [r.request_no, r.fund_name, r.total, r.status, r.voucher_count])} />{canPerform(user.role, "replenishment.create") ? <NewReplenishmentButton funds={fundOptions} /> : null}</>
         }
       />
 
+      <ReplenishmentEligibilityPanel page={queue} />
+      <p className="text-sm text-muted-foreground">{replenishmentsResult.count ?? 0} replenishments · Page {page}</p>
+      <div className="flex justify-between text-sm">{page > 1 ? <Link className="underline" href={`?page=${page - 1}`}>Previous requests</Link> : <span />}{page * 20 < (replenishmentsResult.count ?? 0) ? <Link className="underline" href={`?page=${page + 1}`}>More requests</Link> : null}</div>
       <ResponsiveList
         rows={rows}
         columns={columns}

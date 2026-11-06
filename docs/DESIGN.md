@@ -375,7 +375,7 @@ scripts/  apps-script/       one-off setup helpers
 | An email or alert | `src/lib/notifications/events.ts` (+ `deliver.ts` event type) | Queued after the response, never blocks the action |
 | A table, column, policy or function | A **new** file in `supabase/migrations/` | Never edit an applied migration; then regenerate `database.types.ts` |
 | A nav item | `src/lib/navigation.ts` (+ route rule in `permissions.ts`) | Menus are built from data per role |
-| A setting or secret | `.env.example` (documented) + `wrangler secret put` | Never in code or the repo |
+| A setting or secret | `.env.example` (documented) + private server environment | Never in code or the repo |
 | Types shared by a page and its components | `src/components/<feature>/types.ts` | Keeps page → component props explicit |
 | A test | `tests/` for logic and database rules, `e2e/` for browser flows | See section 9 |
 

@@ -78,7 +78,7 @@ export default async function LoginPage() {
               Sign in
             </h2>
             <p className="text-sm text-muted-foreground">
-              Enter your email and we&apos;ll send you a one-time sign-in code.
+              Enter the email and password provided by your administrator.
             </p>
           </div>
 

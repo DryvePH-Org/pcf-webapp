@@ -17,6 +17,7 @@ import {
   notifyVoucherSubmitted,
   notifyVoucherVoided,
 } from "@/lib/notifications/events";
+import { notifyBudgetRequest } from "@/lib/notifications/requests";
 import { mirrorVoucherPhoto } from "@/lib/drive-mirror";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { withinLimit } from "@/lib/rate-limit";
@@ -79,6 +80,7 @@ function revalidateVoucher(id: string) {
   revalidatePath(`/vouchers/${id}`);
   revalidatePath("/approvals");
   revalidatePath("/dashboard");
+  revalidatePath("/requests", "layout");
 }
 
 export async function createVoucher(
@@ -97,21 +99,30 @@ export async function createVoucher(
 
   const values = parsed.data;
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_voucher_lines", {
-    p_fund_id: values.fund_id,
-    p_payee: values.payee,
-    p_items: values.items.map((item) => ({
-      particulars: item.particulars,
-      amount: toMoneyNumber(item.amount),
-      category_id: item.category_id,
-    })),
-    p_voucher_date: values.voucher_date,
-    p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
-  });
+  const items = values.items.map(item => ({ particulars: item.particulars, amount: toMoneyNumber(item.amount), category_id: item.category_id }));
+  const { data, error } = values.budget_request_id
+    ? await supabase.rpc("create_voucher_from_request", {
+        p_request_id: values.budget_request_id,
+        p_items: items,
+        p_voucher_date: values.voucher_date,
+        p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
+      })
+    : await supabase.rpc("create_voucher_lines", {
+        p_fund_id: values.fund_id, p_payee: values.payee, p_items: items,
+        p_voucher_date: values.voucher_date,
+        p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
+      });
 
   if (error) return createVoucherError(safeDbMessage(error));
 
   revalidatePath("/vouchers");
+  revalidatePath("/requests");
+  revalidatePath("/dashboard");
+  if (values.budget_request_id) {
+    const requestId = values.budget_request_id;
+    queueNotification("budget.voucher_created", () => notifyBudgetRequest(requestId, "budget.voucher_created", user.id));
+    revalidatePath(`/requests/${requestId}`);
+  }
   return { ok: true, id: data as string };
 }
 

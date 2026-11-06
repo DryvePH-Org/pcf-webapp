@@ -54,6 +54,8 @@ function revalidateReplenishment(id?: string) {
   if (id) revalidatePath(`/replenishments/${id}`);
   revalidatePath("/vouchers");
   revalidatePath("/dashboard");
+  revalidatePath("/liquidations", "layout");
+  revalidatePath("/requests", "layout");
 }
 
 export async function createReplenishment(

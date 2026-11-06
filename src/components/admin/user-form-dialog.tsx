@@ -27,6 +27,7 @@ import {
 const emptyValues: CreateUserValues = {
   full_name: "",
   email: "",
+  password: "",
   role: "custodian",
 };
 
@@ -42,7 +43,7 @@ export function UserFormDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved: (user: CreateUserValues) => void;
+  onSaved: (user: Omit<CreateUserValues, "password">) => void;
 }) {
   const form = useForm<CreateUserValues>({
     resolver: zodResolver(createUserSchema),
@@ -54,8 +55,15 @@ export function UserFormDialog({
   async function onSubmit(values: CreateUserValues) {
     setSubmitting(true);
     setServerError(null);
-    const result = await createUser(values);
-    setSubmitting(false);
+    let result;
+    try {
+      result = await createUser(values);
+    } catch {
+      setServerError("Could not create the account. Try again in a moment.");
+      return;
+    } finally {
+      setSubmitting(false);
+    }
 
     if (!result.ok) {
       setServerError(result.error);
@@ -70,7 +78,8 @@ export function UserFormDialog({
     }
 
     onOpenChange(false);
-    onSaved(values);
+    form.reset(emptyValues);
+    onSaved({ full_name: values.full_name, email: values.email, role: values.role });
   }
 
   const errors = form.formState.errors;
@@ -80,7 +89,7 @@ export function UserFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="New user"
-      description="They'll sign in with a magic link sent to this email — no password to set or share."
+      description="Create an account with their work email, password, and role."
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-2">
@@ -109,6 +118,23 @@ export function UserFormDialog({
           />
           {errors.email ? (
             <p className="text-xs text-destructive">{errors.email.message}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="user-password">Password</Label>
+          <Input
+            id="user-password"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
+            {...form.register("password")}
+            aria-invalid={Boolean(errors.password)}
+          />
+          <p className="text-xs text-muted-foreground">Use 8–128 characters. Share the password with the user privately.</p>
+          {errors.password ? (
+            <p className="text-xs text-destructive">{errors.password.message}</p>
           ) : null}
         </div>
 

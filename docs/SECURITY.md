@@ -7,13 +7,46 @@ does not become a breach.
 ## What is in place
 
 **Who can do what**
-- Sign-in is passwordless: a 6-digit code emailed to an account an admin created.
-  Unknown emails get the same reply as known ones (no account probing).
-- Roles (admin, custodian, approver, accounting) are enforced in the database
+- Sign-in uses email and password for an account an admin created. Failed
+  credentials and inactive/missing profiles get the same generic reply. Passwords
+  are handled by Supabase Auth, never stored in application tables or emails.
+- Roles (admin, custodian, approver, accounting, requester) are enforced in the database
   by Row Level Security and by functions that check the caller's role on every
   call, not only in the screens. Approvers cannot approve their own vouchers.
 - Anonymous visitors can read nothing and call nothing (tested).
 - The service key never reaches the browser; it is used only on the server.
+
+**Budget requests**
+- Every active role may submit a request. Fund discovery returns only active fund
+  names and assigned custodian names, not balances or other financial records.
+- Requesters see only their requests. Assigned custodians can review requests for
+  their funds; accounting/admins can see all. Self-review is blocked in the RPC.
+- Request records and status changes cannot be written directly by browser clients.
+- Approval/conversion locks the request row. Unique voucher linkage prevents
+  duplicate conversion; cancellation cannot race past conversion.
+- Conversion uses the existing voucher RPC and cash-release workflow. Amounts
+  remain bounded by the approved budget even on later draft edits.
+- Request approval does not change cash. Audit records include request transitions.
+
+**Liquidation and cash settlement**
+- Ownership comes from the linked request or direct voucher preparer; users cannot
+  choose another employee or change the advance received.
+- Private receipt access uses liquidation ownership/fund permissions. Uploads are
+  allowed only while the owner's form is editable. No browser delete/update
+  policy can remove a receipt used in a prior submitted version.
+- Draft, submitted, flagged, and approved transitions run through authenticated
+  RPCs. Every submitted version retains its expense/receipt snapshot.
+- Only assigned custodians/admins can review or settle, and never their own forms.
+  Approval does not move money. Immutable, unique settlement rows record the
+  exact full cash difference once; the fund lock serializes outgoing payments.
+- Additional payment uses actual total spending for approval/transaction limits,
+  requires independent authorization at the threshold and sufficient cash, and
+  is blocked while the voucher is flagged.
+- Replenishment snapshots use approved, settled actual expenses. Submission,
+  accounting approval, and closing all revalidate the locked batch. Public and
+  direct browser writes to the financial tables/RPCs are restricted.
+- Released advances cannot be voided to manufacture cash. Only actual returns,
+  extra payments, and replenishment confirmation adjust cash on hand.
 
 **Input handling**
 - Every text field is cleaned (control, invisible and bidi characters removed,
@@ -28,15 +61,15 @@ does not become a breach.
 - React escapes output; emails escape every value; there is no
   `dangerouslySetInnerHTML`.
 - CSV exports neutralise spreadsheet formulas (`=`, `+`, `-`, `@`).
-- Receipts: images only (JPEG/PNG/WebP, 5 MB) in a private bucket; viewed
+- Voucher photos: JPEG/PNG/WebP, 5 MB. Liquidation proofs additionally accept
+  PDF in a separate private bucket; viewed
   through short-lived signed links. AI output from photos is treated as
   untrusted text and cleaned like typed input.
 - Database error details are never shown to users (`src/lib/db-error.ts`).
 
 **Abuse limits** (`check_rate_limit`, phase 16)
-- Sign-in codes: 3 per email and 10 per address every 10 minutes.
-- Code guesses: 8 per email and 30 per address every 10 minutes.
-- Receipt scans: 6 a minute, 150 a day per person. Voucher creation: 40 a minute.
+- Password sign-in: 8 attempts per email and 30 per address every 10 minutes.
+- Voucher creation: 40 a minute.
 
 **Browser protections** (`next.config.ts`, `src/proxy.ts`, `src/lib/csp.ts`)
 - Content-Security-Policy with a fresh nonce per request: only scripts the
@@ -53,8 +86,8 @@ does not become a breach.
    and look for `"disable_signup": true`.
 2. **Authentication → Users:** delete any account you do not recognise
    (for example `nobody-test@example.com`).
-3. **Authentication → Rate Limits / Email:** keep OTP expiry at 3600 s or less
-   and the default rate limits on.
+3. **Authentication:** enable email/password sign-in and keep authentication
+   rate limits on. Assign passwords to existing passwordless accounts.
 4. **Project Settings → API Keys:** only the new publishable/secret keys, legacy
    keys disabled. **Database:** consider restricting network access if you do
    not need direct connections.
@@ -62,9 +95,6 @@ does not become a breach.
 
 ## Known and accepted
 
-- `pnpm audit` reports 4 issues in build/dev tooling only (`glob`, `minimatch`,
-  `deepmerge` inside the OpenNext build and shadcn CLIs). They do not run in the
-  deployed Worker. One has no patched release. Revisit when the tools update.
 - The rate limiter fails open (lets the request through) if the database is
   unreachable, so an outage cannot lock everyone out. It logs when this happens.
 - Cookies are managed by Supabase's SSR helper and readable by the page's own

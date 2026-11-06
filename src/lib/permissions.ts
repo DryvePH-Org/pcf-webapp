@@ -1,10 +1,11 @@
-export type Role = "admin" | "custodian" | "approver" | "accounting";
+export type Role = "admin" | "custodian" | "approver" | "accounting" | "requester";
 
 export const ALL_ROLES: readonly Role[] = [
   "admin",
   "custodian",
   "approver",
   "accounting",
+  "requester",
 ];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -12,16 +13,18 @@ export const ROLE_LABELS: Record<Role, string> = {
   custodian: "Custodian",
   approver: "Approver",
   accounting: "Accounting",
+  requester: "Requester",
 };
 
 const ROUTE_RULES: readonly { prefix: string; roles: readonly Role[] }[] = [
+  { prefix: "/funds", roles: ["admin", "accounting"] },
+  { prefix: "/requests", roles: ALL_ROLES },
+  { prefix: "/liquidations", roles: ALL_ROLES },
   { prefix: "/admin", roles: ["admin"] },
   { prefix: "/vouchers/new", roles: ["admin", "custodian", "approver"] },
-  { prefix: "/vouchers", roles: ALL_ROLES },
+  { prefix: "/vouchers", roles: ["admin", "custodian", "approver", "accounting"] },
   { prefix: "/approvals", roles: ["admin", "approver"] },
   { prefix: "/replenishments", roles: ["admin", "custodian", "accounting"] },
-  { prefix: "/cash-count", roles: ["admin", "custodian"] },
-  { prefix: "/reports", roles: ["admin", "accounting"] },
   { prefix: "/audit", roles: ["admin", "accounting"] },
   { prefix: "/dashboard", roles: ALL_ROLES },
 ];
@@ -36,6 +39,8 @@ export function canAccessRoute(role: Role, pathname: string): boolean {
 }
 
 export type Action =
+  | "request.create"
+  | "request.review"
   | "voucher.create"
   | "voucher.submit"
   | "voucher.approve"
@@ -46,10 +51,11 @@ export type Action =
   | "replenishment.submit"
   | "replenishment.review"
   | "replenishment.close"
-  | "cash.count"
   | "admin.manage";
 
 export const ACTION_ROLES: Record<Action, readonly Role[]> = {
+  "request.create": ALL_ROLES,
+  "request.review": ["custodian", "admin"],
   "voucher.create": ["custodian", "approver", "admin"],
   "voucher.submit": ["custodian", "approver", "admin"],
   "voucher.approve": ["approver", "admin"],
@@ -60,7 +66,6 @@ export const ACTION_ROLES: Record<Action, readonly Role[]> = {
   "replenishment.submit": ["custodian", "admin"],
   "replenishment.review": ["accounting", "admin"],
   "replenishment.close": ["accounting", "admin"],
-  "cash.count": ["custodian", "admin"],
   "admin.manage": ["admin"],
 };
 

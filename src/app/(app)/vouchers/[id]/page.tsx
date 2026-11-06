@@ -1,3 +1,4 @@
+import { VoucherLiquidationPanel } from "@/components/liquidations/voucher-liquidation-panel";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -62,6 +63,11 @@ export default async function VoucherDetailPage({
 
   if (error) throw new Error(error.message);
   if (!voucher) notFound();
+
+  const linkedRequest = voucher.budget_request_id
+    ? await supabase.from("budget_requests").select("id").eq("id", voucher.budget_request_id).maybeSingle()
+    : null;
+  if (linkedRequest?.error) throw new Error(linkedRequest.error.message);
 
   const profileIds = [
     voucher.prepared_by,
@@ -147,7 +153,7 @@ export default async function VoucherDetailPage({
     approvedByName,
     rejected: status === "rejected",
     rejectReason: voucher.reject_reason,
-    closed: status === "closed" || Boolean(voucher.replenishment_id),
+    closed: status === "closed",
     voided: status === "void",
     voidReason: voucher.void_reason,
     preparedByName,
@@ -205,7 +211,9 @@ export default async function VoucherDetailPage({
   return (
     <>
       <div className="space-y-6 print:hidden">
-        <PageHeader
+        {linkedRequest?.data ? <p className="text-sm"><Link className="underline" href={`/requests/${voucher.budget_request_id}`}>View linked budget request</Link></p> : null}
+      <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} />
+      <PageHeader
           title={voucher.pcv_number}
           description={`${voucher.payee} · ${formatDate(voucher.voucher_date)}`}
           actions={
@@ -638,7 +646,7 @@ function buildTimeline({
   if (closed) {
     events.push({
       key: "closed",
-      label: "Closed in a replenishment",
+      label: "Closed — cash reconciled",
       icon: PackageCheck,
     });
   }

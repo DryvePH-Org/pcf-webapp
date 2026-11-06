@@ -59,3 +59,9 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 backup-*.sql
+__pycache__/
+*.pyc
+
+# Non-secret deployment templates
+!deploy/.env.example
+!deploy/.env.runtime.example

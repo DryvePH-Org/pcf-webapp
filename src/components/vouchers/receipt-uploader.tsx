@@ -21,6 +21,7 @@ export function ReceiptUploader({
   disabled,
   error,
   allowNoReceipt = true,
+  label = "Receipt",
 }: {
   file: File | null;
   onFileChange: (file: File | null) => void;
@@ -29,6 +30,7 @@ export function ReceiptUploader({
   disabled?: boolean;
   error?: string;
   allowNoReceipt?: boolean;
+  label?: string;
 }) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -55,7 +57,7 @@ export function ReceiptUploader({
       {allowNoReceipt ? (
         <div
           role="group"
-          aria-label="Receipt"
+          aria-label={label}
           className="inline-flex rounded-lg bg-muted p-1"
         >
           {(
@@ -126,7 +128,7 @@ export function ReceiptUploader({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={preview}
-                alt="Receipt preview"
+                alt={`${label} preview`}
                 className="h-24 w-24 rounded-lg border border-border object-cover"
               />
               <div className="min-w-0 flex-1 space-y-2">
@@ -175,7 +177,7 @@ export function ReceiptUploader({
                 <ImagePlus className="size-5" />
               </span>
               <div className="space-y-1">
-                <p className="text-sm font-medium">Add the receipt photo</p>
+                <p className="text-sm font-medium">Add the {label.toLowerCase()} photo</p>
                 <p className="text-xs text-muted-foreground">
                   Photos are compressed to about 200 KB before upload.
                 </p>

@@ -9,9 +9,12 @@ on:
 
 jobs:
   ping:
+    if: ${{ vars.APP_URL != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Call the health endpoint
+        env:
+          APP_URL: ${{ vars.APP_URL }}
         run: |
           curl --fail --silent --show-error --retry 3 --retry-delay 10 \
-            https://pcf-webapp.aaron-custodio.workers.dev/api/health
+            "${APP_URL%/}/api/health"

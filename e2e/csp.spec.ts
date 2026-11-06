@@ -11,7 +11,7 @@ test("no CSP violations on main pages", async ({ browser, baseURL }) => {
   const problems: string[] = [];
   page.on("console", (m) => { if (/content security policy|refused to/i.test(m.text())) problems.push(m.text()); });
   page.on("pageerror", (e) => problems.push("pageerror: " + e.message));
-  for (const path of ["/dashboard", "/vouchers", "/vouchers/new", "/cash-count"]) {
+  for (const path of ["/dashboard", "/vouchers", "/vouchers/new"]) {
     await page.goto(base + path);
     await page.waitForLoadState("networkidle");
   }

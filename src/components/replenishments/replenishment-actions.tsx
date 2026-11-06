@@ -48,6 +48,7 @@ export function ReplenishmentActions({
   const canReview =
     replenishment.status === "submitted" &&
     canPerform(viewer.role, "replenishment.review");
+  const canRejectApproved = replenishment.status === "approved" && canPerform(viewer.role, "replenishment.review");
   const canClose =
     replenishment.status === "approved" &&
     canPerform(viewer.role, "replenishment.close");
@@ -73,7 +74,7 @@ export function ReplenishmentActions({
     });
   }
 
-  if (!canSubmit && !canReview && !canClose) return null;
+  if (!canSubmit && !canReview && !canClose && !canRejectApproved) return null;
 
   return (
     <>
@@ -107,6 +108,7 @@ export function ReplenishmentActions({
             </>
           ) : null}
 
+          {canRejectApproved ? <Button variant="outline" disabled={pending} onClick={() => setDialog("reject")}>Reject and release vouchers</Button> : null}
           {canClose ? (
             <Button disabled={pending} onClick={() => setDialog("close")}>
               <Lock />

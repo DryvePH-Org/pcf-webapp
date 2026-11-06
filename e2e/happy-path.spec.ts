@@ -137,23 +137,24 @@ test.describe("voucher to replenishment happy path (desktop)", () => {
     expect(byId[flaggedId]).toBe("rejected");
     expect((await balance()).expected).toBe(afterRelease.expected);
 
-    // Custodian counts the cash: variance is zero.
     const custodianPage = await pageAs(browser, "custodian", base);
-    await custodianPage.goto("/cash-count");
-    await custodianPage
-      .locator("#cash-count-counted")
-      .fill(afterRelease.expected.toFixed(2));
-    await custodianPage
-      .getByRole("button", { name: "Record cash count" })
-      .click();
-    await toastText(custodianPage, "Cash count recorded");
-    const { data: count } = await admin
-      .from("cash_counts")
-      .select("variance")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    expect(Number(count?.variance)).toBe(0);
+
+    // Resolve the voucher flag, then approve actual-expense liquidation for both advances.
+    const approverClient = await clientFor("approver");
+    const adminUser = await clientFor("admin");
+    expect((await approverClient.rpc("approve_voucher", { p_id: flaggedId })).error).toBeNull();
+    for (const voucherId of [approvedId, flaggedId]) {
+      const voucherResult = await custodian.from("vouchers").select("amount,voucher_date,category_id").eq("id", voucherId).single();
+      if (voucherResult.error) throw voucherResult.error;
+      const voucher = voucherResult.data;
+      const liquidation = await custodian.rpc("create_liquidation", { p_voucher_id: voucherId });
+      if (liquidation.error) throw liquidation.error;
+      expect((await custodian.rpc("save_liquidation", { p_id: liquidation.data, p_department: "E2E Operations", p_filing_date: voucher.voucher_date,
+        p_items: [{ id: crypto.randomUUID(), particulars: "Actual expense", amount: Number(voucher.amount), category_id: voucher.category_id, no_receipt_reason: "Vendor did not issue receipt" }],
+      })).error).toBeNull();
+      expect((await custodian.rpc("submit_liquidation", { p_id: liquidation.data })).error).toBeNull();
+      expect((await adminUser.rpc("review_liquidation", { p_id: liquidation.data, p_approve: true })).error).toBeNull();
+    }
 
     // Custodian bundles and submits a replenishment.
     await custodianPage.goto("/replenishments");

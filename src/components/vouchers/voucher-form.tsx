@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircleAlert, Plus, Save, Send, Sparkles, Trash2, Wallet } from "lucide-react";
+import { CircleAlert, Plus, Save, Send, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
-import { scanReceipt } from "@/actions/receipt-scan";
 import {
   attachPaperVoucher,
   createVoucher,
@@ -21,8 +20,6 @@ import {
   ReceiptUploader,
   type ReceiptMode,
 } from "@/components/vouchers/receipt-uploader";
-import { PaperVoucherScanner } from "@/components/vouchers/paper-voucher-scanner";
-import { ScanProgress } from "@/components/vouchers/scan-progress";
 import { MoneyText } from "@/components/shared/money-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -37,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { prepareScanImage, uploadReceipt } from "@/lib/receipts";
+import { uploadReceipt } from "@/lib/receipts";
 import { parseMoney } from "@/lib/money";
 import { todayInAppTz } from "@/lib/dates";
 import {
@@ -46,34 +43,6 @@ import {
   type CreateVoucherValues,
 } from "@/lib/validators/voucher";
 
-function ComparePhoto({ file, onDismiss }: { file: File; onDismiss: () => void }) {
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-      <a href={url} target="_blank" rel="noreferrer" className="shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={url}
-          alt="Your scanned paper voucher"
-          className="h-16 w-16 rounded-md border border-border object-cover"
-        />
-      </a>
-      <p className="min-w-0 flex-1 text-xs">
-        <span className="font-medium">Filled in by AI from your paper voucher.</span>{" "}
-        Handwriting can be misread, so tap the photo to open it and check the
-        payee, date and every amount against it.
-      </p>
-      <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
-        Hide
-      </Button>
-    </div>
-  );
-}
-
-// Groq's free tier allows about three scans a minute, so space them out.
-const SCAN_COOLDOWN_SECONDS = 20;
-
 const emptyLine = { particulars: "", amount: "", category_id: "" };
 
 type Intent = "draft" | "release" | "submit";
@@ -81,12 +50,12 @@ type Intent = "draft" | "release" | "submit";
 export function VoucherForm({
   funds,
   categories,
-  highlightScan = false,
+  request,
   edit,
 }: {
   funds: FundOption[];
   categories: CategoryOption[];
-  highlightScan?: boolean;
+  request?: { id: string; fund_id: string; name: string; purpose: string; amount: string };
   // Set when correcting an existing draft; receipts and actions stay on the
   // voucher page.
   edit?: {
@@ -103,40 +72,16 @@ export function VoucherForm({
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<Intent | null>(null);
-  // The photo being read right now, and which kind of document it is.
-  const [scanning, setScanning] = useState<{ file: File; kind: "receipt" | "voucher" } | null>(null);
-  const [filledFromPhoto, setFilledFromPhoto] = useState(false);
-  // The paper voucher photo last read, kept on screen so the custodian can
-  // compare it with what the form now says.
-  const [comparePhoto, setComparePhoto] = useState<File | null>(null);
-  // Kept (unlike the on-screen note, which can be hidden) so the paper voucher
-  // photo is saved with the voucher.
   const [paperPhoto, setPaperPhoto] = useState<File | null>(null);
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-
-  useEffect(() => {
-    if (cooldownUntil <= Date.now()) return;
-    const tick = () => {
-      const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
-      setSecondsLeft(Math.max(0, left));
-    };
-    tick();
-    const timer = setInterval(tick, 500);
-    return () => clearInterval(timer);
-  }, [cooldownUntil]);
-
-  const startCooldown = useCallback((seconds: number) => {
-    setCooldownUntil(Date.now() + seconds * 1000);
-  }, []);
 
   const form = useForm<CreateVoucherValues>({
     resolver: zodResolver(createVoucherSchema),
     defaultValues: {
-      fund_id: edit?.fund_id ?? funds[0]?.id ?? "",
+      fund_id: edit?.fund_id ?? request?.fund_id ?? funds[0]?.id ?? "",
+      budget_request_id: request?.id,
       voucher_date: edit?.voucher_date ?? todayInAppTz(),
-      payee: edit?.payee ?? "",
-      items: edit?.items ?? [emptyLine],
+      payee: edit?.payee ?? request?.name ?? "",
+      items: edit?.items ?? (request ? [{ particulars: request.purpose, amount: request.amount, category_id: "" }] : [emptyLine]),
       no_receipt_reason: "",
     },
   });
@@ -165,63 +110,6 @@ export function VoucherForm({
     value: category.id,
     label: category.name,
   }));
-
-  // Reads the photo and pre-fills the form. Only runs over an untouched form
-  // unless the custodian asks for it, so typed work is never overwritten.
-  async function fillFromPhoto(
-    photo: File,
-    kind: "receipt" | "voucher",
-    overwrite: boolean,
-  ) {
-    const current = form.getValues();
-    const untouched =
-      !current.payee.trim() &&
-      current.items.every((item) => !item.particulars.trim() && !item.amount.trim());
-    if (!untouched && !overwrite) return;
-    if (
-      !untouched &&
-      !window.confirm("This replaces the payee and lines you have typed. Continue?")
-    ) {
-      return;
-    }
-
-    if (cooldownUntil > Date.now()) {
-      toast.info(`Please wait ${secondsLeft}s before scanning again.`);
-      return;
-    }
-
-    setScanning({ file: photo, kind });
-    startCooldown(SCAN_COOLDOWN_SECONDS);
-    try {
-      const body = new FormData();
-      body.set("image", await prepareScanImage(photo), "scan.jpg");
-      body.set("kind", kind);
-      const result = await scanReceipt(body);
-      if (!result.ok) {
-        toast.error(result.error);
-        // A rate-limit answer means Groq needs a longer rest.
-        if (/too many/i.test(result.error)) startCooldown(40);
-        return;
-      }
-      const { payee, voucher_date, lines: scanned, warnings } = result.receipt;
-      if (payee) form.setValue("payee", payee, { shouldValidate: true });
-      if (voucher_date) form.setValue("voucher_date", voucher_date, { shouldValidate: true });
-      if (scanned.length > 0) {
-        lines.replace(scanned);
-      }
-      setFilledFromPhoto(true);
-      if (kind === "voucher") {
-        setComparePhoto(photo);
-        setPaperPhoto(photo);
-      }
-      toast.success("Filled in from the photo. Check every field before saving.");
-      for (const warning of warnings) toast.warning(warning, { duration: 12000 });
-    } catch {
-      toast.error("The scan failed. Fill in the form by hand.");
-    } finally {
-      setScanning(null);
-    }
-  }
 
   async function saveEdit(values: CreateVoucherValues) {
     if (!edit) return;
@@ -327,7 +215,7 @@ export function VoucherForm({
           router.push(`/vouchers/${voucherId}`);
           return;
         }
-        toast.success("Submitted. An approver has been notified.");
+        toast.success("Submitted for approver review.");
       } else if (nextIntent === "release") {
         const released = await releaseVoucher(voucherId);
         if (!released.ok) {
@@ -361,17 +249,23 @@ export function VoucherForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={submitDraft} noValidate>
-          {comparePhoto && !edit ? (
-            <ComparePhoto file={comparePhoto} onDismiss={() => setComparePhoto(null)} />
-          ) : null}
+          {request ? <Alert><AlertDescription>From an approved budget request. Total must not exceed <MoneyText value={request.amount} />. Choose the categories and check every line before saving. No cash moves until release.</AlertDescription></Alert> : null}
           {edit ? null : (
-            <PaperVoucherScanner
-              highlight={highlightScan}
-              scanning={scanning?.kind === "voucher" ? scanning.file : null}
-              disabled={scanning !== null || submitting !== null || secondsLeft > 0}
-              cooldown={scanning ? 0 : secondsLeft}
-              onPick={(photo) => void fillFromPhoto(photo, "voucher", true)}
-            />
+            <div className="space-y-2">
+              <Label>Paper voucher photo (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Attach the signed paper voucher. Enter the voucher details manually.
+              </p>
+              <ReceiptUploader
+                file={paperPhoto}
+                onFileChange={setPaperPhoto}
+                mode="receipt"
+                onModeChange={() => {}}
+                allowNoReceipt={false}
+                disabled={submitting !== null}
+                label="Paper voucher"
+              />
+            </div>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -400,7 +294,7 @@ export function VoucherForm({
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? "")}
                     items={fundItems}
-                    disabled={funds.length <= 1}
+                    disabled={Boolean(request) || funds.length <= 1}
                   >
                     <SelectTrigger id="voucher-fund" className="w-full">
                       <SelectValue placeholder="Select a fund" />
@@ -427,6 +321,7 @@ export function VoucherForm({
             <Label htmlFor="voucher-payee">Payee</Label>
             <Input
               id="voucher-payee"
+                readOnly={Boolean(request)}
               maxLength={120}
               placeholder="Who received the cash?"
               autoComplete="off"
@@ -600,8 +495,6 @@ export function VoucherForm({
               onFileChange={(next) => {
                 setFile(next);
                 setReceiptError(null);
-                setFilledFromPhoto(false);
-                if (next) void fillFromPhoto(next, "receipt", false);
               }}
               mode={mode}
               onModeChange={(next) => {
@@ -611,28 +504,6 @@ export function VoucherForm({
               disabled={submitting !== null}
               error={receiptError ?? undefined}
             />
-            {scanning?.kind === "receipt" ? (
-              <ScanProgress file={scanning.file} label="Reading the receipt..." />
-            ) : null}
-            {mode === "receipt" && file && scanning?.kind !== "receipt" ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={scanning !== null || submitting !== null || secondsLeft > 0}
-                  onClick={() => void fillFromPhoto(file, "receipt", true)}
-                >
-                  <Sparkles />
-                  {secondsLeft > 0 ? `Scan again in ${secondsLeft}s` : "Fill form from receipt"}
-                </Button>
-                {filledFromPhoto ? (
-                  <p className="text-xs text-muted-foreground">
-                    Filled in by AI. Check the payee, date, amounts and categories.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           {mode === "none" ? (

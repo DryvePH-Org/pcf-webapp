@@ -4,6 +4,7 @@ import { REPLENISHMENT_STATUS_LABELS } from "@/lib/replenishment-status";
 import type { ReplenishmentStatus } from "@/lib/replenishment-status";
 
 type PrintVoucher = {
+  advance_amount?: string;
   pcv_number: string;
   voucher_date: string;
   payee: string;
@@ -83,8 +84,9 @@ export function ReplenishmentPrint({
               <th className="border border-black px-2 py-1 text-left font-semibold">
                 Category
               </th>
+              <th className="border border-black px-2 py-1 text-right font-semibold">Advance</th>
               <th className="w-32 border border-black px-2 py-1 text-right font-semibold">
-                Amount
+                Actual expense
               </th>
             </tr>
           </thead>
@@ -103,6 +105,7 @@ export function ReplenishmentPrint({
                 <td className="border border-black px-2 py-1">
                   {voucher.category_name}
                 </td>
+                <td className="border border-black px-2 py-1 text-right font-mono">{formatPHP(voucher.advance_amount ?? voucher.amount)}</td>
                 <td className="border border-black px-2 py-1 text-right font-mono">
                   {formatPHP(voucher.amount)}
                 </td>
@@ -112,7 +115,7 @@ export function ReplenishmentPrint({
           <tfoot>
             <tr>
               <td
-                colSpan={4}
+                colSpan={5}
                 className="border border-black px-2 py-1 text-right font-semibold"
               >
                 Total

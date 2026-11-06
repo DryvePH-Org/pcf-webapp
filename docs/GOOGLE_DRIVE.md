@@ -43,13 +43,9 @@ script runs **as you** and saves the file in your Drive.
    - "Anyone" only means the address can be reached. Nothing is saved without
      the secret, which is long and random.
 5. Open the URL in a browser: you should see `{"ok":true,...}`.
-6. Save the URL and send both values to Cloudflare:
-   ```bash
-   pbpaste > .secrets/drive-script-url      # with the URL on the clipboard
-   pnpm exec wrangler secret put GOOGLE_SCRIPT_URL < .secrets/drive-script-url
-   pnpm exec wrangler secret put GOOGLE_SCRIPT_SECRET < .secrets/drive-script-secret
-   ```
-7. Deploy (`pnpm run deploy`) and save a voucher with a photo.
+6. Set `GOOGLE_SCRIPT_URL` and `GOOGLE_SCRIPT_SECRET` in `.env.local` for
+   local use, or in the PCF service's private environment on the VPS.
+7. Restart the PCF service and save a voucher with a photo.
 
 If you edit the script later, use **Deploy → Manage deployments → Edit → New
 version** so the same URL keeps working.
@@ -80,13 +76,9 @@ version** so the same URL keeps working.
    Sign in with the Google account whose Drive should hold the files and allow
    access. The script saves the secrets to `.secrets/` and `.env.local` without
    printing them.
-6. Send them to Cloudflare (production), one at a time:
-   ```bash
-   pnpm exec wrangler secret put GOOGLE_CLIENT_ID < .secrets/google-client-id
-   pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET < .secrets/google-client-secret
-   pnpm exec wrangler secret put GOOGLE_REFRESH_TOKEN < .secrets/google-refresh-token
-   ```
-7. Deploy (`pnpm run deploy`). Save a voucher with a photo and look for the
+6. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+   `GOOGLE_REFRESH_TOKEN` in the PCF service's private environment on the VPS.
+7. Restart the service. Save a voucher with a photo and look for the
    **Petty Cash Vouchers** folder in your Drive.
 
 Without the three settings the feature is simply off.
@@ -96,7 +88,7 @@ Without the three settings the feature is simply off.
 - Only photos saved **after** setup are copied. Older receipts are not
   back-filled.
 - Replacing a receipt copies the new photo as an additional file.
-- To stop copying, remove the three secrets (`wrangler secret delete NAME`) or
+- To stop copying, remove the Google integration variables from the service environment and restart, or
   revoke access at <https://myaccount.google.com/permissions>.
 - If the refresh token is ever lost or revoked, run step 5 again and re-upload
   `GOOGLE_REFRESH_TOKEN`.

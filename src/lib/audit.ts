@@ -1,6 +1,12 @@
 import type { Json } from "@/lib/database.types";
 
 export const AUDIT_ENTITY_TYPES = [
+  "liquidations",
+  "liquidation_items",
+  "liquidation_revisions",
+  "cash_settlements",
+  "replenishment_items",
+  "budget_requests",
   "vouchers",
   "replenishments",
   "funds",
@@ -11,6 +17,12 @@ export const AUDIT_ENTITY_TYPES = [
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
+  liquidations: "Liquidation",
+  liquidation_items: "Liquidation line",
+  liquidation_revisions: "Liquidation submission",
+  cash_settlements: "Cash settlement",
+  replenishment_items: "Replenishment item",
+  budget_requests: "Budget request",
   vouchers: "Voucher",
   replenishments: "Replenishment",
   funds: "Fund",

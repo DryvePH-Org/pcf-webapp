@@ -19,6 +19,9 @@ export type BalanceFund = {
   released_vouchers_total: number;
   expected_cash: number;
   is_low: boolean;
+  advances_pending_liquidation?: number;
+  returns_due?: number;
+  reimbursements_due?: number;
 };
 
 export function BalanceCard({ fund }: { fund: BalanceFund }) {
@@ -54,7 +57,7 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-sm">
-            <span className="text-muted-foreground">Released vouchers</span>
+            <span className="text-muted-foreground">Unreplenished cash out</span>
             <span>
               <MoneyText value={fund.released_vouchers_total} /> of{" "}
               <MoneyText value={fund.fund_amount} />
@@ -88,7 +91,7 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
           </div>
           <span className="text-muted-foreground">+</span>
           <div className="min-w-0">
-            <p className="text-muted-foreground">Vouchers</p>
+            <p className="text-muted-foreground">Net cash out</p>
             <MoneyText
               value={fund.released_vouchers_total}
               className="block truncate font-medium"
@@ -103,6 +106,12 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
             />
           </div>
         </div>
+
+        <dl className="grid gap-2 text-xs sm:grid-cols-3">
+          <div><dt className="text-muted-foreground">Awaiting liquidation approval</dt><dd><MoneyText value={fund.advances_pending_liquidation ?? 0} /></dd></div>
+          <div><dt className="text-muted-foreground">Cash returns due</dt><dd><MoneyText value={fund.returns_due ?? 0} /></dd></div>
+          <div><dt className="text-muted-foreground">Reimbursements due</dt><dd><MoneyText value={fund.reimbursements_due ?? 0} /></dd></div>
+        </dl>
 
         {fund.is_low ? (
           <p className="flex items-start gap-2 text-sm text-destructive">
