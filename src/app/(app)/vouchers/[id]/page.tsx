@@ -211,14 +211,21 @@ export default async function VoucherDetailPage({
   return (
     <>
       <div className="space-y-6 print:hidden">
-        {linkedRequest?.data ? <p className="text-sm"><Link className="underline" href={`/requests/${voucher.budget_request_id}`}>View linked budget request</Link></p> : null}
-      <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} />
-      <PageHeader
+        <PageHeader
           title={voucher.pcv_number}
           description={`${voucher.payee} · ${formatDate(voucher.voucher_date)}`}
           actions={
             <>
               <StatusBadge status={status} />
+              {linkedRequest?.data ? (
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/requests/${voucher.budget_request_id}`} />}
+                >
+                  Budget request
+                </Button>
+              ) : null}
               <PrintButton />
               <Button
                 variant="outline"
@@ -388,6 +395,7 @@ export default async function VoucherDetailPage({
               }}
               viewer={{ id: user.id, role: user.role }}
             />
+            <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} />
 
             {canSeeHistory ? (
               <Card>

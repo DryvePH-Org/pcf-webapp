@@ -65,3 +65,4 @@ __pycache__/
 # Non-secret deployment templates
 !deploy/.env.example
 !deploy/.env.runtime.example
+.next-*/

@@ -39,7 +39,7 @@ test.describe("custodian prepares a multi-line voucher (desktop)", () => {
     await page.locator("#voucher-category-1").click();
     await page.getByRole("option").nth(1).click();
 
-    await expect(page.getByText("Total")).toContainText("200.50");
+    await expect(page.getByTestId("line-total")).toContainText("200.50");
 
     await page.getByRole("button", { name: "Save draft" }).click();
     await page.waitForURL(/\/vouchers\/[0-9a-f-]{36}$/);
@@ -52,7 +52,7 @@ test.describe("custodian prepares a multi-line voucher (desktop)", () => {
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/edit$/);
     await page.locator("#voucher-amount-1").fill("99.50");
-    await expect(page.getByText("Total")).toContainText("220.00");
+    await expect(page.getByTestId("line-total")).toContainText("220.00");
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(/\/vouchers\/[0-9a-f-]{36}$/);
     await expect(page.getByText("220.00").first()).toBeVisible();

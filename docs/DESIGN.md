@@ -32,7 +32,7 @@ Contents
   sidebar and tables.
 - **One screen, one job.** A page has a title, one short description and a small
   set of actions in the header. Everything else is cards.
-- **Safe by default.** Anything irreversible (release cash, void, approve) goes
+- **Safe by default.** Anything irreversible (release cash, void, approve, delete data) goes
   through a confirm dialog that says what will happen.
 - **No surprises with data.** Pages render per request (no static caching) because
   the content is private and changes constantly.
@@ -47,7 +47,7 @@ Contents
 | Icons | `lucide-react` (`size-4` inline, `size-5` in tiles/nav). |
 | Forms | `react-hook-form` + `zod` via `@hookform/resolvers`. |
 | Toasts | `sonner` (top-center). |
-| Charts | `recharts` (reports only). |
+| Charts | No chart library is currently installed. Prefer the existing summary cards. |
 | Fonts | Geist Sans and Geist Mono through `next/font` (self-hosted). |
 | Class helper | `cn()` from `src/lib/utils.ts` (clsx + tailwind-merge). |
 
@@ -260,6 +260,64 @@ Add new primitives with the shadcn CLI so they match the config in
 | `CsvExportButton` | Export of what is on screen (formula-safe) |
 | `PageSkeleton` | The `loading.tsx` placeholder |
 
+### Status, next step, and progress
+
+Every screen should answer three questions at a glance: *what state is this in*,
+*what happens next (and who acts)*, *where are we in the whole trail*.
+
+- `shared/status-pill.tsx` is the only status look: a tinted pill with an icon and
+  a bold label (tones `neutral`, `waiting`, `info`, `success`, `danger`, `done`).
+  `StatusBadge` (vouchers), `ReplenishmentStatusBadge`, `RequestStatusPill` and
+  `LiquidationStatusPill` (`shared/flow-status-pills.tsx`) all map their states to
+  these tones. Never show a status as plain text or a grey outline badge.
+- `shared/callout.tsx` is for the one message that has to be seen: a "next step"
+  at the top of a detail page (`warning` = you must act, `info` = waiting on
+  someone else, `success` = done, `danger` = rejected or sent back, with the
+  reason). It hides when printing.
+- `shared/flow-steps.tsx` shows the trail Request, Review, Voucher, Cash released,
+  Liquidation, Settled with done / current / stopped / to-do steps.
+- Request numbers are `BR-` plus a full UUID in the database; show `shortRef()`
+  (`lib/refs.ts`) on screen and keep the full value in exports and tooltips.
+
+### Forms
+
+- Group a long form into numbered sections (`SectionTitle` in the voucher form) with
+  the fields people must fill in first. Optional extras go in a collapsed
+  "details" area (see the liquidation expense card).
+- Mark required fields with a red `*` and say what is wrong next to the field, not
+  only in one message at the bottom (liquidation form checks each expense after
+  the first failed submit and scrolls to the first gap).
+- Money inputs: right-aligned, tabular numbers, a `₱` prefix, `inputMode="decimal"`.
+- The primary action lives in a sticky bar at the bottom with the running total
+  beside it (`sticky bottom-[4.5rem] lg:bottom-4`, the phone offset clears the tab
+  bar). On phones the two buttons share one row.
+- Default control heights are 40px (inputs, selects, buttons); `sm` is 36px and
+  `lg` 44px for primary form actions. Do not shrink controls below that.
+- Photo and file pickers are one compact row until a file is chosen.
+
+### Navigation
+
+Items are ordered by how money moves (Dashboard, Requests, Vouchers, Liquidations,
+Approvals, Replenishments, then Accounting sheets, Funds, Audit). Every item has
+its own icon. The active item has a filled background and a bar on the left. The
+bottom tab bar shows each role's four most-used items (`MOBILE_FIRST` in
+`lib/navigation.ts`); the rest are under More.
+
+### Selects, filters, and destructive settings
+
+- `shared/option-select.tsx` wraps the existing Base UI `Select` with labelled
+  options. Use it for settings and GET filters; it supports both controlled
+  values and named form fields. Put a `Label htmlFor` above its trigger.
+- Requests, liquidations, and Accounting expenses use `ResponsiveList`: tables
+  from `lg`, cards below `lg`, and the table for printing. Keep amounts in
+  `MoneyText` and right-align amount columns.
+- Settings sections use `CardHeader`, `CardContent`, and `CardFooter`, with the
+  primary action aligned right. Errors use a destructive `Alert`; success uses
+  a toast and, when needed, a persistent status message.
+- Data deletion uses a `ResponsiveDialog` preview with counts and exact typed
+  confirmation. It becomes a bottom sheet on phones. Closing the dialog cancels
+  the UI action; it must never execute deletion.
+
 ### Status colours
 
 Soft pill: light tint background, dark text, no border (`border-transparent`),
@@ -289,7 +347,7 @@ flags; the destructive button is a soft red fill, not solid.
 | `replenishments/` | list, detail and action components, `types.ts` |
 | `dashboard/` | `balance-card` (imprest equation, progress bar, low-balance badge) |
 | `admin/` | managers and form dialogs for users, funds, categories, fund assignment |
-| `cash-count/`, `audit/`, `reports/` | their pages' interactive parts, charts |
+| `audit/` | audit history and filters |
 | `layout/` | shell, sidebar, bottom tab bar, user menu, page header, print button |
 | `pwa/` | service-worker registration, install prompt |
 
@@ -297,7 +355,7 @@ flags; the destructive button is a soft red fill, not solid.
 
 - **Login**: split screen on desktop (dark brand panel with soft blurred circle,
   hero line "Every peso accounted for.", three highlights) and a plain centred
-  form on phones. Two steps: email, then the 6-digit code.
+  form on phones. Email and password sign-in; accounts are created by an administrator.
 - **Dashboard**: welcome header with role badge → `BalanceCard` per fund (the
   equation *cash on hand + released vouchers = fund amount*, progress bar,
   Healthy/Low badge) → two-column cards of "what is waiting for you" and the

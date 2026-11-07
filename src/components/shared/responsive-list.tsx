@@ -35,7 +35,7 @@ export function ResponsiveList<T>({
 
   return (
     <>
-      <div className="hidden lg:block">
+      <div className="hidden lg:block print:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -63,7 +63,7 @@ export function ResponsiveList<T>({
         </Table>
       </div>
 
-      <ul className="space-y-3 lg:hidden">
+      <ul className="space-y-3 lg:hidden print:hidden">
         {rows.map((row) => (
           <li key={getRowKey(row)}>{renderCard(row)}</li>
         ))}

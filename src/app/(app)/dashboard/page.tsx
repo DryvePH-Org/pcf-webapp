@@ -5,6 +5,7 @@ import {
   BalanceCard,
   type BalanceFund,
 } from "@/components/dashboard/balance-card";
+import { MyWork } from "@/components/dashboard/my-work";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyText } from "@/components/shared/money-text";
@@ -33,9 +34,6 @@ import { isVoucherStatus } from "@/lib/voucher-status";
 
 export default async function DashboardPage() {
   const user = await requireUser("/dashboard");
-  const requestClient = await createClient();
-  const { count: myRequestCount, error: requestError } = await requestClient.from("budget_requests").select("id", { count: "exact", head: true }).eq("requester_id", user.id).in("status", ["submitted", "approved"]);
-  if (requestError) throw new Error(requestError.message);
   const firstName = user.full_name.split(" ")[0] || user.full_name;
   const isAdmin = user.role === "admin";
   const seesCash = user.role === "custodian" || isAdmin;
@@ -220,12 +218,7 @@ export default async function DashboardPage() {
         actions={<Badge variant="secondary">{ROLE_LABELS[user.role]}</Badge>}
       />
 
-      <Card>
-        <CardHeader><CardTitle>My budget requests</CardTitle><CardDescription>{myRequestCount ?? 0} requests awaiting review or voucher preparation. Every role can request a budget.</CardDescription></CardHeader>
-        <CardContent className="flex flex-wrap gap-2"><Button nativeButton={false} render={<Link href="/requests/new" />}>Request a budget</Button><Button variant="outline" nativeButton={false} render={<Link href="/requests?mine=1" />}>My requests</Button>{canPerform(user.role, "request.review") ? <Button variant="outline" nativeButton={false} render={<Link href="/requests?status=submitted" />}>Review requests</Button> : null}</CardContent>
-      </Card>
-
-      <p className="text-sm"><Link className="underline" href="/liquidations">Open liquidations, review, and cash settlement</Link></p>
+      <MyWork userId={user.id} role={user.role} />
 
       {balanceFunds.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2">

@@ -19,6 +19,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Lets a second dev server (for example one pointed at a local database)
+  // run beside the main one: NEXT_DIST_DIR=.next-alt pnpm dev -p 3200
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
   poweredByHeader: false,
   async headers() {

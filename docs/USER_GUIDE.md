@@ -209,3 +209,14 @@ You can do everything above, plus set the system up.
 - **Voiding**: only unreleased vouchers can be voided, with a reason. Released
   advances must be resolved through liquidation and actual cash settlement.
   Financial records and audit history are retained.
+
+
+### Data deletion center
+
+Open **Administration → Data deletion**. Choose a deletion type and optional
+fund, custodian, date range, or test-fund filter, then select **Preview deletion**.
+Review the counts in the confirmation dialog and type the requested phrase
+exactly to enable deletion. **Cancel** closes the preview without deleting data.
+Accounts, Google workbook contents, and the audit trail are retained. A full
+reset clears fund assignments and disables sheet automation until reassigned.
+Use **Retry pending file cleanup** if a prior removal was interrupted.

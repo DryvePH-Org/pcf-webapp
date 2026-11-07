@@ -1,13 +1,48 @@
-'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { configureWorkbook } from '@/actions/sheets';
-import { Button } from '@/components/ui/button';
-import type { Workbook,SheetTab } from '@/lib/sheets/types';
-export function WorkbookAssignment({book,custodians,funds}:{book:Workbook;custodians:{id:string;full_name:string}[];funds:{id:string;name:string}[]}) {
- const router=useRouter();const [custodian,setCustodian]=useState(book.custodian_id??'');const [fund,setFund]=useState(book.fund_id??'');const [sheet,setSheet]=useState(book.active_sheet_id===null?'':String(book.active_sheet_id));const [enabled,setEnabled]=useState(book.enabled);const [pending,setPending]=useState(false);const [message,setMessage]=useState('');
- const css='mt-1 min-h-11 w-full rounded border bg-background px-2';
- return <form className="space-y-3 rounded-xl border p-4" onSubmit={async e=>{e.preventDefault();setPending(true);try{const result=await configureWorkbook({id:book.id as 'operations',custodian:custodian||null,fund:fund||null,sheet:sheet===''?null:Number(sheet),enabled});setMessage(result.ok?'Assignment saved':result.error??'Could not save');if(result.ok)router.refresh();}catch{setMessage('Could not save assignment.');}finally{setPending(false);}}}>
- <h2 className="font-semibold">{book.name}</h2><div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Custodian<select disabled={pending} className={css} value={custodian} onChange={e=>setCustodian(e.target.value)}><option value="">Unassigned</option>{custodians.map(c=><option key={c.id} value={c.id}>{c.full_name}</option>)}</select></label><label className="text-sm">Fund<select disabled={pending} className={css} value={fund} onChange={e=>setFund(e.target.value)}><option value="">Unassigned</option>{funds.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label><label className="text-sm">Active worksheet<select disabled={pending} className={css} value={sheet} onChange={e=>setSheet(e.target.value)}><option value="">Choose after refresh</option>{(book.catalog as unknown as SheetTab[]).map(t=><option key={t.sheetId} value={t.sheetId}>{t.title}</option>)}</select></label></div>
- <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={enabled} disabled={pending} onChange={e=>setEnabled(e.target.checked)}/>Enable this destination for liquidation synchronization</label><p className="text-xs text-muted-foreground">Assign the custodian to the selected fund first. Existing queued jobs retain their original destination. Google writes have a separate connection switch.</p><Button type="submit" disabled={pending}>{pending?'Saving…':'Save assignment'}</Button><p role="status" className="text-sm">{message}</p></form>;
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
+import { configureWorkbook } from "@/actions/sheets";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { OptionSelect } from "@/components/shared/option-select";
+import type { Workbook, SheetTab } from "@/lib/sheets/types";
+
+export function WorkbookAssignment({ book, custodians, funds }: { book: Workbook; custodians: { id: string; full_name: string }[]; funds: { id: string; name: string }[] }) {
+  const router = useRouter();
+  const [custodian, setCustodian] = useState(book.custodian_id ?? "");
+  const [fund, setFund] = useState(book.fund_id ?? "");
+  const [sheet, setSheet] = useState(book.active_sheet_id === null ? "" : String(book.active_sheet_id));
+  const [enabled, setEnabled] = useState(book.enabled);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const prefix = `workbook-${book.id}`;
+  return <form onSubmit={async event => {
+    event.preventDefault(); setPending(true); setError("");
+    try {
+      const result = await configureWorkbook({ id: book.id as "operations", custodian: custodian || null, fund: fund || null, sheet: sheet === "" ? null : Number(sheet), enabled });
+      if (result.ok) { toast.success("Assignment saved"); router.refresh(); }
+      else setError(result.error ?? "Could not save assignment.");
+    } catch { setError("Could not save assignment."); }
+    finally { setPending(false); }
+  }}>
+    <Card>
+      <CardHeader><CardTitle>{book.name}</CardTitle><CardDescription>Assign a custodian, fund, and active worksheet for this destination.</CardDescription></CardHeader>
+      <CardContent className="space-y-5">
+        {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="min-w-0 space-y-2"><Label htmlFor={`${prefix}-custodian`}>Custodian</Label><OptionSelect id={`${prefix}-custodian`} value={custodian} onValueChange={setCustodian} disabled={pending} options={[{ value: "", label: "Unassigned" }, ...custodians.map(person => ({ value: person.id, label: person.full_name }))]} /></div>
+          <div className="min-w-0 space-y-2"><Label htmlFor={`${prefix}-fund`}>Fund</Label><OptionSelect id={`${prefix}-fund`} value={fund} onValueChange={setFund} disabled={pending} options={[{ value: "", label: "Unassigned" }, ...funds.map(item => ({ value: item.id, label: item.name }))]} /></div>
+          <div className="min-w-0 space-y-2"><Label htmlFor={`${prefix}-sheet`}>Active worksheet</Label><OptionSelect id={`${prefix}-sheet`} value={sheet} onValueChange={setSheet} disabled={pending} options={[{ value: "", label: "Choose after refresh" }, ...(book.catalog as unknown as SheetTab[]).map(tab => ({ value: String(tab.sheetId), label: tab.title }))]} /></div>
+        </div>
+        <Label className="flex min-h-11 items-center gap-3"><input type="checkbox" className="size-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-ring" checked={enabled} disabled={pending} onChange={event => setEnabled(event.target.checked)} />Enable liquidation synchronization</Label>
+        <p className="text-sm text-muted-foreground">Assign the custodian to the selected fund first. Queued updates keep their original destination.</p>
+      </CardContent>
+      <CardFooter className="justify-end"><Button type="submit" disabled={pending}>{pending ? <Loader2 className="animate-spin" /> : <Save />}{pending ? "Saving…" : "Save assignment"}</Button></CardFooter>
+    </Card>
+  </form>;
 }

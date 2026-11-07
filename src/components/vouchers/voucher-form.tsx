@@ -20,6 +20,7 @@ import {
   ReceiptUploader,
   type ReceiptMode,
 } from "@/components/vouchers/receipt-uploader";
+import { Callout } from "@/components/shared/callout";
 import { MoneyText } from "@/components/shared/money-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,22 @@ import {
   MAX_VOUCHER_LINES,
   type CreateVoucherValues,
 } from "@/lib/validators/voucher";
+
+function Required() {
+  return <span className="text-destructive" aria-hidden>*</span>;
+}
+
+function SectionTitle({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="flex items-start gap-3 border-t pt-5 first:border-t-0 first:pt-0">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">{n}</span>
+      <div>
+        <h3 className="text-base leading-7 font-semibold">{title}</h3>
+        {hint ? <p className="text-sm text-muted-foreground">{hint}</p> : null}
+      </div>
+    </div>
+  );
+}
 
 const emptyLine = { particulars: "", amount: "", category_id: "" };
 
@@ -250,27 +267,10 @@ export function VoucherForm({
       <CardContent>
         <form className="space-y-5" onSubmit={submitDraft} noValidate>
           {request ? <Alert><AlertDescription>From an approved budget request. Total must not exceed <MoneyText value={request.amount} />. Choose the categories and check every line before saving. No cash moves until release.</AlertDescription></Alert> : null}
-          {edit ? null : (
-            <div className="space-y-2">
-              <Label>Paper voucher photo (optional)</Label>
-              <p className="text-xs text-muted-foreground">
-                Attach the signed paper voucher. Enter the voucher details manually.
-              </p>
-              <ReceiptUploader
-                file={paperPhoto}
-                onFileChange={setPaperPhoto}
-                mode="receipt"
-                onModeChange={() => {}}
-                allowNoReceipt={false}
-                disabled={submitting !== null}
-                label="Paper voucher"
-              />
-            </div>
-          )}
-
+          <SectionTitle n={1} title="Who is being paid" />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="voucher-date">Voucher date</Label>
+              <Label htmlFor="voucher-date">Voucher date <Required /></Label>
               <Input
                 id="voucher-date"
                 type="date"
@@ -285,30 +285,39 @@ export function VoucherForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="voucher-fund">Fund</Label>
-              <Controller
-                control={form.control}
-                name="fund_id"
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? "")}
-                    items={fundItems}
-                    disabled={Boolean(request) || funds.length <= 1}
-                  >
-                    <SelectTrigger id="voucher-fund" className="w-full">
-                      <SelectValue placeholder="Select a fund" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fundItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Label htmlFor="voucher-fund">Fund <Required /></Label>
+              {funds.length <= 1 || request ? (
+                <div
+                  id="voucher-fund"
+                  className="flex h-10 items-center rounded-lg border bg-muted/50 px-3 text-sm font-medium"
+                >
+                  {selectedFund?.name ?? "No fund"}
+                </div>
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="fund_id"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? "")}
+                      items={fundItems}
+                      disabled={Boolean(request) || funds.length <= 1}
+                    >
+                      <SelectTrigger id="voucher-fund" className="w-full">
+                        <SelectValue placeholder="Select a fund" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fundItems.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              )}
               {errors.fund_id ? (
                 <p className="text-xs text-destructive">
                   {errors.fund_id.message}
@@ -318,7 +327,7 @@ export function VoucherForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="voucher-payee">Payee</Label>
+            <Label htmlFor="voucher-payee">Payee <Required /></Label>
             <Input
               id="voucher-payee"
                 readOnly={Boolean(request)}
@@ -333,8 +342,8 @@ export function VoucherForm({
             ) : null}
           </div>
 
+          <SectionTitle n={2} title="What the cash is for" hint="Add one line per item. The total is the sum of the lines." />
           <div className="space-y-3">
-            <Label>What was it spent on?</Label>
             {lines.fields.map((field, index) => {
               const lineErrors = errors.items?.[index];
               return (
@@ -360,7 +369,7 @@ export function VoucherForm({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`voucher-particulars-${index}`}>
-                      Particulars
+                      Particulars <Required />
                     </Label>
                     <Textarea
                       id={`voucher-particulars-${index}`}
@@ -378,7 +387,7 @@ export function VoucherForm({
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor={`voucher-amount-${index}`}>Amount</Label>
+                      <Label htmlFor={`voucher-amount-${index}`}>Amount <Required /></Label>
                       <div className="relative">
                         <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
                           ₱
@@ -401,7 +410,7 @@ export function VoucherForm({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`voucher-category-${index}`}>
-                        Category
+                        Category <Required />
                       </Label>
                       <Controller
                         control={form.control}
@@ -456,40 +465,32 @@ export function VoucherForm({
                 <Plus />
                 Add line
               </Button>
-              <p className="text-sm">
+              <p className="text-sm" data-testid="line-total">
                 Total{" "}
                 <span className="font-semibold tabular-nums">
                   <MoneyText value={String(amountCentavos / 100)} />
                 </span>
               </p>
             </div>
+            {needsApproval ? (
+              <Callout tone="warning" title="This one needs approver approval first">
+                It is at or above this fund&apos;s approval amount, so the main button submits it for approval. No cash is released until an approver says yes.
+              </Callout>
+            ) : null}
             {selectedFund ? (
-              <p
-                className={
-                  needsApproval
-                    ? "text-xs text-amber-700 dark:text-amber-400"
-                    : "text-xs text-muted-foreground"
-                }
-              >
-                Limit per transaction:{" "}
-                <MoneyText value={selectedFund.per_txn_limit} />
+              <p className="text-sm text-muted-foreground">
+                Largest single voucher: <MoneyText value={selectedFund.per_txn_limit} className="font-medium text-foreground" />
                 {" · "}
-                {needsApproval ? (
-                  "An approver must approve this before any cash is released."
-                ) : (
-                  <>
-                    Approval needed from{" "}
-                    <MoneyText value={selectedFund.approval_threshold} />
-                  </>
-                )}
+                Approval needed from <MoneyText value={selectedFund.approval_threshold} className="font-medium text-foreground" />
               </p>
             ) : null}
           </div>
 
           {edit ? null : (
             <>
+          <SectionTitle n={3} title="Proof" hint="Attach the receipt, or say why there is none." />
           <div className="space-y-2">
-            <Label>Proof of spending</Label>
+            <Label>Receipt <Required /></Label>
             <ReceiptUploader
               file={file}
               onFileChange={(next) => {
@@ -527,55 +528,80 @@ export function VoucherForm({
             </div>
           ) : null}
 
+          <div className="space-y-2 border-t pt-5">
+            <Label>Signed paper voucher photo <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <p className="text-[13px] text-muted-foreground">Photograph the paper copy once it is signed. It is kept with this voucher.</p>
+            <ReceiptUploader
+              file={paperPhoto}
+              onFileChange={setPaperPhoto}
+              mode="receipt"
+              onModeChange={() => {}}
+              allowNoReceipt={false}
+              disabled={submitting !== null}
+              label="Paper voucher"
+            />
+          </div>
             </>
           )}
 
-          {serverError ? (
-            <Alert variant="destructive">
-              <CircleAlert />
-              <AlertDescription>{serverError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
-            {edit ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => router.push(`/vouchers/${edit.id}`)}
-              >
-                Cancel
-              </Button>
+          <div className="sticky bottom-[4.5rem] z-20 -mx-1 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur sm:p-4 lg:bottom-4">
+            {serverError ? (
+              <p role="alert" className="mb-3 flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 text-sm font-medium text-destructive">
+                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {serverError}
+              </p>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={submitting !== null}
-              onClick={submitDraft}
-            >
-              <Save />
-              {submitting === "draft"
-                ? "Saving..."
-                : edit
-                  ? "Save changes"
-                  : "Save draft"}
-            </Button>
-            {edit ? null : (
-            <Button
-              type="button"
-              disabled={submitting !== null}
-              onClick={submitRelease}
-            >
-              {needsApproval ? <Send /> : <Wallet />}
-              {needsApproval
-                ? submitting === "submit"
-                  ? "Submitting..."
-                  : "Submit for approval"
-                : submitting === "release"
-                  ? "Releasing..."
-                  : "Save and release cash"}
-            </Button>
-            )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Voucher total</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  <MoneyText value={String(amountCentavos / 100)} />
+                </p>
+              </div>
+              <div className="flex gap-2 [&>button]:flex-1 sm:[&>button]:flex-none [&>button:last-child]:flex-[2] sm:[&>button:last-child]:flex-none">
+                {edit ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => router.push(`/vouchers/${edit.id}`)}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={submitting !== null}
+                  onClick={submitDraft}
+                >
+                  <Save />
+                  {submitting === "draft"
+                    ? "Saving..."
+                    : edit
+                      ? "Save changes"
+                      : "Save draft"}
+                </Button>
+                {edit ? null : (
+                  <Button
+                    type="button"
+                    size="lg"
+                    disabled={submitting !== null}
+                    onClick={submitRelease}
+                  >
+                    {needsApproval ? <Send /> : <Wallet />}
+                    {needsApproval
+                      ? submitting === "submit"
+                        ? "Submitting..."
+                        : "Submit for approval"
+                      : submitting === "release"
+                        ? "Releasing..."
+                        : "Save and release cash"}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </form>
       </CardContent>

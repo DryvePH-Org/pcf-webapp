@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export function CreateLiquidationButton({ voucherId }: { voucherId: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  return <Button disabled={pending} className="h-11 print:hidden" onClick={async () => {
+  return <Button disabled={pending} size="lg" className="print:hidden" onClick={async () => {
     setPending(true);
     try {
       const result = await createLiquidation(voucherId);

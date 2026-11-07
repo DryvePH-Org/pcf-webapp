@@ -97,7 +97,7 @@ export function ReceiptUploader({
             takeFile(event.dataTransfer.files);
           }}
           className={cn(
-            "rounded-xl border border-dashed border-border bg-muted/30 p-4",
+            "rounded-xl border border-dashed border-border bg-muted/30 p-3 sm:p-4",
             error && "border-destructive",
           )}
         >
@@ -172,17 +172,19 @@ export function ReceiptUploader({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <ImagePlus className="size-5" />
-              </span>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Add the {label.toLowerCase()} photo</p>
-                <p className="text-xs text-muted-foreground">
-                  Photos are compressed to about 200 KB before upload.
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <ImagePlus className="size-5" />
+                </span>
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold">Add the {label.toLowerCase()} photo</p>
+                  <p className="text-[13px] text-muted-foreground">
+                    Resized automatically. You can also drop an image here.
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
@@ -202,9 +204,6 @@ export function ReceiptUploader({
                   Choose image
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                On desktop you can also drop an image here.
-              </p>
             </div>
           )}
         </div>

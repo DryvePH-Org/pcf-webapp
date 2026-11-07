@@ -49,8 +49,8 @@ export function BottomTabBar({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium",
-                  active ? "text-primary" : "text-muted-foreground",
+                  "flex h-full flex-col items-center justify-center gap-1 text-xs font-medium",
+                  active ? "font-semibold text-primary" : "text-muted-foreground",
                 )}
               >
                 <item.icon
@@ -71,7 +71,7 @@ export function BottomTabBar({
                 render={
                   <button
                     type="button"
-                    className="flex h-full w-full flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground"
+                    className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground"
                   />
                 }
               >
