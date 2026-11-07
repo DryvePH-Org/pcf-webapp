@@ -23,7 +23,7 @@ test('broad update ranges and unknown tabs are blocked', () => {
 });
 test('applied operation is returned without a second batch write', () => {
  const c=sandbox({LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})}});
- const requests=[update(1)]; const digest=c.pcfHash_(JSON.stringify(requests));
+ const requests=[update(1)]; const digest=c.pcfHash_(c.pcfStableJson_(requests));
  c.pcfReceipt_=()=>({digest,operationId:'test_operation_123'});
  assert.equal(c.pcfCommit_('book',{operationId:'test_operation_123',requests}).alreadyApplied,true);
  assert.throws(()=>c.pcfCommit_('book',{operationId:'test_operation_123',requests:[update(2)]}),/operation_conflict/);
@@ -31,7 +31,7 @@ test('applied operation is returned without a second batch write', () => {
 test('human edits after preview stop the batch', () => {
  const requests=[update(1)]; const c=sandbox({LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})}});
  c.pcfReceipt_=()=>null; c.pcfState_=()=>state;
- c.CacheService={getScriptCache:()=>({get:()=>JSON.stringify({operationId:'test_operation_123',book:'operations',digest:c.pcfHash_(JSON.stringify(requests)),state:'outdated',expires:Date.now()+10000})})};
+ c.CacheService={getScriptCache:()=>({get:()=>JSON.stringify({operationId:'test_operation_123',book:'operations',digest:c.pcfHash_(c.pcfStableJson_(requests)),state:'outdated',expires:Date.now()+10000})})};
  assert.throws(()=>c.pcfCommit_('book',{operationId:'test_operation_123',book:'operations',token:'x',requests}),/sheet_changed/);
 });
 test('bad authentication does not access Sheets', () => {
@@ -64,4 +64,16 @@ test('snapshot reads only affected used cells in bounded chunks', () => {
 test('VAT headers use absolute row positions across snapshot chunks',()=>{
  const c=sandbox();const chunked={sheets:[{properties:{sheetId:7},data:[{startRow:0,startColumn:0,rowData:[{values:[{userEnteredValue:{stringValue:'DATE'}}]}]},{startRow:100,startColumn:0,rowData:[{values:[{userEnteredValue:{stringValue:'INPUT VAT'}}]}]}]}]};
  c.pcfValidate_([update(0)],chunked);
+});
+test('preview and commit tolerate reordered Google response and jsonb keys',()=>{
+ let cached;let batches=0;const states=[{sheets:[{properties:{sheetId:7,title:'Test'},data:[]}]},{sheets:[{data:[],properties:{title:'Test',sheetId:7}}]}];
+ const c=sandbox({Utilities:{DigestAlgorithm:{SHA_256:''},Charset:{UTF_8:''},computeDigest:(_,text)=>[...createHash('sha256').update(text).digest()],getUuid:()=> 'preview-token'},CacheService:{getScriptCache:()=>({put:(_,value)=>{cached=value;},get:()=>cached,remove(){}})},LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},Sheets:{Spreadsheets:{batchUpdate:()=>{batches++;}}}});
+ c.pcfState_=()=>states.shift();c.pcfReceipt_=()=>null;
+ const requests=[update(1)];const preview=c.pcfPreview_('book',{book:'buying',operationId:'stable_operation_123',requests});
+ const stored=[{updateCells:{fields:'userEnteredValue',rows:requests[0].updateCells.rows,start:{columnIndex:1,rowIndex:9,sheetId:7}}}];
+ const report=c.pcfCommit_('book',{book:'buying',operationId:'stable_operation_123',requests:stored,token:preview.token});
+ assert.equal(batches,1);assert.equal(report.operationId,'stable_operation_123');
+});
+test('a real edit still rejects commit after stable serialization',()=>{
+ const c=sandbox();assert.equal(c.pcfStableJson_({b:2,a:1}),c.pcfStableJson_({a:1,b:2}));assert.notEqual(c.pcfStableJson_({a:1}),c.pcfStableJson_({a:2}));assert.notEqual(c.pcfStableJson_([1,2]),c.pcfStableJson_([2,1]));
 });

@@ -15,7 +15,7 @@ function diagnosePCFPreview() {
     pcfReceipt_(id, 'e2e_readonly_preview_probe');
     console.log('PASS: operation lookup');
     step = 'hash workbook state';
-    pcfHash_(JSON.stringify(state));
+    pcfHash_(pcfStableJson_(state));
     console.log('PASS: workbook state hashing');
     step = 'prepare preview (no commit)';
     var preview = pcfPreview_(id, { book: 'buying', operationId: 'e2e_readonly_preview_probe', requests: requests });

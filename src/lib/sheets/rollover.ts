@@ -1,9 +1,9 @@
 import type {Cell,SheetTab} from './types';
-import type {SheetRequest} from './planner';
+import {findLedgerBoundary,type SheetRequest} from './planner';
 export function planRollover(source:SheetTab,newId:number,tabs:SheetTab[],grid:Cell[][],amount:number,receivedDate:string) {
  const cell=(c?:Cell)=>String(c?.userEnteredValue?.stringValue??c?.formattedValue??'').trim().toUpperCase();
  const header=grid.findIndex(r=>r.some(c=>cell(c)==='DATE')&&r.some(c=>cell(c)==='OUT'));
- const total=grid.findIndex((r,i)=>i>header&&r.some(c=>cell(c)==='TOTAL DISBURSEMENTS'));
+ const total=findLedgerBoundary(grid,header,grid[header]?.findIndex(c=>cell(c)==='OUT')??-1);
  if(header<0||total<header+3)throw new Error('Rollover template boundaries are not recognized.');
  if(grid.some(r=>r.some(c=>c.userEnteredValue?.formulaValue?.includes('#REF!'))))throw new Error('The template contains broken formula references. Correct it in Google Sheets and refresh before rollover.');
  const match=source.title.match(/^(.*?#)\s*(\d+)(.*)$/i);if(!match)throw new Error('The current worksheet numbering is not recognized.');
@@ -26,7 +26,8 @@ export function planRollover(source:SheetTab,newId:number,tabs:SheetTab[],grid:C
   const value=grid[r][c]?.userEnteredValue;if(!value)continue;
   if(c===vat&&r!==header)continue;
   if(r>header&&r<total&&c<=balance)continue;
-  if(r>=total&&value.numberValue!==undefined)continue;
+  // Preserve outstanding manual advance amounts below the expense subtotal.
+  // The new expense total resets through its formula over the cleared ledger.
   if(r<Math.min(header,4)&&value.stringValue&&/^[A-Z]+ 20\d{2}$/.test(value.stringValue.trim().toUpperCase()))set(r,c,{stringValue:month});else set(r,c,value);
  }
  set(opening,headers.findIndex(h=>h==='DATE')>=0?Math.max(0,grid[opening].findIndex(c=>cell(c)==='BEGINNING BALANCE'||cell(c)==='BALANCE FORWARDED')):0,{stringValue:cell(grid[opening].find(c=>/^(BEGINNING BALANCE|BALANCE FORWARDED)$/.test(cell(c))))});

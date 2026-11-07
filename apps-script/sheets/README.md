@@ -90,3 +90,13 @@ To install, replace Code.gs in the existing project, save, then Deploy > Manage
 deployments > Edit (pencil) > Version: New version > Deploy. Keep the existing
 /exec deployment URL and script properties. Opening the URL must show version 2.
 No manifest change, secret rotation, or source-sheet edit is needed.
+
+
+## Version 3 — stable preview identity
+
+Object-key order can change in Google API responses and Postgres jsonb storage.
+Version 3 sorts object keys before hashing requests and worksheet snapshots;
+array order, values, formatting, and worksheet metadata still participate in the
+comparison. Real edits still invalidate the preview. Do not remove operation
+metadata or disable edit detection. Install by replacing Code.gs and selecting
+New version on the existing deployment; its GET response should show version 3.

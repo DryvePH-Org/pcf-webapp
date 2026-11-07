@@ -7,7 +7,7 @@ export function planExpenses(sheetId:number,grid:Cell[][],items:ExpenseForSheet[
  const h=grid.findIndex(row=>row.some(c=>text(c)==='DATE')&&row.some(c=>text(c)==='OUT'));
  if(h<0)throw new Error('Worksheet expense headers were not recognized.');
  const headers=grid[h].map(text),col=(...names:string[])=>headers.findIndex(n=>names.includes(n));
- const total=grid.findIndex((r,i)=>i>h&&r.some(c=>text(c)==='TOTAL DISBURSEMENTS'));
+ const total=findLedgerBoundary(grid,h,col('OUT'));
  if(total<h+3)throw new Error('Worksheet disbursement boundary was not recognized.');
  const balance=col('BALANCE'),inflow=col('IN'),out=col('OUT'),vat=col('INPUT VAT');
  if(balance<0||inflow<0||out<0)throw new Error('Worksheet cash columns were not recognized.');
@@ -38,4 +38,18 @@ export function planExpenses(sheetId:number,grid:Cell[][],items:ExpenseForSheet[
   const sequence=col('#','NO');if(sequence>=0)set(row,sequence,{formulaValue:`=MAX(${letter(sequence)}$${h+2}:${letter(sequence)}${row})+1`});
  });
  return requests;
+}
+/** The cash-ledger subtotal can be unlabeled (Dryve) or use a singular label.
+ * Prefer its self-bounded SUM in OUT over a later cash-on-hand summary label.
+ */
+export function findLedgerBoundary(grid:Cell[][],header:number,out:number):number {
+ let letter='';for(let n=out+1;n>0;n=Math.floor((n-1)/26))letter=String.fromCharCode(65+(n-1)%26)+letter;
+ const subtotal=grid.findIndex((row,index)=>{
+  if(index<=header+2)return false;
+  const formula=row[out]?.userEnteredValue?.formulaValue?.replace(/\$/g,'');
+  const match=formula?.match(/^=?SUM\(([A-Z]+)(\d+):\1(\d+)\)$/i);
+  return Boolean(match&&match[1].toUpperCase()===letter&&Number(match[3])===index&&Number(match[2])>header+1);
+ });
+ if(subtotal>=0)return subtotal;
+ return grid.findIndex((row,index)=>index>header&&row.some(cell=>/^TOTAL DISBURSEMENTS?$/.test(text(cell))));
 }

@@ -24,7 +24,7 @@ function setupPCF() {
 }
 
 function doGet() {
-  return pcfReply_({ ok: true, service: 'pcf-sheets', version: 2 });
+  return pcfReply_({ ok: true, service: 'pcf-sheets', version: 3 });
 }
 
 function doPost(e) {
@@ -153,14 +153,14 @@ function pcfPreview_(id, body) {
   const operation = pcfOperation_(body.operationId);
   const state = pcfState_(id, body.requests);
   pcfValidate_(body.requests, state);
-  const digest = pcfHash_(JSON.stringify(body.requests));
+  const digest = pcfHash_(pcfStableJson_(body.requests));
   const previous = pcfReceipt_(id, operation);
   if (previous) {
     if (previous.digest !== digest) throw new Error('operation_conflict');
     return { alreadyApplied: true, report: previous };
   }
   const preview = { operationId: operation, book: body.book, digest: digest,
-    state: pcfHash_(JSON.stringify(state)), expires: Date.now() + 300000 };
+    state: pcfHash_(pcfStableJson_(state)), expires: Date.now() + 300000 };
   const token = Utilities.getUuid();
   CacheService.getScriptCache().put('pcf_' + token, JSON.stringify(preview), 300);
   return { token: token, expiresAt: new Date(preview.expires).toISOString(), workbookId: id,
@@ -170,7 +170,7 @@ function pcfPreview_(id, body) {
 
 function pcfCommit_(id, body) {
   const operation = pcfOperation_(body.operationId);
-  const digest = pcfHash_(JSON.stringify(body.requests));
+  const digest = pcfHash_(pcfStableJson_(body.requests));
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) throw new Error('busy');
   try {
@@ -185,7 +185,7 @@ function pcfCommit_(id, body) {
     if (preview.expires < Date.now()) throw new Error('preview_expired');
     if (preview.operationId !== operation || preview.book !== body.book || preview.digest !== digest) throw new Error('operation_conflict');
     const state = pcfState_(id, body.requests);
-    if (pcfHash_(JSON.stringify(state)) !== preview.state) throw new Error('sheet_changed');
+    if (pcfHash_(pcfStableJson_(state)) !== preview.state) throw new Error('sheet_changed');
     pcfValidate_(body.requests, state);
     const report = { operationId: operation, digest: digest, completedAt: new Date().toISOString(),
       workbookId: id, requestCount: body.requests.length,
@@ -253,6 +253,23 @@ function pcfValidate_(requests, state) {
       throw new Error('unsupported_request');
     }
   });
+}
+
+// JSON object-key order is not data. Google API responses and Postgres jsonb
+// may serialize the same objects differently; array order remains significant.
+function pcfStableJson_(value) {
+  function ordered(item) {
+    if (Array.isArray(item)) return item.map(ordered);
+    if (item !== null && typeof item === 'object') {
+      const result = {};
+      Object.keys(item).sort().forEach(function (key) {
+        if (item[key] !== undefined) result[key] = ordered(item[key]);
+      });
+      return result;
+    }
+    return item;
+  }
+  return JSON.stringify(ordered(value));
 }
 
 function pcfHash_(value) {
