@@ -11,6 +11,9 @@ export function planExpenses(sheetId:number,grid:Cell[][],items:ExpenseForSheet[
  if(total<h+3)throw new Error('Worksheet disbursement boundary was not recognized.');
  const balance=col('BALANCE'),inflow=col('IN'),out=col('OUT'),vat=col('INPUT VAT');
  if(balance<0||inflow<0||out<0)throw new Error('Worksheet cash columns were not recognized.');
+ const knownTags=new Set<string>();
+ for(const row of grid)for(const cell of row){const formula=cell?.userEnteredValue?.formulaValue;const match=formula?.match(/SUMIF\([^,]+,\s*"([^"]+)"/i);if(match)knownTags.add(match[1]);}
+ if(knownTags.size)for(const item of items)if(!knownTags.has(item.category))throw new Error(`Expense tag "${item.category}" does not match this worksheet's account summaries. Select its exact tag or enter a sheet tag override.`);
  const insertion=total-1,tail=grid[insertion]??[];
  if(vat>=0&&tail[vat]?.userEnteredValue)throw new Error('The final ledger row contains VAT. Select a reviewed template before inserting.');
  // Insert within existing sum ranges, preserve the old final ledger row in place,

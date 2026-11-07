@@ -141,3 +141,5 @@ Private original exports and workbook findings are kept in the git-ignored
 No end-to-end workflow was executed and no Google Sheets writes were performed
 while building this release. Checks use source fixtures and rollback-only schema
 validation. Offsite backups, email delivery, and AI scanning are unchanged.
+
+Use exact worksheet account tags for categories. A per-line Google Sheets tag override is available when app category names differ. Preview rejects tags that would be omitted by the destination SUMIF summaries. A company override supports mixed-company rows in the Dryve workbook.

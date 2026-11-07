@@ -19,7 +19,7 @@ export async function previewSheetApproval(id:string) {
  try {
   let configs=admin.from('sheet_workbooks').select('*');
   configs=existing.data?configs.eq('id',existing.data.book_id):configs.eq('custodian_id',user.id).eq('fund_id',l.data.fund_id).eq('enabled',true);
-  const w=await configs.single();if(w.error||!w.data||w.data.custodian_id!==user.id||!w.data.enabled||w.data.active_sheet_id===null)throw new Error('An administrator must assign your workbook, fund, and active worksheet first.');
+  const w=await configs.single();if(w.error||!w.data||w.data.custodian_id!==user.id||w.data.fund_id!==l.data.fund_id||!w.data.enabled||w.data.active_sheet_id===null)throw new Error('An administrator must assign your workbook, fund, and active worksheet first.');
   if(existing.data){
    const status=await sheetsBridge<{receipt:Json|null}>({action:'status',book:w.data.id,operationId:existing.data.operation_id});
    if(status.receipt){await admin.from('sheet_jobs').update({status:'synced',report:status.receipt,error:null}).eq('id',existing.data.id);return {ok:false as const,error:'Google already applied this update. Refresh to view the saved report.'};}
@@ -34,7 +34,7 @@ export async function previewSheetApproval(id:string) {
   const expenses:ExpenseForSheet[]=(items.data??[]).map(item=>{
    const detail=(item as typeof item & {sheet_details?:Record<string,string>}).sheet_details??{};
    if(!detail.expense_date)throw new Error(`Enter the actual expense date for expense ${item.position}. Flag it for correction if needed.`);
-   return {id:item.id,expense_date:detail.expense_date,particulars:item.particulars,amount:Number(item.amount),category:cats.data?.find(c=>c.id===item.category_id)?.name??'',person:l.data.employee_name,supplier:detail.supplier??'',plate:detail.plate??'',receipt_number:detail.receipt_number??'',tin:detail.tin??'',address:detail.address??'',voucher:l.data.pcv_number,company:w.data.id==='dryve'?'DRYVE':'MAD'};
+   return {id:item.id,expense_date:detail.expense_date,particulars:item.particulars,amount:Number(item.amount),category:detail.sheet_category||(cats.data?.find(c=>c.id===item.category_id)?.name??''),person:l.data.employee_name,supplier:detail.supplier??'',plate:detail.plate??'',receipt_number:detail.receipt_number??'',tin:detail.tin??'',address:detail.address??'',voucher:l.data.pcv_number,company:detail.company||(w.data.id==='dryve'?'DRYVE':'MAD')};
   });
   const rows:Cell[][]=[];let cursor:number|null=0;let offline=false;
   if(expenses.length){try {

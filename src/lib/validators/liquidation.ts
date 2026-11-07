@@ -4,7 +4,7 @@ import { text } from "@/lib/validators/text";
 
 export const liquidationLineSchema = z.object({
   id: z.uuid(),
-  sheet_details: z.object({expense_date:z.iso.date().or(z.literal('')).optional(),supplier:text({max:300}).optional(),receipt_number:text({max:300}).optional(),plate:text({max:300}).optional(),tin:text({max:300}).optional(),address:text({max:300}).optional()}).optional(),
+  sheet_details: z.object({company:text({max:100}).optional(),sheet_category:text({max:150}).optional(),expense_date:z.iso.date().or(z.literal('')).optional(),supplier:text({max:300}).optional(),receipt_number:text({max:300}).optional(),plate:text({max:300}).optional(),tin:text({max:300}).optional(),address:text({max:300}).optional()}).optional(),
   particulars: text({ min: 1, max: 300 }),
   amount: z.string().trim().refine(isPositiveMoney, "Enter a positive amount with at most two decimals."),
   category_id: z.uuid("Choose a category."),
