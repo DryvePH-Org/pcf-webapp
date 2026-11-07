@@ -1,3 +1,4 @@
+import { stableJson } from '@/lib/sheets/serialization';
 import { describe,it,expect } from 'vitest';
 import { parseExpenseRows } from '@/lib/sheets/parser';
 import { planExpenses } from '@/lib/sheets/planner';
@@ -15,4 +16,12 @@ describe('sheet import and planning safeguards',()=>{
  it('rejects tags that would be missed by the sheet account summaries',()=>{const copied=structuredClone(grid);copied.push([{userEnteredValue:{formulaValue:'=SUMIF(B8:B20,"CE - FUEL",M8:M20)'}}]);expect(()=>planExpenses(7,copied,[item])).toThrow(/does not match/);});
  it('does not guess rollover numbering from another sequence',()=>{const copied=structuredClone(grid);copied[8][13]=n(900);const source={sheetId:7,title:'PCF LEO REPLENISHMENT #5',gridProperties:{rowCount:100,columnCount:20}};const other={...source,sheetId:8,title:'PCF REPLENISHMENT #14'};const plan=planRollover(source,9,[source,other],copied,100,'2026-11-07');expect(plan.number).toBe(6);expect(plan.title).toBe('PCF LEO REPLENISHMENT #6');expect(plan.openingBalance).toBe(900);});
  it('rejects rollover when the template has broken references',()=>{const copied=structuredClone(grid);copied.push([{userEnteredValue:{formulaValue:'#REF!-A1'}}]);expect(()=>planRollover({sheetId:7,title:'PCF #1',gridProperties:{rowCount:100,columnCount:20}},9,[],copied,100,'2026-11-07')).toThrow(/broken/);});
+});
+
+describe('Google operation payload identity',()=>{
+ it('survives jsonb object-key reordering without changing array order',()=>{
+  const initial={requests:[{updateCells:{start:{sheetId:7,rowIndex:8,columnIndex:5},rows:[{values:[{userEnteredValue:{stringValue:'E2E'}}]}],fields:'userEnteredValue'}}]};
+  function jsonb(value:unknown):unknown {if(Array.isArray(value))return value.map(jsonb);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.length-b.length||a.localeCompare(b)).map(([k,v])=>[k,jsonb(v)]));return value;}
+  const stored=jsonb(initial);expect(JSON.stringify(initial)).not.toBe(JSON.stringify(stored));expect(stableJson(initial)).toBe(stableJson(stored));expect(stableJson([1,2])).not.toBe(stableJson([2,1]));
+ });
 });
