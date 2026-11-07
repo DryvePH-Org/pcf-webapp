@@ -28,6 +28,7 @@ export type NavGroup = {
 };
 
 const OPERATIONS: NavItem[] = [
+  { href: "/accounting", label: "Accounting sheets", icon: Files },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/funds", label: "Fund assignments", shortLabel: "Funds", icon: Landmark },
   { href: "/requests", label: "Budget Requests", shortLabel: "Requests", icon: ClipboardList },
@@ -44,6 +45,7 @@ const OPERATIONS: NavItem[] = [
 ];
 
 const ADMINISTRATION: NavItem[] = [
+  { href: "/admin/sheets", label: "Google Sheets", icon: Files },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/funds", label: "Funds", icon: Landmark },
   { href: "/admin/categories", label: "Categories", icon: Tags },

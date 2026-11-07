@@ -1,4 +1,5 @@
 "use client";
+import { SheetApprovalControl } from "@/components/sheets/approval-control";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -27,7 +28,7 @@ export function LiquidationActions({ id, canReview, canApproveReimbursement, can
   return <div className="space-y-3 print:hidden">
     {canSettle ? <div className="space-y-2"><Label htmlFor="settlement-note">Settlement note (optional)</Label><Textarea id="settlement-note" maxLength={300} value={note} onChange={e => setNote(e.target.value)} disabled={pending} /></div> : null}
     <div className="flex flex-wrap gap-2">
-      {canReview ? <><Button disabled={pending} className="h-11" onClick={() => setDialog("approve")}>Approve liquidation</Button><Button disabled={pending} className="h-11" variant="outline" onClick={() => setDialog("flag")}>Flag for correction</Button></> : null}
+      {canReview ? <><SheetApprovalControl id={id}/><Button disabled={pending} className="h-11" variant="outline" onClick={() => setDialog("flag")}>Flag for correction</Button></> : null}
       {canApproveReimbursement ? <Button disabled={pending} className="h-11" onClick={() => setDialog("reimburse")}>Approve additional reimbursement</Button> : null}
       {canSettle ? <Button disabled={pending} className="h-11" onClick={() => setDialog("settle")}>{kind === "return" ? "Record cash received back" : "Record reimbursement paid"}</Button> : null}
     </div>

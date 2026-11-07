@@ -156,6 +156,8 @@ export async function closeReplenishment(id: string): Promise<ActionResult> {
   });
   if (error) return actionError(safeDbMessage(error));
 
+  const {syncSheetRollover}=await import("@/lib/sheets/sync-rollover");
+  await syncSheetRollover(parsedId.data);
   const closedId = parsedId.data;
   queueNotification("replenishment.closed", () =>
     notifyReplenishmentClosed(closedId, user.id),

@@ -195,7 +195,7 @@ export function ReplenishmentActions({
             if (!open) close();
           }}
           title="Close this replenishment?"
-          description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone."
+          description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone. A new numbered Google worksheet will also be requested for the assigned workbook. Any pending sheet creation appears on the Accounting sheets dashboard."
           confirmLabel="Close replenishment"
           pending={pending}
           onConfirm={() =>

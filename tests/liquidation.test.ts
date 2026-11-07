@@ -3,7 +3,7 @@ import { liquidationDifference } from "@/lib/liquidation";
 import { saveLiquidationSchema, submitLiquidationSchema, liquidationReviewSchema, settlementSchema } from "@/lib/validators/liquidation";
 import { ALL_ROLES, canAccessRoute } from "@/lib/permissions";
 const id = "90000000-0000-4000-8000-000000000001";
-const form = { id, department: "Operations", filing_date: "2026-11-06", unspent_reason: "", items: [{ id, particulars: "Supplies", amount: "1700.00", category_id: id, receipt_path: "", no_receipt_reason: "Vendor did not issue a receipt" }] };
+const form = { id, department: "Operations", filing_date: "2026-11-06", unspent_reason: "", items: [{ id, sheet_details:{expense_date:"2026-11-05"}, particulars: "Supplies", amount: "1700.00", category_id: id, receipt_path: "", no_receipt_reason: "Vendor did not issue a receipt" }] };
 describe("liquidation money", () => {
   it.each([
     ["2000", "1700", "return", "300.00"],
