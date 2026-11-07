@@ -24,7 +24,7 @@ function setupPCF() {
 }
 
 function doGet() {
-  return pcfReply_({ ok: true, service: 'pcf-sheets', version: 1 });
+  return pcfReply_({ ok: true, service: 'pcf-sheets', version: 2 });
 }
 
 function doPost(e) {
@@ -48,7 +48,7 @@ function doPost(e) {
     throw new Error('unknown_action');
   } catch (error) {
     const message = String(error.message || '');
-    const safe = /^(invalid_request|unauthorized|unknown_workbook|unknown_action|writes_disabled|invalid_operation|invalid_plan|unsupported_request|vat_write_blocked|preview_expired|sheet_changed|operation_conflict|busy|unknown_tab|invalid_range)$/;
+    const safe = /^(invalid_request|unauthorized|unknown_workbook|unknown_action|writes_disabled|invalid_operation|invalid_plan|unsupported_request|vat_write_blocked|preview_expired|sheet_changed|operation_conflict|busy|unknown_tab|invalid_range|snapshot_too_large)$/;
     // Provider errors can contain sheet data; never return them to a caller.
     return pcfReply_({ ok: false, error: safe.test(message) ? message : 'google_request_failed' });
   }
@@ -77,10 +77,57 @@ function pcfRead_(id, body) {
   return { fetchedAt: new Date().toISOString(), nextRow: end < tab.properties.gridProperties.rowCount ? end : null, data: snapshot };
 }
 
-function pcfState_(id) {
-  // User-entered values/formulas only: volatile calculated values must not invalidate a preview.
-  return Sheets.Spreadsheets.get(id, { includeGridData: true,
-    fields: 'spreadsheetId,properties(title,timeZone),sheets(properties,merges,data(startRow,startColumn,rowData(values(userEnteredValue,userEnteredFormat,dataValidation,note))))' });
+function pcfState_(id, requests) {
+  // Metadata is small. Never fetch all grid data for the whole workbook at once.
+  const metadata = Sheets.Spreadsheets.get(id, {
+    fields: 'spreadsheetId,properties(title,timeZone),sheets(properties,merges)'
+  });
+  const touched = {};
+  function collect(value) {
+    if (!value || typeof value !== 'object') return;
+    if (Number.isInteger(value.sheetId)) touched[value.sheetId] = true;
+    Object.keys(value).forEach(function (key) { collect(value[key]); });
+  }
+  collect(requests);
+  if (requests && !Object.keys(touched).length) throw new Error('invalid_plan');
+  const workbook = SpreadsheetApp.openById(id);
+  const nativeSheets = workbook.getSheets();
+  (metadata.sheets || []).forEach(function (sheet) {
+    const properties = sheet.properties;
+    if (requests && !touched[properties.sheetId]) return;
+    const native = nativeSheets.find(function (item) { return item.getSheetId() === properties.sheetId; });
+    if (!native) throw new Error('sheet_changed');
+    const lastRow = Math.max(1, native.getLastRow());
+    const lastColumn = Math.max(1, native.getLastColumn());
+    if (lastRow > 10000 || lastColumn > 100) throw new Error('snapshot_too_large');
+    sheet.usedBounds = { rows: lastRow, columns: lastColumn };
+    sheet.data = [];
+    const quoted = "'" + properties.title.replace(/'/g, "''") + "'!";
+    // Read both dimensions in small batches. Style-heavy historical tabs can
+    // otherwise exceed Google's response limit even with a single-sheet read.
+    for (let row = 0; row < lastRow; row += 100) {
+      for (let column = 0; column < lastColumn; column += 26) {
+        const range = quoted + pcfColumn_(column) + (row + 1) + ':' +
+          pcfColumn_(Math.min(column + 26, lastColumn) - 1) + Math.min(row + 100, lastRow);
+        const chunk = Sheets.Spreadsheets.get(id, {
+          ranges: [range], includeGridData: true,
+          fields: 'sheets(data(startRow,startColumn,rowData(values(userEnteredValue,userEnteredFormat,dataValidation,note))))'
+        });
+        (chunk.sheets || []).forEach(function (part) {
+          (part.data || []).forEach(function (block) { sheet.data.push(block); });
+        });
+      }
+    }
+  });
+  return metadata;
+}
+
+function pcfColumn_(index) {
+  let label = '';
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+    label = String.fromCharCode(65 + (n - 1) % 26) + label;
+  }
+  return label;
 }
 
 function pcfOperation_(value) {
@@ -104,7 +151,7 @@ function pcfReceipt_(id, operationId) {
 
 function pcfPreview_(id, body) {
   const operation = pcfOperation_(body.operationId);
-  const state = pcfState_(id);
+  const state = pcfState_(id, body.requests);
   pcfValidate_(body.requests, state);
   const digest = pcfHash_(JSON.stringify(body.requests));
   const previous = pcfReceipt_(id, operation);
@@ -137,7 +184,7 @@ function pcfCommit_(id, body) {
     const preview = JSON.parse(cached);
     if (preview.expires < Date.now()) throw new Error('preview_expired');
     if (preview.operationId !== operation || preview.book !== body.book || preview.digest !== digest) throw new Error('operation_conflict');
-    const state = pcfState_(id);
+    const state = pcfState_(id, body.requests);
     if (pcfHash_(JSON.stringify(state)) !== preview.state) throw new Error('sheet_changed');
     pcfValidate_(body.requests, state);
     const report = { operationId: operation, digest: digest, completedAt: new Date().toISOString(),
@@ -159,9 +206,10 @@ function pcfValidate_(requests, state) {
   (state.sheets || []).forEach(function (s) {
     const vat = [];
     (s.data || []).forEach(function (block) {
-      (block.rowData || []).slice(0, 10).forEach(function (row) {
-        (row.values || []).forEach(function (cell, column) {
-          const text = cell.userEnteredValue && cell.userEnteredValue.stringValue;
+      (block.rowData || []).forEach(function (row, offset) {
+        if ((block.startRow || 0) + offset >= 10) return;
+        ((row && row.values) || []).forEach(function (cell, column) {
+          const text = cell && cell.userEnteredValue && cell.userEnteredValue.stringValue;
           if (text && /^INPUT\s*VAT$/i.test(text.trim())) vat.push((block.startColumn || 0) + column);
         });
       });

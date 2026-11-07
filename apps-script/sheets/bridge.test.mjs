@@ -44,3 +44,24 @@ test('expired preview cannot apply a new write', () => {
  c.pcfReceipt_=()=>null;
  assert.throws(()=>c.pcfCommit_('book',{operationId:'test_operation_123',requests:[update(1)]}),/preview_expired/);
 });
+test('snapshot reads only affected used cells in bounded chunks', () => {
+ const calls=[];
+ const native=(id,rows,columns)=>({getSheetId:()=>id,getLastRow:()=>rows,getLastColumn:()=>columns});
+ const c=sandbox({SpreadsheetApp:{openById:()=>({getSheets:()=>[native(7,230,30),native(8,9000,50)]})},Sheets:{Spreadsheets:{get:(_,args)=>{
+  calls.push(args);
+  if(!args.ranges)return {sheets:[{properties:{sheetId:7,title:"Buyer's tab",gridProperties:{rowCount:10000,columnCount:50}}},{properties:{sheetId:8,title:'History'}}]};
+  assert.equal(args.ranges.length,1);
+  return {sheets:[{data:[{startRow:0,startColumn:0,rowData:[]}]}]};
+ }}}});
+ const result=c.pcfState_('book',[update(1)]);
+ assert.equal(calls.length,7); // one metadata call + 3 row chunks x 2 column chunks
+ assert.ok(calls.slice(1).every(a=>a.ranges[0].startsWith("'Buyer''s tab'!")));
+ assert.equal(calls[1].ranges[0],"'Buyer''s tab'!A1:Z100");
+ assert.equal(calls.at(-1).ranges[0],"'Buyer''s tab'!AA201:AD230");
+ assert.equal(result.sheets[0].data.length,6);
+ assert.equal(result.sheets[1].data,undefined);
+});
+test('VAT headers use absolute row positions across snapshot chunks',()=>{
+ const c=sandbox();const chunked={sheets:[{properties:{sheetId:7},data:[{startRow:0,startColumn:0,rowData:[{values:[{userEnteredValue:{stringValue:'DATE'}}]}]},{startRow:100,startColumn:0,rowData:[{values:[{userEnteredValue:{stringValue:'INPUT VAT'}}]}]}]}]};
+ c.pcfValidate_([update(0)],chunked);
+});

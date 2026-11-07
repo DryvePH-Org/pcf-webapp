@@ -47,7 +47,7 @@ email addresses in this script. Each workbook is allowlisted by ID.
   formatting and pagination, for historical ingestion and subsequent refresh.
 - preview: book, operationId (16–80 alphanumeric/underscore/hyphen), requests
   (validated Sheets batch requests). Returns a five-minute token bound to the
-  complete workbook's user-entered contents, formatting, request hash and job.
+  affected worksheets' used cells and the workbook catalog, formatting, request hash and job.
 - commit: same book/operationId/requests plus token; requires writes enabled.
   Writes and permanent operation receipts use the same Sheets atomic batch.
 - status: book, operationId; reconcile uncertain network outcomes before retries.
@@ -68,10 +68,25 @@ are returned generically; retain app-side job/attempt history for diagnosis.
 Limitations: ScriptLock serializes automation, not human editors. A human edit
 can still occur between the final comparison and Google's batch execution;
 app-side reconciliation must flag differences rather than overwrite them. A
-whole-workbook comparison is deliberately conservative; the background dashboard
+affected-worksheet comparison is deliberately conservative; the background dashboard
 should use bounded reads and cached snapshots, not preview calls. Metadata uses
 Google quotas; monitor usage and retain app-side operation history. Do not remove
 PCF operation metadata without a coordinated archival/idempotency strategy.
 
 The seven local bridge tests use mocks and do not modify any workbook:
 `node --test apps-script/sheets/bridge.test.mjs`.
+
+
+## Version 2 — oversized-preview fix
+
+Version 1 could return Google error 413 while reading all workbook grid data.
+Version 2 reads a small workbook catalog, then only affected worksheets' used
+cells in chunks of at most 100 rows by 26 columns. Snapshot bounds and the
+catalog remain part of stale-preview detection. Unrelated historical grids are
+not downloaded for a transaction preview. Input VAT protections use absolute
+row positions so later chunks cannot be mistaken for column headers.
+
+To install, replace Code.gs in the existing project, save, then Deploy > Manage
+deployments > Edit (pencil) > Version: New version > Deploy. Keep the existing
+/exec deployment URL and script properties. Opening the URL must show version 2.
+No manifest change, secret rotation, or source-sheet edit is needed.
