@@ -38,8 +38,35 @@ jobs:
       - name: Check deployment guards and rollback
         run: python3 -m unittest discover -s deploy/ci -p 'test_*.py'
 
+  deletion-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: isolated-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify deletion against isolated PostgreSQL
+        env:
+          PGPASSWORD: isolated-test-only
+        run: |
+          set -euo pipefail
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/support/bootstrap.sql
+          for migration in supabase/migrations/*.sql; do
+            psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f "$migration" > /dev/null
+          done
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/data-deletion.sql
+
   deploy:
-    needs: check
+    needs: [check, deletion-database]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20

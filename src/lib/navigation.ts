@@ -45,6 +45,7 @@ const OPERATIONS: NavItem[] = [
 ];
 
 const ADMINISTRATION: NavItem[] = [
+  { href: "/admin/data", label: "Data deletion", icon: Files },
   { href: "/admin/sheets", label: "Google Sheets", icon: Files },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/funds", label: "Funds", icon: Landmark },
