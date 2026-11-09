@@ -1,7 +1,8 @@
+import type { LedgerSummary } from './ledger-summary';
 import type { Database, Json } from '@/lib/database.types';
-export type SheetTab = { sheetId: number; title: string; index?: number; expenseTags?:string[]; gridProperties: { rowCount: number; columnCount: number } };
+export type SheetTab = { sheetId: number; title: string; index?: number; expenseTags?:string[]; ledger?:LedgerSummary|null; gridProperties: { rowCount: number; columnCount: number } };
 export type Workbook = { id: string; audit_id:string; name: string; spreadsheet_id: string; custodian_id: string | null; fund_id: string | null; active_sheet_id: number | null; config_version: number; catalog: Json; last_synced_at: string | null; refresh_until: string | null; refresh_token:string|null; sync_error: string | null; enabled: boolean };
-export type SheetExpense = { book_id: string; sheet_id: number; source_row: number; sheet_name: string; expense_date: string | null; voucher: string; category: string; particulars: string; person: string; supplier: string; plate: string; receipt_number: string; company: string; amount: number };
+export type SheetExpense = { book_id: string; sheet_id: number; source_row: number; sheet_name: string; expense_date: string | null; voucher: string; category: string; particulars: string; person: string; supplier: string; plate: string; receipt_number: string; company: string; amount: number; tin?:string; address?:string };
 type Table<T> = { Row: T; Insert: T; Update: Partial<T>; Relationships: [] };
 type SheetTables = { sheet_workbooks: Table<Workbook>; sheet_expenses: Table<SheetExpense>; sheet_previews: Table<SheetPreview>; sheet_jobs: Table<SheetJob>; sheet_rollovers:Table<SheetRollover> };
 type SheetFunctions = {

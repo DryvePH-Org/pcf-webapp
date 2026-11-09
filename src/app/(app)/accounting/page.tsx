@@ -1,58 +1,576 @@
-import Link from 'next/link';
-import { RolloverRetry } from '@/components/sheets/rollover-retry';
-import { requireUser } from '@/lib/auth';
-import { sheetsAdmin } from '@/lib/sheets/bridge';
-import type { SheetTab } from '@/lib/sheets/types';
-import { PageHeader } from '@/components/layout/page-header';
-import { SheetsRefresh } from '@/components/sheets/refresh-control';
-import { PrintButton } from '@/components/layout/print-button';
-import { CsvExportButton } from '@/components/shared/csv-export-button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { OptionSelect } from '@/components/shared/option-select';
-import { ResponsiveList } from '@/components/shared/responsive-list';
-import { MoneyText } from '@/components/shared/money-text';
-import { EmptyState } from '@/components/shared/empty-state';
-import { Files } from 'lucide-react';
-import { formatDateTime } from '@/lib/dates';
-import { monthStartInAppTz,todayInAppTz } from '@/lib/dates';
-export default async function AccountingPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}) {
- const user=await requireUser('/accounting');const p=await searchParams;const db=sheetsAdmin();
- const {data:books,error:bookError}=await db.from('sheet_workbooks').select('*').order('name');if(bookError)throw new Error(bookError.message);
- const {data:rollovers}=await db.from('sheet_rollovers').select('*').eq('status','pending').order('created_at').limit(20);
- const all=p.history==='all';const from=p.from||(all?'':monthStartInAppTz()),to=p.to||(all?'':todayInAppTz());
- let query=db.from('sheet_expenses').select('*',{count:'exact'});
- if(p.book)query=query.eq('book_id',p.book);if(p.tab&&/^\d+$/.test(p.tab)&&(books?.find(b=>b.id===p.book)?.catalog as unknown as SheetTab[]??[]).some(t=>t.sheetId===Number(p.tab)))query=query.eq('sheet_id',Number(p.tab));
- if(/^\d{4}-\d{2}-\d{2}$/.test(from))query=query.gte('expense_date',from);if(/^\d{4}-\d{2}-\d{2}$/.test(to))query=query.lte('expense_date',to);
- for(const key of ['person','category','company','supplier'] as const)if(p[key])query=query.eq(key,p[key]!.slice(0,150));
- const q=(p.q??'').replace(/[^\p{L}\p{N} .-]/gu,'').slice(0,100);
- if(q)query=query.or(['particulars','voucher','person','supplier','plate','receipt_number'].map(c=>`${c}.ilike.%${q}%`).join(','));
- const page=Math.max(1,Math.min(10000,Number(p.page)||1));
- const {data:rows,count,error}=await query.order('expense_date',{ascending:false,nullsFirst:false}).order('book_id').order('sheet_id').order('source_row').range((page-1)*50,page*50-1);if(error)throw new Error(error.message);
- const byId=new Map((books??[]).map(b=>[b.id,b]));const selected=byId.get(p.book??'');
- const url=(n:number)=>{const params=new URLSearchParams(Object.entries(p).filter((e):e is [string,string]=>typeof e[1]==='string'));params.set('page',String(n));return '?'+params;};
- return <div className="space-y-6"><PageHeader title="Accounting · Google Sheets" description="Historical and recent sheet expenses. Sheet edits refresh this view; app cash balances are managed separately." actions={<><PrintButton/>{user.role==='admin'?<Button variant="outline" nativeButton={false} render={<Link href="/admin/sheets"/>}>Workbook assignments</Button>:null}</>}/>
- <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 print:hidden">{(books??[]).map(b=><Card key={b.id}><CardHeader><CardTitle>{b.name}</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Last synced: {b.last_synced_at?formatDateTime(b.last_synced_at):'Not imported yet'}{b.refresh_until&&new Date(b.refresh_until)>new Date()?' · Refreshing…':''}</p>{b.sync_error?<p className="text-sm text-destructive">{b.sync_error}</p>:null}<Button variant="outline" size="sm" nativeButton={false} render={<a target="_blank" rel="noreferrer" href={`https://docs.google.com/spreadsheets/d/${b.spreadsheet_id}/edit${b.active_sheet_id!==null?'#gid='+b.active_sheet_id:''}`} />}>Open in Google Sheets</Button></CardContent></Card>)}</div>
- <SheetsRefresh book={p.book}/>
- {rollovers?.length?<section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Pending replenishment worksheets</h2>{rollovers.map(r=><div key={r.id} className="space-y-2"><Link className="underline" href={`/replenishments/${r.replenishment_id}`}>View replenishment</Link><p>{r.target_name??"Worksheet creation pending"} · {r.error??"Waiting for Google Sheets"}</p><RolloverRetry id={r.replenishment_id}/></div>)}</section>:null}
- <Card className="print:hidden"><CardHeader><CardTitle>Filter expenses</CardTitle></CardHeader><CardContent><form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
- <div className="space-y-2"><Label htmlFor="accounting-search">Search</Label><Input id="accounting-search" name="q" maxLength={100} defaultValue={p.q} placeholder="Voucher, person, supplier, plate…"/></div>
- <div className="min-w-0 space-y-2"><Label htmlFor="accounting-book">Workbook</Label><OptionSelect id="accounting-book" name="book" defaultValue={p.book??''} options={[{value:'',label:'All workbooks'},...(books??[]).map(b=>({value:b.id,label:b.name}))]}/></div>
- <div className="min-w-0 space-y-2"><Label htmlFor="accounting-period">Period</Label><OptionSelect id="accounting-period" name="history" defaultValue={p.history??'recent'} options={[{value:'recent',label:'Current month / selected dates'},{value:'all',label:'All history'}]}/></div>
- <div className="min-w-0 space-y-2"><Label htmlFor="accounting-tab">Worksheet</Label><OptionSelect id="accounting-tab" name="tab" defaultValue={p.tab??''} options={[{value:'',label:'All worksheets'},...(selected?.catalog as unknown as SheetTab[]??[]).map(t=>({value:String(t.sheetId),label:t.title}))]}/><p className="text-xs text-muted-foreground">Apply a workbook filter to load its worksheets.</p></div>
- {(['from','to'] as const).map(key=><div key={key} className="space-y-2"><Label htmlFor={`accounting-${key}`}>{key==='from'?'From':'Through'}</Label><Input id={`accounting-${key}`} type="date" name={key} defaultValue={p[key]??''}/></div>)}
- {['person','category','company','supplier'].map(key=><div key={key} className="space-y-2"><Label htmlFor={`accounting-${key}`} className="capitalize">{key}</Label><Input id={`accounting-${key}`} name={key} maxLength={150} defaultValue={p[key]} placeholder="Exact name, or use Search"/></div>)}
- <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end lg:col-span-4"><Button variant="outline" nativeButton={false} render={<Link href="/accounting"/>}>Reset filters</Button><Button type="submit">Apply filters</Button></div></form></CardContent></Card>
- <div className="flex flex-wrap items-center justify-between gap-3"><p>{count??0} matching expense rows · page {page}</p><CsvExportButton filename="accounting-sheet-expenses.csv" label="Export this page" header={['Workbook','Worksheet','Date','Voucher','Category','Particulars','Person','Supplier','Plate','Receipt','Amount']} rows={(rows??[]).map(r=>[byId.get(r.book_id)?.name??r.book_id,r.sheet_name,r.expense_date??'',r.voucher,r.category,r.particulars,r.person,r.supplier,r.plate,r.receipt_number,r.amount])}/></div>
- <ResponsiveList rows={rows??[]} getRowKey={r=>`${r.book_id}:${r.sheet_id}:${r.source_row}`} columns={[
- {key:'source',header:'Source',cell:r=><a className="underline underline-offset-4" target="_blank" rel="noreferrer" href={`https://docs.google.com/spreadsheets/d/${byId.get(r.book_id)?.spreadsheet_id}/edit#gid=${r.sheet_id}&range=A${r.source_row}`}>{byId.get(r.book_id)?.name}<br/><span className="text-xs text-muted-foreground">{r.sheet_name} · row {r.source_row}</span></a>},
- {key:'date',header:'Expense date',cell:r=><span className="whitespace-nowrap">{r.expense_date??'Date not identified'}</span>},
- {key:'voucher',header:'Voucher / person',cell:r=><><span className="font-mono">{r.voucher}</span><br/>{r.person}</>},
- {key:'particulars',header:'Particulars',className:'min-w-56 whitespace-pre-wrap',cell:r=><>{r.particulars}<br/><span className="text-muted-foreground">{r.plate} {r.receipt_number}</span></>},
- {key:'category',header:'Category / supplier',cell:r=><>{r.category}<br/>{r.supplier}</>},
- {key:'amount',header:'Amount',headerClassName:'text-right',className:'text-right whitespace-nowrap',cell:r=><MoneyText value={r.amount}/>},
- ]} renderCard={r=><Card><CardHeader><CardTitle className="flex flex-wrap justify-between gap-2"><span className="min-w-0 break-words font-mono">{r.voucher||'Expense'}</span><MoneyText value={r.amount} className="whitespace-nowrap"/></CardTitle></CardHeader><CardContent className="space-y-3"><p className="whitespace-pre-wrap break-words">{r.particulars}</p><dl className="grid grid-cols-2 gap-3 text-sm">{[['Date',r.expense_date??'Not identified'],['Person',r.person],['Category',r.category],['Supplier',r.supplier],['Plate',r.plate],['Receipt',r.receipt_number]].map(([label,value])=><div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="break-words">{value||'—'}</dd></div>)}</dl><a className="block break-words text-sm underline underline-offset-4" target="_blank" rel="noreferrer" href={`https://docs.google.com/spreadsheets/d/${byId.get(r.book_id)?.spreadsheet_id}/edit#gid=${r.sheet_id}&range=A${r.source_row}`}>{byId.get(r.book_id)?.name} · {r.sheet_name} · row {r.source_row}</a></CardContent></Card>} empty={<EmptyState icon={Files} title="No matching expenses" description="Refresh a workbook or choose All history to see older expenses."/>}/>
- <p className="text-xs text-muted-foreground">Historical worksheets may overlap. Totals here describe the displayed source rows, not reconciled fund cash.</p><p className="text-sm">Expense total on this page: <MoneyText value={(rows??[]).reduce((s,r)=>s+Number(r.amount),0)}/></p><div className="flex justify-between print:hidden">{page>1?<Button variant="outline" nativeButton={false} render={<Link href={url(page-1)}/>}>Previous</Button>:<span/>}{page*50<(count??0)?<Button variant="outline" nativeButton={false} render={<Link href={url(page+1)}/>}>Next</Button>:null}</div></div>;
+import Link from "next/link";
+import { Files, Settings2, ArrowDown } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import {
+  loadAccountingFilters,
+  loadAccountingReport,
+} from "@/lib/accounting-data";
+import { accountingUrl } from "@/lib/accounting";
+import type { Workbook, SheetTab } from "@/lib/sheets/types";
+import { formatDate, formatMonth } from "@/lib/dates";
+import { PageHeader } from "@/components/layout/page-header";
+import { PrintButton } from "@/components/layout/print-button";
+import { AccountingFilterForm } from "@/components/accounting/filters";
+import { AccountingExportButton } from "@/components/accounting/export-button";
+import { WorkbookOverview } from "@/components/accounting/workbook-overview";
+import { SheetsRefresh } from "@/components/sheets/refresh-control";
+import { RolloverRetry } from "@/components/sheets/rollover-retry";
+import { MoneyText } from "@/components/shared/money-text";
+import { ResponsiveList } from "@/components/shared/responsive-list";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+
+export default async function AccountingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  await requireUser("/accounting");
+  const params = await searchParams;
+  const db = await createClient();
+  const [normalized, workbooks, profiles] = await Promise.all([
+    loadAccountingFilters(params),
+    db.from("sheet_workbooks").select("*").order("name"),
+    db.from("profiles").select("id,full_name,role").order("full_name"),
+  ]);
+  if (workbooks.error || profiles.error)
+    throw new Error("Could not load the Accounting dashboard.");
+  const { filters, error } = normalized;
+  const books = workbooks.data as Workbook[];
+  const people = new Map(
+    profiles.data.map((person) => [person.id, person.full_name]),
+  );
+  const scopedBooks = books.filter(
+    (book) =>
+      (!filters.book || book.id === filters.book) &&
+      (!filters.custodian ||
+        (filters.custodian === "unassigned"
+          ? book.custodian_id === null
+          : book.custodian_id === filters.custodian)),
+  );
+  if (error)
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Accounting"
+          description="Combined PCF records across all Google workbooks."
+        />
+        <Alert variant="destructive">
+          <AlertTitle>Check the filters</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="/accounting" />}
+        >
+          Reset filters
+        </Button>
+      </div>
+    );
+  const report = await loadAccountingReport(filters);
+  let pendingQuery = db
+    .from("sheet_rollovers")
+    .select("id,replenishment_id,target_name,error,book_id", { count: "exact" })
+    .eq("status", "pending")
+    .order("created_at")
+    .limit(5);
+  pendingQuery = pendingQuery.in(
+    "book_id",
+    scopedBooks.map((book) => book.id),
+  );
+  const pending = await pendingQuery;
+  if (pending.error)
+    throw new Error("Could not read pending worksheet updates.");
+  const periodLabel =
+    filters.date_status === "missing"
+      ? "Entries without valid dates"
+      : filters.period === "all"
+        ? "All history"
+        : `${filters.from ? formatDate(filters.from) : "Beginning"} – ${filters.to ? formatDate(filters.to) : "Latest"}`;
+  const selectedBook = books.find((book) => book.id === filters.book);
+  const source = (row: (typeof report.rows)[number]) =>
+    `https://docs.google.com/spreadsheets/d/${row.spreadsheet_id}/edit#gid=${row.sheet_id}&range=A${row.source_row}`;
+  const lastPage = Math.max(1, Math.ceil(report.totals.expense_count / 50));
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Accounting"
+        description="Expense records and worksheet balances across every PCF workbook."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/accounting/workbooks" />}
+            >
+              <Settings2 />
+              Workbook assignments
+            </Button>
+            <PrintButton />
+          </>
+        }
+      />
+      <AccountingFilterForm
+        key={JSON.stringify(filters)}
+        filters={filters}
+        books={books.map((book) => ({
+          id: book.id,
+          name: book.name,
+          catalog: book.catalog as unknown as SheetTab[],
+        }))}
+        custodians={profiles.data
+          .filter(
+            (person) =>
+              person.role === "custodian" ||
+              books.some((book) => book.custodian_id === person.id),
+          )
+          .map((person) => ({ id: person.id, name: person.full_name }))}
+        categories={report.categories}
+        companies={report.companies}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="font-medium">
+            {selectedBook?.name ?? "All workbooks"} ·{" "}
+            {filters.custodian === "unassigned"
+              ? "Unassigned workbooks"
+              : people.get(filters.custodian) || "All custodians"}
+          </p>
+          <p className="text-sm text-muted-foreground">{periodLabel}</p>
+        </div>
+        <SheetsRefresh book={filters.book} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardDescription>Recorded expenses</CardDescription>
+            <CardTitle className="text-2xl">
+              <MoneyText value={report.totals.amount} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            OUT amounts across every matching entry
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>Expense entries</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">
+              {report.totals.expense_count.toLocaleString()}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            {report.totals.vouchers} voucher references ·{" "}
+            {report.totals.suppliers} suppliers
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>CE expenses</CardDescription>
+            <CardTitle className="text-2xl">
+              <MoneyText value={report.totals.ce_amount} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Exact CE tags from the workbooks
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>NCE expenses</CardDescription>
+            <CardTitle className="text-2xl">
+              <MoneyText value={report.totals.nce_amount} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Exact NCE tags from the workbooks
+          </CardContent>
+        </Card>
+      </div>
+      {report.totals.missing_receipt_numbers ||
+      report.totals.missing_tags ||
+      report.undated_scope ? (
+        <Alert>
+          <AlertTitle>Records to check</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {report.totals.missing_receipt_numbers ? (
+                <Link
+                  className="underline"
+                  href={accountingUrl(filters, { receipt: "missing", page: 1 })}
+                >
+                  {report.totals.missing_receipt_numbers} entries without
+                  receipt numbers
+                </Link>
+              ) : null}
+              {report.totals.missing_tags ? (
+                <span>{report.totals.missing_tags} entries without tags</span>
+              ) : null}
+              {report.undated_scope ? (
+                <Link
+                  className="underline"
+                  href={accountingUrl(filters, {
+                    period: "all",
+                    date_status: "missing",
+                    page: 1,
+                  })}
+                >
+                  {report.undated_scope} undated entries in this search scope
+                </Link>
+              ) : null}
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <nav
+        aria-label="Accounting sections"
+        className="flex flex-wrap gap-2 print:hidden"
+      >
+        {[
+          ["expenses", "Expense records"],
+          ["workbooks", "Workbook balances"],
+          ["breakdowns", "Spending breakdowns"],
+        ].map(([id, label]) => (
+          <Button
+            key={id}
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<a href={`#${id}`} />}
+          >
+            <ArrowDown />
+            {label}
+          </Button>
+        ))}
+      </nav>
+      <section id="expenses" className="scroll-mt-20 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Expense records</h2>
+            <p className="text-sm text-muted-foreground">
+              {report.totals.expense_count} matching entries · Page{" "}
+              {filters.page} of {lastPage}
+            </p>
+          </div>
+          <div className="print:hidden">
+            <AccountingExportButton
+              disabled={!report.totals.expense_count}
+              url={accountingUrl(filters, {}, "/api/accounting/export")}
+            />
+          </div>
+        </div>
+        {report.hidden_copies ? (
+          <p className="text-sm text-muted-foreground">
+            {report.hidden_copies} exact cross-worksheet copies hidden.{" "}
+            <Link
+              className="underline"
+              href={accountingUrl(filters, { repeats: true, page: 1 })}
+            >
+              Include source copies
+            </Link>
+          </p>
+        ) : null}
+        <ResponsiveList
+          rows={report.rows}
+          getRowKey={(row) =>
+            `${row.book_id}:${row.sheet_id}:${row.source_row}`
+          }
+          columns={[
+            {
+              key: "source",
+              header: "Source",
+              cell: (row) => (
+                <div className="space-y-1">
+                  <a
+                    className="font-medium underline underline-offset-4"
+                    target="_blank"
+                    rel="noreferrer"
+                    href={source(row)}
+                  >
+                    {row.workbook_name}
+                  </a>
+                  <p className="max-w-40 whitespace-normal text-xs text-muted-foreground">
+                    {row.sheet_name} · row {row.source_row}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.custodian_name ?? "Unassigned"}
+                  </p>
+                </div>
+              ),
+            },
+            {
+              key: "date",
+              header: "Date / documents",
+              cell: (row) => (
+                <div className="space-y-1">
+                  <p className="whitespace-nowrap">
+                    {row.expense_date
+                      ? formatDate(row.expense_date)
+                      : "Date missing"}
+                  </p>
+                  <p className="font-mono text-xs">
+                    {row.voucher || "Voucher not recorded"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Receipt {row.receipt_number || "not recorded"}
+                  </p>
+                </div>
+              ),
+            },
+            {
+              key: "particulars",
+              header: "Particulars / tag",
+              className: "min-w-48 max-w-sm whitespace-normal",
+              cell: (row) => (
+                <div className="space-y-2">
+                  <p className="whitespace-pre-wrap">{row.particulars}</p>
+                  <Badge variant="outline">
+                    {row.category || "Unclassified"}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">
+                    {row.company}
+                    {row.plate ? ` · ${row.plate}` : ""}
+                  </p>
+                </div>
+              ),
+            },
+            {
+              key: "supplier",
+              header: "People / supplier",
+              cell: (row) => (
+                <div className="max-w-48 space-y-1 whitespace-normal">
+                  <p>{row.person || "Person not recorded"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {row.supplier || "Supplier not recorded"}
+                  </p>
+                  {row.tin ? (
+                    <p className="text-xs text-muted-foreground">
+                      TIN {row.tin}
+                    </p>
+                  ) : null}
+                  {row.address ? (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Supplier address
+                      </summary>
+                      {row.address}
+                    </details>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
+              key: "amount",
+              header: "Amount",
+              headerClassName: "text-right",
+              className: "text-right whitespace-nowrap",
+              cell: (row) => <MoneyText value={row.amount} />,
+            },
+          ]}
+          renderCard={(row) => (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap justify-between gap-2">
+                  <span className="min-w-0 break-words font-mono">
+                    {row.voucher || "Expense"}
+                  </span>
+                  <MoneyText value={row.amount} className="whitespace-nowrap" />
+                </CardTitle>
+                <CardDescription>
+                  {row.expense_date
+                    ? formatDate(row.expense_date)
+                    : "Date missing"}{" "}
+                  · {row.category || "Unclassified"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="break-words whitespace-pre-wrap">
+                  {row.particulars}
+                </p>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  {[
+                    ["Point person", row.person],
+                    ["Supplier", row.supplier],
+                    ["Receipt number", row.receipt_number],
+                    ["Plate", row.plate],
+                    ["TIN", row.tin],
+                    ["Company", row.company],
+                  ].map(([label, value]) => (
+                    <div key={label} className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">{label}</dt>
+                      <dd className="break-words">{value || "—"}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <a
+                  className="block break-words text-sm underline underline-offset-4"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={source(row)}
+                >
+                  {row.workbook_name} · {row.sheet_name} · row {row.source_row}
+                </a>
+                <p className="text-xs text-muted-foreground">
+                  Custodian {row.custodian_name ?? "Unassigned"}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          empty={
+            <EmptyState
+              icon={Files}
+              title="No matching expenses"
+              description="Change the period or filters, or refresh the workbooks to import their latest records."
+            />
+          }
+        />
+        <div className="flex justify-between gap-3 print:hidden">
+          {filters.page > 1 ? (
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link
+                  href={accountingUrl(filters, { page: filters.page - 1 })}
+                />
+              }
+            >
+              Previous
+            </Button>
+          ) : (
+            <span />
+          )}
+          {filters.page < lastPage ? (
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link
+                  href={accountingUrl(filters, { page: filters.page + 1 })}
+                />
+              }
+            >
+              Next
+            </Button>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Totals cover all matching entries. Printing shows this page. CSV
+          exports all filtered entries. Consolidation hides exact copies across
+          worksheets only when a dated voucher or receipt reference matches.
+          Repeated lines within one worksheet are retained.
+        </p>
+      </section>
+      <section id="workbooks" className="scroll-mt-20">
+        <WorkbookOverview books={scopedBooks} people={people} report={report} />
+      </section>
+      {pending.data.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending replenishment worksheets</CardTitle>
+            <CardDescription>
+              {pending.count} worksheet updates need attention.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pending.data.map((item) => (
+              <div key={item.id} className="space-y-2 border-t pt-3">
+                <Link
+                  className="text-sm underline"
+                  href={`/replenishments/${item.replenishment_id}`}
+                >
+                  {item.target_name ?? "Review replenishment"}
+                </Link>
+                <p className="text-sm text-muted-foreground">
+                  {item.error ?? "Waiting for worksheet creation"}
+                </p>
+                <RolloverRetry id={item.replenishment_id} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+      <section
+        id="breakdowns"
+        className="grid scroll-mt-20 gap-6 lg:grid-cols-2"
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>Expenses by tag</CardTitle>
+            <CardDescription>
+              Largest eight tags in the filtered results
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {report.by_category.length ? (
+              report.by_category.map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
+                    <span>{item.label}</span>
+                    <MoneyText value={item.amount} />
+                  </div>
+                  <progress
+                    aria-label={item.label}
+                    className="h-2 w-full accent-primary"
+                    value={Number(item.amount)}
+                    max={Number(report.by_category[0].amount)}
+                  />
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No expenses for this selection.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Monthly expenses</CardTitle>
+            <CardDescription>Latest twelve matching months</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {report.by_month.length ? (
+              report.by_month.map((item) => (
+                <div
+                  key={item.month}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm"
+                >
+                  <Link
+                    className="underline underline-offset-4"
+                    href={accountingUrl(filters, {
+                      period: "month",
+                      month: item.month,
+                      page: 1,
+                    })}
+                  >
+                    {formatMonth(item.month)}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    {item.count} entries
+                  </span>
+                  <MoneyText value={item.amount} />
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No dated expenses for this selection.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  );
 }

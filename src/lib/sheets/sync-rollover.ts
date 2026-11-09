@@ -29,7 +29,7 @@ export async function syncSheetRollover(replenishmentId:string) {
   const catalog=await sheetsBridge<Catalog>({action:'catalog'});const tabs=catalog.books.find(b=>b.key===j.book_id)?.tabs??[];
   const cachedTabs=w.data.catalog as unknown as SheetTab[];
   const sourceTags=cachedTabs.find(tab=>tab.sheetId===w.data.active_sheet_id)?.expenseTags??[];
-  const enrichedTabs=tabs.map(tab=>({...tab,expenseTags:cachedTabs.find(cached=>cached.sheetId===tab.sheetId)?.expenseTags??(tab.sheetId===target?sourceTags:[])}));
+  const enrichedTabs=tabs.map(tab=>({...tab,ledger:cachedTabs.find(cached=>cached.sheetId===tab.sheetId)?.ledger??null,expenseTags:cachedTabs.find(cached=>cached.sheetId===tab.sheetId)?.expenseTags??(tab.sheetId===target?sourceTags:[])}));
   const updated=await db.from('sheet_workbooks').update({active_sheet_id:target,catalog:enrichedTabs as unknown as Json,config_version:w.data.config_version+1}).eq('id',w.data.id).eq('config_version',w.data.config_version).select('id');
   if(updated.error||!updated.data?.length)throw new Error('Worksheet created. Assignment reconciliation is pending.');
   await db.from('sheet_rollovers').update({status:'synced',report,error:null}).eq('id',j.id);

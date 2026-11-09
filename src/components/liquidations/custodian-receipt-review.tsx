@@ -53,6 +53,7 @@ export function CustodianReceiptReview({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [extractionWarnings,setExtractionWarnings]=useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
   const sum = lines.reduce(
     (amount, line) => amount + (parseMoney(line.amount) ?? 0),
@@ -75,6 +76,7 @@ export function CustodianReceiptReview({
         setError(result.error);
         return;
       }
+      setExtractionWarnings(result.warnings);
       const populated = Object.fromEntries(
         Object.entries(result.suggestion).filter(([, value]) => value !== ""),
       );
@@ -132,6 +134,7 @@ export function CustodianReceiptReview({
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}
+        {extractionWarnings.length ? <Alert><AlertDescription><ul className="list-disc space-y-1 pl-4">{extractionWarnings.map(warning=><li key={warning}>{warning}</li>)}</ul></AlertDescription></Alert> : null}
         {!aiReady ? (
           <p className="text-sm text-muted-foreground">
             Automatic extraction is unavailable. Enter receipt details manually.

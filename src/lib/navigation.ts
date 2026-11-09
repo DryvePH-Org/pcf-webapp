@@ -43,7 +43,7 @@ const OPERATIONS: NavItem[] = [
     shortLabel: "Replenish",
     icon: RefreshCw,
   },
-  { href: "/accounting", label: "Accounting sheets", shortLabel: "Sheets", icon: Table2 },
+  { href: "/accounting", label: "Accounting", shortLabel: "Sheets", icon: Table2 },
   { href: "/funds", label: "Fund assignments", shortLabel: "Funds", icon: Landmark },
   { href: "/audit", label: "Audit trail", icon: ScrollText },
 ];

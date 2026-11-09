@@ -154,7 +154,21 @@ fresh preview. Tags are selected from the assigned workbook mirror and are
 validated against its live summary formulas. Supplier TIN may be entered as
 NON VAT when applicable. Input VAT is never encoded.
 
-Receipt extraction uses the OpenAI Responses API with image input and structured
-output. Configure server-only `OPENAI_API_KEY` and optionally
-`OPENAI_RECEIPT_MODEL` (default `gpt-4.1-mini`). Responses use `store: false`.
+Receipt extraction uses Groq vision with image input and structured
+output. Configure server-only `GROQ_API_KEY` and optionally
+`GROQ_RECEIPT_MODEL` (default `qwen/qwen3.8-27b`). Extraction uses Groq vision with a strict JSON schema and field confidence checks.
 Extraction provides editable suggestions and has no approval or cash authority.
+
+### Accounting dashboard
+
+Accounting combines the mirrored expense ledgers with workbook, current custodian,
+worksheet, month, date range, tag, CE/NCE, company, receipt-number, and detail filters.
+Totals cover all matching records. CSV exports share the same filters and include
+source links. Exact dated, referenced copies across worksheets are consolidated
+by default, preserving repeated occurrences within each worksheet. The source-copy
+option and individual worksheet filter expose every original row.
+
+Current worksheet ledger balance, physical cash, and unliquidated values are shown
+separately from selected-period spending. Missing values and broken formulas are
+flagged. Accounting and Admin can manage audited workbook assignments. Manual
+refresh reads all workbooks, while background refresh rotates the oldest workbook.

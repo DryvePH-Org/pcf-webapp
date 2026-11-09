@@ -1026,6 +1026,7 @@ export type Database = {
       }
       sheet_expenses: {
         Row: {
+          address: string
           amount: number
           book_id: string
           category: string
@@ -1039,9 +1040,11 @@ export type Database = {
           sheet_name: string
           source_row: number
           supplier: string
+          tin: string
           voucher: string
         }
         Insert: {
+          address?: string
           amount: number
           book_id: string
           category?: string
@@ -1055,9 +1058,11 @@ export type Database = {
           sheet_name: string
           source_row: number
           supplier?: string
+          tin?: string
           voucher?: string
         }
         Update: {
+          address?: string
           amount?: number
           book_id?: string
           category?: string
@@ -1071,6 +1076,7 @@ export type Database = {
           sheet_name?: string
           source_row?: number
           supplier?: string
+          tin?: string
           voucher?: string
         }
         Relationships: [
@@ -1608,8 +1614,57 @@ export type Database = {
           },
         ]
       }
+      sheet_expense_reporting_v: {
+        Row: {
+          active_tab: boolean | null
+          address: string | null
+          amount: number | null
+          book_id: string | null
+          category: string | null
+          company: string | null
+          copy_rank: number | null
+          custodian_id: string | null
+          custodian_name: string | null
+          expense_date: string | null
+          match_key: string | null
+          occurrence: number | null
+          particulars: string | null
+          person: string | null
+          plate: string | null
+          receipt_number: string | null
+          sheet_id: number | null
+          sheet_name: string | null
+          source_row: number | null
+          spreadsheet_id: string | null
+          supplier: string | null
+          tab_order: number | null
+          tin: string | null
+          voucher: string | null
+          workbook_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_expenses_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_workbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_workbooks_custodian_id_fkey"
+            columns: ["custodian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      accounting_dashboard: {
+        Args: { p_export?: boolean; p_filters: Json }
+        Returns: Json
+      }
       app_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
