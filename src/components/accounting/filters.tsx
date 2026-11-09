@@ -29,19 +29,20 @@ export function AccountingFilterForm({
     [book, setBook] = useState(filters.book),
     [tab, setTab] = useState(filters.tab);
   const selected = books.find((item) => item.id === book);
-  const advanced = Boolean(
-    filters.person ||
-      filters.supplier ||
-      filters.plate ||
-      filters.tin ||
-      filters.category ||
-      filters.company ||
-      filters.classification ||
-      filters.receipt ||
-      filters.date_status ||
-      filters.repeats ||
-      filters.tab,
-  );
+  const advancedCount = [
+    filters.custodian,
+    filters.person,
+    filters.supplier,
+    filters.plate,
+    filters.tin,
+    filters.category,
+    filters.company,
+    filters.classification,
+    filters.receipt,
+    filters.date_status,
+    filters.repeats,
+    filters.tab,
+  ].filter(Boolean).length;
   return (
     <Card className="print:hidden">
       <CardHeader>
@@ -51,13 +52,13 @@ export function AccountingFilterForm({
         <form className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="accounting-q">Search all expense details</Label>
+              <Label htmlFor="accounting-q">Search expenses</Label>
               <Input
                 id="accounting-q"
                 name="q"
                 maxLength={150}
                 defaultValue={filters.q}
-                placeholder="Voucher, receipt, person, supplier, plate, TIN, particulars…"
+                placeholder="Search voucher, receipt, supplier or particulars…"
               />
             </div>
             <div className="min-w-0 space-y-2">
@@ -73,22 +74,6 @@ export function AccountingFilterForm({
                 options={[
                   { value: "", label: "All workbooks" },
                   ...books.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                ]}
-              />
-            </div>
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="accounting-custodian">Custodian</Label>
-              <OptionSelect
-                id="accounting-custodian"
-                name="custodian"
-                defaultValue={filters.custodian}
-                options={[
-                  { value: "", label: "All custodians" },
-                  { value: "unassigned", label: "Unassigned workbooks" },
-                  ...custodians.map((item) => ({
                     value: item.id,
                     label: item.name,
                   })),
@@ -111,51 +96,75 @@ export function AccountingFilterForm({
                 ]}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="accounting-month">Month</Label>
-              <Input
-                id="accounting-month"
-                name="month"
-                type="month"
-                value={month}
-                onChange={(event) => {
-                  setMonth(event.target.value);
-                  setPeriod("month");
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="accounting-from">From</Label>
-              <Input
-                id="accounting-from"
-                name="from"
-                type="date"
-                value={from}
-                onChange={(event) => {
-                  setFrom(event.target.value);
-                  setPeriod("custom");
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="accounting-to">Through</Label>
-              <Input
-                id="accounting-to"
-                name="to"
-                type="date"
-                value={to}
-                onChange={(event) => {
-                  setTo(event.target.value);
-                  setPeriod("custom");
-                }}
-              />
-            </div>
+            {period === "month" ? (
+              <div className="space-y-2">
+                <Label htmlFor="accounting-month">Month</Label>
+                <Input
+                  id="accounting-month"
+                  name="month"
+                  type="month"
+                  value={month}
+                  onChange={(event) => {
+                    setMonth(event.target.value);
+                    setPeriod("month");
+                  }}
+                />
+              </div>
+            ) : null}
+            {period === "custom" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="accounting-from">From</Label>
+                  <Input
+                    id="accounting-from"
+                    name="from"
+                    type="date"
+                    value={from}
+                    onChange={(event) => {
+                      setFrom(event.target.value);
+                      setPeriod("custom");
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accounting-to">Through</Label>
+                  <Input
+                    id="accounting-to"
+                    name="to"
+                    type="date"
+                    value={to}
+                    onChange={(event) => {
+                      setTo(event.target.value);
+                      setPeriod("custom");
+                    }}
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
-          <details open={advanced} className="rounded-lg border p-4">
+          <details className="rounded-lg border p-4">
             <summary className="cursor-pointer font-medium">
               More filters
+              {advancedCount > 0 ? ` · ${advancedCount} active` : ""}
             </summary>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor="accounting-custodian">Custodian</Label>
+                <OptionSelect
+                  id="accounting-custodian"
+                  name="custodian"
+                  defaultValue={filters.custodian}
+                  options={[
+                    { value: "", label: "All custodians" },
+                    { value: "unassigned", label: "Unassigned workbooks" },
+                    ...custodians.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                    })),
+                  ]}
+                />
+              </div>
+
               <div className="min-w-0 space-y-2">
                 <Label htmlFor="accounting-tab">Worksheet</Label>
                 <OptionSelect

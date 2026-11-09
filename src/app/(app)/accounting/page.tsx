@@ -1,3 +1,4 @@
+import { SpendingCharts } from "@/components/accounting/spending-charts";
 import Link from "next/link";
 import { Files, Settings2, ArrowDown } from "lucide-react";
 import { requireUser } from "@/lib/auth";
@@ -8,7 +9,7 @@ import {
 } from "@/lib/accounting-data";
 import { accountingUrl } from "@/lib/accounting";
 import type { Workbook, SheetTab } from "@/lib/sheets/types";
-import { formatDate, formatMonth } from "@/lib/dates";
+import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
 import { AccountingFilterForm } from "@/components/accounting/filters";
@@ -152,10 +153,10 @@ export default async function AccountingPage({
         <SheetsRefresh book={filters.book} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-t-4 border-t-blue-500 bg-blue-50/60 dark:bg-blue-950/20">
           <CardHeader>
-            <CardDescription>Recorded expenses</CardDescription>
-            <CardTitle className="text-2xl">
+            <CardDescription>Total recorded spending</CardDescription>
+            <CardTitle className="text-2xl break-words">
               <MoneyText value={report.totals.amount} />
             </CardTitle>
           </CardHeader>
@@ -163,10 +164,10 @@ export default async function AccountingPage({
             OUT amounts across every matching entry
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-4 border-t-violet-500 bg-violet-50/60 dark:bg-violet-950/20">
           <CardHeader>
             <CardDescription>Expense entries</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">
+            <CardTitle className="text-2xl break-words tabular-nums">
               {report.totals.expense_count.toLocaleString()}
             </CardTitle>
           </CardHeader>
@@ -175,10 +176,10 @@ export default async function AccountingPage({
             {report.totals.suppliers} suppliers
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-4 border-t-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20">
           <CardHeader>
             <CardDescription>CE expenses</CardDescription>
-            <CardTitle className="text-2xl">
+            <CardTitle className="text-2xl break-words">
               <MoneyText value={report.totals.ce_amount} />
             </CardTitle>
           </CardHeader>
@@ -186,10 +187,10 @@ export default async function AccountingPage({
             Exact CE tags from the workbooks
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-4 border-t-amber-500 bg-amber-50/60 dark:bg-amber-950/20">
           <CardHeader>
             <CardDescription>NCE expenses</CardDescription>
-            <CardTitle className="text-2xl">
+            <CardTitle className="text-2xl break-words">
               <MoneyText value={report.totals.nce_amount} />
             </CardTitle>
           </CardHeader>
@@ -233,6 +234,7 @@ export default async function AccountingPage({
           </AlertDescription>
         </Alert>
       ) : null}
+      <SpendingCharts report={report} books={books} filters={filters} />
       <nav
         aria-label="Accounting sections"
         className="flex flex-wrap gap-2 print:hidden"
@@ -501,76 +503,6 @@ export default async function AccountingPage({
           </CardContent>
         </Card>
       ) : null}
-      <section
-        id="breakdowns"
-        className="grid scroll-mt-20 gap-6 lg:grid-cols-2"
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle>Expenses by tag</CardTitle>
-            <CardDescription>
-              Largest eight tags in the filtered results
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {report.by_category.length ? (
-              report.by_category.map((item) => (
-                <div key={item.label} className="space-y-2">
-                  <div className="flex flex-wrap justify-between gap-2 text-sm">
-                    <span>{item.label}</span>
-                    <MoneyText value={item.amount} />
-                  </div>
-                  <progress
-                    aria-label={item.label}
-                    className="h-2 w-full accent-primary"
-                    value={Number(item.amount)}
-                    max={Number(report.by_category[0].amount)}
-                  />
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No expenses for this selection.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly expenses</CardTitle>
-            <CardDescription>Latest twelve matching months</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {report.by_month.length ? (
-              report.by_month.map((item) => (
-                <div
-                  key={item.month}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm"
-                >
-                  <Link
-                    className="underline underline-offset-4"
-                    href={accountingUrl(filters, {
-                      period: "month",
-                      month: item.month,
-                      page: 1,
-                    })}
-                  >
-                    {formatMonth(item.month)}
-                  </Link>
-                  <span className="text-muted-foreground">
-                    {item.count} entries
-                  </span>
-                  <MoneyText value={item.amount} />
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No dated expenses for this selection.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
     </div>
   );
 }
