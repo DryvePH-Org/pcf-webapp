@@ -156,7 +156,7 @@ export function VoucherForm({
   }
   const errors = form.formState.errors;
   return (
-    <Card>
+    <Card className="overflow-visible">
       <CardHeader>
         <CardTitle>{edit ? "Edit voucher" : "Create cash voucher"}</CardTitle>
       </CardHeader>

@@ -88,7 +88,7 @@ export function LiquidationForm({
     setConfirm(true);
   }
   return (
-    <Card className="print:hidden">
+    <Card className="overflow-visible print:hidden">
       <CardHeader>
         <CardTitle>Requester liquidation</CardTitle>
       </CardHeader>
