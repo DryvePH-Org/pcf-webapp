@@ -110,7 +110,7 @@ export function SpendingCharts({
           {months.length ? (
             <>
               <svg
-                viewBox="0 0 480 210"
+                viewBox="0 0 320 210"
                 role="img"
                 aria-label="Monthly expense amounts"
                 className="w-full overflow-visible"
@@ -118,12 +118,12 @@ export function SpendingCharts({
                 <line
                   x1="12"
                   y1="170"
-                  x2="468"
+                  x2="308"
                   y2="170"
                   className="stroke-border"
                 />
                 {months.map((item, index) => {
-                  const slot = 456 / months.length,
+                  const slot = 296 / months.length,
                     height = (Number(item.amount) / maximum) * 140,
                     x = 12 + index * slot;
                   return (
@@ -135,20 +135,22 @@ export function SpendingCharts({
                         })}{" "}
                         · {item.count} entries
                       </title>
-                      <text
-                        x={x + slot * 0.5}
-                        y={162 - height}
-                        textAnchor="middle"
-                        className="fill-foreground"
-                        fontSize={months.length > 6 ? 10 : 12}
-                      >
-                        {new Intl.NumberFormat("en-PH", {
-                          style: "currency",
-                          currency: "PHP",
-                          notation: "compact",
-                          maximumFractionDigits: 1,
-                        }).format(Number(item.amount))}
-                      </text>
+                      {months.length <= 6 || index % 2 === 0 ? (
+                        <text
+                          x={x + slot * 0.5}
+                          y={162 - height}
+                          textAnchor="middle"
+                          className="fill-foreground"
+                          fontSize={months.length > 6 ? 10 : 12}
+                        >
+                          {new Intl.NumberFormat("en-PH", {
+                            style: "currency",
+                            currency: "PHP",
+                            notation: "compact",
+                            maximumFractionDigits: 1,
+                          }).format(Number(item.amount))}
+                        </text>
+                      ) : null}
                       <rect
                         x={x + slot * 0.2}
                         y={170 - height}
