@@ -3,6 +3,7 @@ import { ArrowRight, CircleCheck, Plus } from "lucide-react";
 
 import { LiquidationStatusPill, RequestStatusPill } from "@/components/shared/flow-status-pills";
 import { MoneyText } from "@/components/shared/money-text";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +13,7 @@ import { shortRef } from "@/lib/refs";
 type Item = { key: string; href: string; pill: React.ReactNode; title: string; detail: string; amount?: number | string };
 
 // Everything that is waiting on this person, in one place, whatever their role.
-export async function MyWork({ userId, role }: { userId: string; role: Role }) {
+export async function MyWork({ userId, role, approvalCount = 0, replenishmentCount = 0 }: { userId: string; role: Role; approvalCount?: number; replenishmentCount?: number }) {
   const db = await createClient();
   const reviewer = canPerform(role, "request.review");
 
@@ -23,6 +24,7 @@ export async function MyWork({ userId, role }: { userId: string; role: Role }) {
     reviewer ? db.from("liquidations").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("owner_id", userId) : null,
   ]);
 
+  const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations].some(result => result?.error);
   const items: Item[] = [];
   // Corrections first: those are blocked until the person acts.
   for (const l of [...(liquidations.data ?? [])].sort((a, b) => Number(b.status === "flagged") - Number(a.status === "flagged"))) {
@@ -48,6 +50,13 @@ export async function MyWork({ userId, role }: { userId: string; role: Role }) {
   const reviewRequests = toReviewRequests?.count ?? 0;
   const reviewLiquidations = toReviewLiquidations?.count ?? 0;
 
+  const reviewQueues = [
+    { count: reviewRequests, href: "/requests?status=submitted", label: "budget requests to review" },
+    { count: reviewLiquidations, href: "/liquidations?status=submitted", label: "liquidations to review" },
+    { count: approvalCount, href: "/approvals", label: "vouchers to approve or review" },
+    { count: replenishmentCount, href: "/replenishments?status=submitted", label: "replenishments to review" },
+  ].filter(queue => queue.count > 0);
+
   return (
     <Card>
       <CardHeader>
@@ -55,20 +64,15 @@ export async function MyWork({ userId, role }: { userId: string; role: Role }) {
         <CardDescription>Your budget requests and liquidations, and anything waiting for your review.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {reviewRequests + reviewLiquidations > 0 ? (
+        {loadError ? <Alert variant="destructive"><AlertDescription>Some attention items could not be loaded. Refresh the page to try again.</AlertDescription></Alert> : null}
+        {reviewQueues.length > 0 ? (
           <div className="grid gap-2 sm:grid-cols-2">
-            {reviewRequests > 0 ? (
-              <Link href="/requests?status=submitted" className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
-                <span className="font-semibold">{reviewRequests} budget {reviewRequests === 1 ? "request" : "requests"} to review</span>
+            {reviewQueues.map(queue => (
+              <Link key={queue.href} href={queue.href} className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+                <span className="font-semibold">{queue.count} {queue.label}</span>
                 <ArrowRight className="size-4 shrink-0" aria-hidden />
               </Link>
-            ) : null}
-            {reviewLiquidations > 0 ? (
-              <Link href="/liquidations?status=submitted" className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
-                <span className="font-semibold">{reviewLiquidations} {reviewLiquidations === 1 ? "liquidation" : "liquidations"} to review</span>
-                <ArrowRight className="size-4 shrink-0" aria-hidden />
-              </Link>
-            ) : null}
+            ))}
           </div>
         ) : null}
 
@@ -89,8 +93,8 @@ export async function MyWork({ userId, role }: { userId: string; role: Role }) {
               </li>
             ))}
           </ul>
-        ) : reviewRequests + reviewLiquidations === 0 ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground"><CircleCheck className="size-4 text-emerald-600" aria-hidden />You are all caught up. Nothing is waiting on you.</p>
+        ) : !loadError && reviewQueues.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground"><CircleCheck className="size-4 text-emerald-600" aria-hidden />No budget requests, liquidations, or reviews in this summary.</p>
         ) : null}
 
         <div className="flex flex-wrap gap-2">

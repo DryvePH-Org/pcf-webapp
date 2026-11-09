@@ -218,7 +218,7 @@ export default async function DashboardPage() {
         actions={<Badge variant="secondary">{ROLE_LABELS[user.role]}</Badge>}
       />
 
-      <MyWork userId={user.id} role={user.role} />
+      <MyWork userId={user.id} role={user.role} approvalCount={pendingCount} replenishmentCount={replenishmentCount} />
 
       {balanceFunds.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2">

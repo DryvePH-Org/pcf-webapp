@@ -317,7 +317,7 @@ export function LiquidationForm({
           They are marked in red on the expenses above.
         </Callout>
       ) : null}
-      <div className="sticky bottom-[4.5rem] z-20 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur sm:p-4 lg:bottom-4">
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur sm:p-4 lg:bottom-4">
         {error ? (
           <p role="alert" className="mb-3 flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 text-sm font-medium text-destructive">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />

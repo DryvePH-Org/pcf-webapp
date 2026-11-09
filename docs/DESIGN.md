@@ -232,8 +232,8 @@ phone and desktop, switch at `lg`.
 
 | Component | Notes |
 | --- | --- |
-| `Button` | Variants: `default` (primary), `outline`, `secondary`, `ghost`, `destructive` (soft red fill), `link`. Sizes: `xs`, `sm`, `default` (h-8), `lg` (h-9), `icon`, `icon-xs/sm/lg`. Disabled = 50 % opacity. Pass icons as children (auto-sized). |
-| `Input`, `Textarea`, `Select` | `h-8` fields, `rounded-lg`, 3 px focus ring, red ring when `aria-invalid`. |
+| `Button` | Variants: `default` (primary), `outline`, `secondary`, `ghost`, `destructive` (soft red fill), `link`. Sizes: `xs`, `sm`, `default` (h-10), `lg` (h-11), `icon`, `icon-xs/sm/lg`. Disabled = 50 % opacity. Pass icons as children (auto-sized). |
+| `Input`, `Textarea`, `Select` | `h-10` inputs and selects, auto-height textareas, `rounded-lg`, 3 px focus ring, red ring when `aria-invalid`. |
 | `Label`, `Field` | Label above field. Error text below in `text-xs text-destructive`. |
 | `Card` (+ `CardHeader/Title/Description/Action/Content/Footer`) | The container for everything. `size="sm"` tightens padding. |
 | `Badge` | Variants `default`, `secondary`, `destructive`, `outline`, `ghost`. |
@@ -289,8 +289,8 @@ Every screen should answer three questions at a glance: *what state is this in*,
   the first failed submit and scrolls to the first gap).
 - Money inputs: right-aligned, tabular numbers, a `₱` prefix, `inputMode="decimal"`.
 - The primary action lives in a sticky bar at the bottom with the running total
-  beside it (`sticky bottom-[4.5rem] lg:bottom-4`, the phone offset clears the tab
-  bar). On phones the two buttons share one row.
+  beside it (`sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-4`, the phone offset clears the tab
+  bar and home-indicator safe area). On phones the two buttons share one row.
 - Default control heights are 40px (inputs, selects, buttons); `sm` is 36px and
   `lg` 44px for primary form actions. Do not shrink controls below that.
 - Photo and file pickers are one compact row until a file is chosen.
@@ -538,7 +538,7 @@ scripts/  apps-script/       one-off setup helpers
 - **Colour is never the only signal.** Statuses have text labels; errors have
   text; the low-balance state has a badge word.
 - **Touch targets.** Bottom-bar items and cards are large. Default buttons are
-  32 px high (see known gaps).
+  40 px high. Use `size="lg"` for 44 px primary touch actions.
 - **Reduced motion.** The scan sweep stops under `prefers-reduced-motion`.
 - **Print.** `@media print` sets A4 with 12 mm margins and a white background and
   keeps colours. Use `print:hidden` on chrome (sidebar, bars, toasts, buttons) and
@@ -579,8 +579,7 @@ scripts/  apps-script/       one-off setup helpers
 **Known gaps (honest list)**
 
 - Dark mode tokens exist but no toggle or provider is wired.
-- Default buttons and inputs are 32 px tall, below the 44 px touch guideline; large
-  actions on phones rely on `size="lg"` or card-sized tap areas. Consider a
-  taller `h-10` default on `max-sm`.
+- Default buttons, inputs, and selects are 40 px tall, below the 44 px touch
+  guideline. Primary phone actions use `size="lg"` or card-sized tap areas.
 - Charts use a single colour (`primary`); the `chart-*` tokens are unused.
 - The `ui/` folder follows shadcn defaults and has a few unused variants.
