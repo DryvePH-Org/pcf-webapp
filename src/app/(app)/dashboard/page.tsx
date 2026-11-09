@@ -117,7 +117,7 @@ export default async function DashboardPage() {
           .order("updated_at", { ascending: false })
           .limit(5)
       : null,
-    canAccounting
+    canAccounting || canApprove
       ? supabase
           .from("replenishments")
           .select("id, request_no, total, requested_by, fund_id, created_at", {

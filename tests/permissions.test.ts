@@ -33,7 +33,7 @@ describe('canAccessRoute', () => {
     ['approver', '/approvals', true],
     ['approver', '/vouchers', true],
     ['approver', '/vouchers/new', true],
-    ['approver', '/replenishments', false],
+    ['approver', '/replenishments', true],
     ['approver', '/admin/funds', false],
     ['accounting', '/replenishments', true],
     ['accounting', '/funds', true],

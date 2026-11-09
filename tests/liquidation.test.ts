@@ -18,14 +18,14 @@ describe("liquidation money", () => {
   it("rejects malformed money", () => { expect(() => liquidationDifference("oops", "100")).toThrow(); });
 });
 describe("liquidation validation", () => {
-  it("accepts a valid form with receipt explanations", () => { expect(submitLiquidationSchema.safeParse(form).success).toBe(true); });
+  it("rejects a missing receipt even when a reason is supplied", () => { expect(submitLiquidationSchema.safeParse(form).success).toBe(false); });
   it("permits draft lines without proofs but requires them at submission", () => {
     const draft = { ...form, items: [{ ...form.items[0], no_receipt_reason: "" }] };
     expect(saveLiquidationSchema.safeParse(draft).success).toBe(true);
     expect(submitLiquidationSchema.safeParse(draft).success).toBe(false);
   });
-  it("accepts a stored attachment without a missing-receipt explanation", () => {
-    expect(submitLiquidationSchema.safeParse({ ...form, items: [{ ...form.items[0], receipt_path: `${id}/${id}/receipt.pdf`, no_receipt_reason: "" }] }).success).toBe(true);
+  it("accepts a receipt picture without a missing-receipt explanation", () => {
+    expect(submitLiquidationSchema.safeParse({ ...form, items: [{ ...form.items[0], receipt_path: `${id}/${id}/receipt.jpg`, no_receipt_reason: "" }] }).success).toBe(true);
   });
   it("requires an explanation for a fully unused advance", () => {
     expect(submitLiquidationSchema.safeParse({ ...form, items: [] }).success).toBe(false);

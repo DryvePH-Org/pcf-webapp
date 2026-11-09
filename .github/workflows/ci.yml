@@ -64,6 +64,7 @@ jobs:
             psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f "$migration" > /dev/null
           done
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/data-deletion.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/workflow-forms.sql
 
   deploy:
     needs: [check, deletion-database]

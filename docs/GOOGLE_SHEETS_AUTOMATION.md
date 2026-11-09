@@ -143,3 +143,18 @@ while building this release. Checks use source fixtures and rollback-only schema
 validation. Offsite backups, email delivery, and AI scanning are unchanged.
 
 Use exact worksheet account tags for categories. A per-line Google Sheets tag override is available when app category names differ. Preview rejects tags that would be omitted by the destination SUMIF summaries. A company override supports mixed-company rows in the Dryve workbook.
+
+
+### Custodian receipt encoding
+
+New liquidations synchronize the custodian receipt entries after physical-copy
+verification. The receipt entries reconcile to the requester total. The preview
+binds to the saved receipt-review revision, so changing the review requires a
+fresh preview. Tags are selected from the assigned workbook mirror and are
+validated against its live summary formulas. Supplier TIN may be entered as
+NON VAT when applicable. Input VAT is never encoded.
+
+Receipt extraction uses the OpenAI Responses API with image input and structured
+output. Configure server-only `OPENAI_API_KEY` and optionally
+`OPENAI_RECEIPT_MODEL` (default `gpt-4.1-mini`). Responses use `store: false`.
+Extraction provides editable suggestions and has no approval or cash authority.

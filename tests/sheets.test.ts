@@ -1,7 +1,7 @@
 import { stableJson } from '@/lib/sheets/serialization';
 import { describe,it,expect } from 'vitest';
 import { parseExpenseRows } from '@/lib/sheets/parser';
-import { planExpenses,findLedgerBoundary } from '@/lib/sheets/planner';
+import { planExpenses,findLedgerBoundary,sheetExpenseTags } from '@/lib/sheets/planner';
 import { planRollover } from '@/lib/sheets/rollover';
 import type { Cell } from '@/lib/sheets/types';
 const s=(value:string):Cell=>({userEnteredValue:{stringValue:value}});
@@ -30,4 +30,9 @@ describe('workbook-specific ledger boundaries',()=>{
  it('accepts the singular Selling subtotal label',()=>{const rows=structuredClone(grid);rows[9][12]=s('TOTAL DISBURSEMENT');expect(findLedgerBoundary(rows,4,12)).toBe(9);});
  it('finds an unlabeled Dryve subtotal before its later cash summary',()=>{const rows=structuredClone(grid);rows[9][12]={userEnteredValue:{formulaValue:'=SUM(M6:M9)'}};rows.push([s('TOTAL DISBURSEMENT')]);expect(findLedgerBoundary(rows,4,12)).toBe(9);});
  it('retains manually recorded outstanding advances when opening a new worksheet',()=>{const rows=structuredClone(grid);rows[8][13]=n(900);rows.push([s('UNLIQUIDATED VOUCHER'),n(200)]);const source={sheetId:7,title:'PCF REPLENISHMENT #1',gridProperties:{rowCount:100,columnCount:20}};const plan=planRollover(source,9,[source],rows,100,'2026-11-07');expect(plan.requests.some(r=>{const edit=r.updateCells as {start?:{rowIndex:number;columnIndex:number};rows?:{values:Cell[]}[]}|undefined;return edit?.start?.rowIndex===10&&edit.start.columnIndex===1&&edit.rows?.[0].values[0].userEnteredValue?.numberValue===200;})).toBe(true);});
+});
+
+it('offers unused CE and NCE Others tags from account summary formulas',()=>{
+ const tags=sheetExpenseTags([[{userEnteredValue:{formulaValue:'=SUMIF(B8:B99,"CE - OTHERS",M8:M99)'}},{userEnteredValue:{formulaValue:'=SUMIF(B8:B99,"NCE - OTHERS",M8:M99)'}}]]);
+ expect(tags).toEqual(['CE - OTHERS','NCE - OTHERS']);
 });

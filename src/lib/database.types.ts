@@ -292,6 +292,67 @@ export type Database = {
         }
         Relationships: []
       }
+      data_deletions: {
+        Row: {
+          actor_id: string
+          created_at: string
+          executed_at: string | null
+          filters: Json
+          id: string
+          plan: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          executed_at?: string | null
+          filters: Json
+          id?: string
+          plan: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          executed_at?: string | null
+          filters?: Json
+          id?: string
+          plan?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_deletions_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deletion_files: {
+        Row: {
+          bucket: string
+          deletion_id: string
+          path: string
+        }
+        Insert: {
+          bucket: string
+          deletion_id: string
+          path: string
+        }
+        Update: {
+          bucket?: string
+          deletion_id?: string
+          path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deletion_files_deletion_id_fkey"
+            columns: ["deletion_id"]
+            isOneToOne: false
+            referencedRelation: "data_deletions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fund_counters: {
         Row: {
           fund_id: string
@@ -408,6 +469,7 @@ export type Database = {
           particulars: string
           position: number
           receipt_path: string | null
+          sheet_details: Json
         }
         Insert: {
           amount: number
@@ -418,6 +480,7 @@ export type Database = {
           particulars: string
           position: number
           receipt_path?: string | null
+          sheet_details?: Json
         }
         Update: {
           amount?: number
@@ -428,6 +491,7 @@ export type Database = {
           particulars?: string
           position?: number
           receipt_path?: string | null
+          sheet_details?: Json
         }
         Relationships: [
           {
@@ -446,6 +510,69 @@ export type Database = {
           },
           {
             foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+        ]
+      }
+      liquidation_receipt_lines: {
+        Row: {
+          amount: number
+          expense_date: string
+          id: string
+          liquidation_id: string
+          particulars: string
+          physical_checked: boolean
+          plate: string
+          position: number
+          receipt_number: string
+          receipt_path: string | null
+          supplier: string
+          tag: string
+          tin: string
+        }
+        Insert: {
+          amount: number
+          expense_date: string
+          id?: string
+          liquidation_id: string
+          particulars: string
+          physical_checked: boolean
+          plate?: string
+          position: number
+          receipt_number?: string
+          receipt_path?: string | null
+          supplier: string
+          tag: string
+          tin: string
+        }
+        Update: {
+          amount?: number
+          expense_date?: string
+          id?: string
+          liquidation_id?: string
+          particulars?: string
+          physical_checked?: boolean
+          plate?: string
+          position?: number
+          receipt_number?: string
+          receipt_path?: string | null
+          supplier?: string
+          tag?: string
+          tin?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_receipt_lines_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_receipt_lines_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: false
             referencedRelation: "replenishment_eligibility_v"
@@ -511,11 +638,14 @@ export type Database = {
           department: string
           employee_name: string
           filing_date: string
+          flow_version: number
           fund_id: string
           fund_name: string
           id: string
           owner_id: string
           pcv_number: string
+          receipt_review_revision: number
+          receipt_reviewed_by: string | null
           reimbursement_approved_at: string | null
           reimbursement_approved_by: string | null
           review_note: string | null
@@ -535,11 +665,14 @@ export type Database = {
           department?: string
           employee_name: string
           filing_date?: string
+          flow_version?: number
           fund_id: string
           fund_name: string
           id?: string
           owner_id: string
           pcv_number: string
+          receipt_review_revision?: number
+          receipt_reviewed_by?: string | null
           reimbursement_approved_at?: string | null
           reimbursement_approved_by?: string | null
           review_note?: string | null
@@ -559,11 +692,14 @@ export type Database = {
           department?: string
           employee_name?: string
           filing_date?: string
+          flow_version?: number
           fund_id?: string
           fund_name?: string
           id?: string
           owner_id?: string
           pcv_number?: string
+          receipt_review_revision?: number
+          receipt_reviewed_by?: string | null
           reimbursement_approved_at?: string | null
           reimbursement_approved_by?: string | null
           review_note?: string | null
@@ -595,6 +731,13 @@ export type Database = {
           {
             foreignKeyName: "liquidations_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_receipt_reviewed_by_fkey"
+            columns: ["receipt_reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -789,9 +932,13 @@ export type Database = {
       }
       replenishments: {
         Row: {
+          approver_approved_at: string | null
+          approver_id: string | null
           created_at: string
           fund_id: string
           id: string
+          paid_at: string | null
+          paid_by: string | null
           request_no: string
           requested_by: string | null
           review_note: string | null
@@ -801,9 +948,13 @@ export type Database = {
           total: number
         }
         Insert: {
+          approver_approved_at?: string | null
+          approver_id?: string | null
           created_at?: string
           fund_id: string
           id?: string
+          paid_at?: string | null
+          paid_by?: string | null
           request_no: string
           requested_by?: string | null
           review_note?: string | null
@@ -813,9 +964,13 @@ export type Database = {
           total?: number
         }
         Update: {
+          approver_approved_at?: string | null
+          approver_id?: string | null
           created_at?: string
           fund_id?: string
           id?: string
+          paid_at?: string | null
+          paid_by?: string | null
           request_no?: string
           requested_by?: string | null
           review_note?: string | null
@@ -825,6 +980,13 @@ export type Database = {
           total?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "replenishments_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "replenishments_fund_id_fkey"
             columns: ["fund_id"]
@@ -840,6 +1002,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "replenishments_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "replenishments_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
@@ -851,6 +1020,343 @@ export type Database = {
             columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_expenses: {
+        Row: {
+          amount: number
+          book_id: string
+          category: string
+          company: string
+          expense_date: string | null
+          particulars: string
+          person: string
+          plate: string
+          receipt_number: string
+          sheet_id: number
+          sheet_name: string
+          source_row: number
+          supplier: string
+          voucher: string
+        }
+        Insert: {
+          amount: number
+          book_id: string
+          category?: string
+          company?: string
+          expense_date?: string | null
+          particulars: string
+          person?: string
+          plate?: string
+          receipt_number?: string
+          sheet_id: number
+          sheet_name: string
+          source_row: number
+          supplier?: string
+          voucher?: string
+        }
+        Update: {
+          amount?: number
+          book_id?: string
+          category?: string
+          company?: string
+          expense_date?: string | null
+          particulars?: string
+          person?: string
+          plate?: string
+          receipt_number?: string
+          sheet_id?: number
+          sheet_name?: string
+          source_row?: number
+          supplier?: string
+          voucher?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_expenses_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_workbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_jobs: {
+        Row: {
+          attempts: number
+          book_id: string
+          error: string | null
+          id: string
+          liquidation_id: string
+          operation_id: string
+          preview_id: string
+          report: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          book_id: string
+          error?: string | null
+          id?: string
+          liquidation_id: string
+          operation_id: string
+          preview_id: string
+          report?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          book_id?: string
+          error?: string | null
+          id?: string
+          liquidation_id?: string
+          operation_id?: string
+          preview_id?: string
+          report?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_jobs_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_workbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_jobs_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_jobs_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "sheet_jobs_preview_id_fkey"
+            columns: ["preview_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_previews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_previews: {
+        Row: {
+          book_id: string
+          config_version: number
+          created_at: string
+          expires_at: string
+          google_token: string
+          id: string
+          liquidation_id: string
+          operation_id: string
+          requests: Json
+          reviewer_id: string
+          revision: number
+          sheet_id: number
+          sheet_name: string
+          summary: Json
+        }
+        Insert: {
+          book_id: string
+          config_version: number
+          created_at?: string
+          expires_at?: string
+          google_token: string
+          id?: string
+          liquidation_id: string
+          operation_id: string
+          requests: Json
+          reviewer_id: string
+          revision: number
+          sheet_id: number
+          sheet_name: string
+          summary: Json
+        }
+        Update: {
+          book_id?: string
+          config_version?: number
+          created_at?: string
+          expires_at?: string
+          google_token?: string
+          id?: string
+          liquidation_id?: string
+          operation_id?: string
+          requests?: Json
+          reviewer_id?: string
+          revision?: number
+          sheet_id?: number
+          sheet_name?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_previews_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_workbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_previews_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_previews_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "sheet_previews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_rollovers: {
+        Row: {
+          book_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          operation_id: string
+          replenishment_id: string
+          report: Json | null
+          requests: Json | null
+          status: string
+          target_name: string | null
+          target_sheet_id: number | null
+        }
+        Insert: {
+          book_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          operation_id: string
+          replenishment_id: string
+          report?: Json | null
+          requests?: Json | null
+          status?: string
+          target_name?: string | null
+          target_sheet_id?: number | null
+        }
+        Update: {
+          book_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          operation_id?: string
+          replenishment_id?: string
+          report?: Json | null
+          requests?: Json | null
+          status?: string
+          target_name?: string | null
+          target_sheet_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_rollovers_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_workbooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_rollovers_replenishment_id_fkey"
+            columns: ["replenishment_id"]
+            isOneToOne: true
+            referencedRelation: "replenishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_workbooks: {
+        Row: {
+          active_sheet_id: number | null
+          audit_id: string
+          catalog: Json
+          config_version: number
+          custodian_id: string | null
+          enabled: boolean
+          fund_id: string | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          refresh_token: string | null
+          refresh_until: string | null
+          spreadsheet_id: string
+          sync_error: string | null
+        }
+        Insert: {
+          active_sheet_id?: number | null
+          audit_id?: string
+          catalog?: Json
+          config_version?: number
+          custodian_id?: string | null
+          enabled?: boolean
+          fund_id?: string | null
+          id: string
+          last_synced_at?: string | null
+          name: string
+          refresh_token?: string | null
+          refresh_until?: string | null
+          spreadsheet_id: string
+          sync_error?: string | null
+        }
+        Update: {
+          active_sheet_id?: number | null
+          audit_id?: string
+          catalog?: Json
+          config_version?: number
+          custodian_id?: string | null
+          enabled?: boolean
+          fund_id?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          refresh_token?: string | null
+          refresh_until?: string | null
+          spreadsheet_id?: string
+          sync_error?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_workbooks_custodian_id_fkey"
+            columns: ["custodian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_workbooks_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "sheet_workbooks_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
             referencedColumns: ["id"]
           },
         ]
@@ -912,9 +1418,11 @@ export type Database = {
           budget_request_id: string | null
           category_id: string
           created_at: string
+          flow_version: number
           fund_id: string
           id: string
           no_receipt_reason: string | null
+          number_order: number
           paper_drive_url: string | null
           paper_pcv_number: string | null
           paper_voucher_path: string | null
@@ -940,9 +1448,11 @@ export type Database = {
           budget_request_id?: string | null
           category_id: string
           created_at?: string
+          flow_version?: number
           fund_id: string
           id?: string
           no_receipt_reason?: string | null
+          number_order?: never
           paper_drive_url?: string | null
           paper_pcv_number?: string | null
           paper_voucher_path?: string | null
@@ -968,9 +1478,11 @@ export type Database = {
           budget_request_id?: string | null
           category_id?: string
           created_at?: string
+          flow_version?: number
           fund_id?: string
           id?: string
           no_receipt_reason?: string | null
+          number_order?: never
           paper_drive_url?: string | null
           paper_pcv_number?: string | null
           paper_voucher_path?: string | null
@@ -1106,6 +1618,18 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      approve_liquidation_with_sheet: {
+        Args: { p_preview: string }
+        Returns: string
+      }
+      approve_liquidation_with_sheet_legacy: {
+        Args: { p_preview: string }
+        Returns: string
+      }
+      approve_replenishment: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
       approve_voucher: { Args: { p_id: string }; Returns: undefined }
       assign_custodian_funds: {
         Args: { p_fund_ids: string[]; p_user_id: string }
@@ -1119,11 +1643,26 @@ export type Database = {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: boolean
       }
+      claim_sheet_refresh: { Args: { p_id: string }; Returns: string }
       clean_paper_pcv: {
         Args: { p_exclude?: string; p_fund_id: string; p_value: string }
         Returns: string
       }
       close_replenishment: { Args: { p_id: string }; Returns: undefined }
+      close_replenishment_before_approver: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      configure_sheet_workbook: {
+        Args: {
+          p_custodian: string
+          p_enabled: boolean
+          p_fund: string
+          p_id: string
+          p_sheet: number
+        }
+        Returns: undefined
+      }
       create_budget_request: {
         Args: {
           p_amount: number
@@ -1134,6 +1673,10 @@ export type Database = {
         Returns: string
       }
       create_liquidation: { Args: { p_voucher_id: string }; Returns: string }
+      create_liquidation_legacy: {
+        Args: { p_voucher_id: string }
+        Returns: string
+      }
       create_replenishment: { Args: { p_fund_id: string }; Returns: string }
       create_voucher: {
         Args: {
@@ -1169,6 +1712,10 @@ export type Database = {
         }
         Returns: string
       }
+      execute_data_deletion: {
+        Args: { p_confirmation: string; p_id: string }
+        Returns: undefined
+      }
       liquidation_context: {
         Args: { p_voucher_id: string }
         Returns: {
@@ -1187,6 +1734,7 @@ export type Database = {
           voucher_status: Database["public"]["Enums"]["voucher_status"]
         }[]
       }
+      list_custodian_tags: { Args: { p_fund: string }; Returns: string[] }
       list_request_funds: {
         Args: never
         Returns: {
@@ -1209,6 +1757,9 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
         }[]
       }
+      pending_expense_category: { Args: never; Returns: string }
+      plan_data_deletion: { Args: { p: Json }; Returns: Json }
+      prepare_data_deletion: { Args: { p: Json }; Returns: Json }
       record_cash_count: {
         Args: { p_counted: number; p_fund_id: string; p_note?: string }
         Returns: string
@@ -1222,6 +1773,10 @@ export type Database = {
         Returns: undefined
       }
       release_voucher: { Args: { p_id: string }; Returns: undefined }
+      replace_sheet_mirror: {
+        Args: { p_catalog: Json; p_id: string; p_rows: Json; p_token: string }
+        Returns: undefined
+      }
       replenishment_fund_options: {
         Args: never
         Returns: {
@@ -1262,8 +1817,16 @@ export type Database = {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
         Returns: undefined
       }
+      review_liquidation_before_sheets: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
       review_replenishment: {
         Args: { p_approve: boolean; p_id: string; p_note?: string }
+        Returns: undefined
+      }
+      save_custodian_receipts: {
+        Args: { p_id: string; p_lines: Json; p_revision: number }
         Returns: undefined
       }
       save_liquidation: {
@@ -1276,13 +1839,48 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_liquidation_before_sheets: {
+        Args: {
+          p_department: string
+          p_filing_date: string
+          p_id: string
+          p_items: Json
+          p_unspent_reason?: string
+        }
+        Returns: undefined
+      }
+      save_liquidation_legacy: {
+        Args: {
+          p_department: string
+          p_filing_date: string
+          p_id: string
+          p_items: Json
+          p_unspent_reason?: string
+        }
+        Returns: undefined
+      }
+      save_workflow_voucher: {
+        Args: {
+          p_date: string
+          p_fund: string
+          p_id: string
+          p_items: Json
+          p_number: string
+          p_number_mode: string
+          p_payee: string
+          p_request: string
+        }
+        Returns: string
+      }
       set_fund_custodians: {
         Args: { p_custodian_ids: string[]; p_fund_id: string }
         Returns: undefined
       }
       submit_liquidation: { Args: { p_id: string }; Returns: undefined }
+      submit_liquidation_legacy: { Args: { p_id: string }; Returns: undefined }
       submit_replenishment: { Args: { p_id: string }; Returns: undefined }
       submit_voucher: { Args: { p_id: string }; Returns: undefined }
+      suggest_voucher_number: { Args: { p_fund: string }; Returns: string }
       update_voucher_lines: {
         Args: {
           p_id: string
@@ -1306,6 +1904,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "closed"
+        | "accounting_approved"
       user_role: "admin" | "custodian" | "approver" | "accounting" | "requester"
       voucher_status:
         | "draft"
@@ -1448,6 +2047,7 @@ export const Constants = {
         "approved",
         "rejected",
         "closed",
+        "accounting_approved",
       ],
       user_role: ["admin", "custodian", "approver", "accounting", "requester"],
       voucher_status: [

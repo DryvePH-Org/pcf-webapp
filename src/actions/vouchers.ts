@@ -1,5 +1,7 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -100,18 +102,12 @@ export async function createVoucher(
   const values = parsed.data;
   const supabase = await createClient();
   const items = values.items.map(item => ({ particulars: item.particulars, amount: toMoneyNumber(item.amount), category_id: item.category_id }));
-  const { data, error } = values.budget_request_id
-    ? await supabase.rpc("create_voucher_from_request", {
-        p_request_id: values.budget_request_id,
-        p_items: items,
-        p_voucher_date: values.voucher_date,
-        p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
-      })
-    : await supabase.rpc("create_voucher_lines", {
-        p_fund_id: values.fund_id, p_payee: values.payee, p_items: items,
-        p_voucher_date: values.voucher_date,
-        p_no_receipt_reason: values.no_receipt_reason?.trim() || undefined,
-      });
+  const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const { data, error } = await workflow.rpc("save_workflow_voucher", {
+    p_id: null, p_fund: values.fund_id, p_request: values.budget_request_id ?? null,
+    p_payee: values.payee, p_date: values.voucher_date, p_items: items,
+    p_number_mode: values.number_mode ?? "auto", p_number: values.number_value ?? null,
+  });
 
   if (error) return createVoucherError(safeDbMessage(error));
 
@@ -137,15 +133,12 @@ export async function updateVoucher(
 
   const values = parsed.data;
   const supabase = await createClient();
-  const { error } = await supabase.rpc("update_voucher_lines", {
-    p_id: values.voucher_id,
-    p_payee: values.payee,
-    p_items: values.items.map((item) => ({
-      particulars: item.particulars,
-      amount: toMoneyNumber(item.amount),
-      category_id: item.category_id,
-    })),
-    p_voucher_date: values.voucher_date,
+  const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await workflow.rpc("save_workflow_voucher", {
+    p_id: values.voucher_id, p_fund: null, p_request: null, p_payee: values.payee,
+    p_date: values.voucher_date,
+    p_items: values.items.map(item => ({ particulars: item.particulars, amount: toMoneyNumber(item.amount) })),
+    p_number_mode: values.number_mode ?? "none", p_number: values.number_value ?? null,
   });
   if (error) return actionError(safeDbMessage(error));
 
@@ -416,4 +409,12 @@ export async function voidVoucher(
   queueNotification("voucher.voided", () => notifyVoucherVoided(voidedId, user.id));
   revalidateVoucher(parsed.data.voucher_id);
   return { ok: true };
+}
+
+export async function suggestVoucherNumber(fundId: string) {
+  const user = await getCurrentUser();
+  if (!user || !z.uuid().safeParse(fundId).success) return { ok: false as const, error: "Choose a fund." };
+  const db = await createClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const { data, error } = await db.rpc("suggest_voucher_number", { p_fund: fundId });
+  return error ? { ok: false as const, error: safeDbMessage(error) } : { ok: true as const, number: data };
 }

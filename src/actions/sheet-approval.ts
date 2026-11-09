@@ -9,6 +9,7 @@ import type { Json } from '@/lib/database.types';
 import { sheetsAdmin,sheetsBridge,type ReadResult } from '@/lib/sheets/bridge';
 import { planExpenses,type ExpenseForSheet } from '@/lib/sheets/planner';
 import type { SheetsDatabase,Cell,SheetTab } from '@/lib/sheets/types';
+import type { WorkflowDatabase } from '@/lib/workflow';
 import { safeDbMessage } from '@/lib/db-error';
 export async function previewSheetApproval(id:string) {
  const user=await getCurrentUser();if(!user||!['custodian','admin'].includes(user.role)||!z.uuid().safeParse(id).success)return {ok:false as const,error:'Custodian access required.'};
@@ -31,11 +32,26 @@ export async function previewSheetApproval(id:string) {
   if(!existing.data&&pendingRollover.data?.length)throw new Error('Complete the pending replenishment worksheet before synchronizing more expenses.');
   const items=await db.from('liquidation_items').select('*').eq('liquidation_id',id).order('position');const cats=await db.from('categories').select('id,name');
   if(items.error||cats.error)throw new Error('Could not load expenses.');
-  const expenses:ExpenseForSheet[]=(items.data??[]).map(item=>{
+  const flow=l.data as typeof l.data & {flow_version:number;receipt_review_revision:number;receipt_reviewed_by:string|null};
+  const newFlow=flow.flow_version===2;
+  const workflow=db as unknown as SupabaseClient<WorkflowDatabase>;
+  const receipts=await workflow.from('liquidation_receipt_lines').select('*').eq('liquidation_id',id).order('position');
+  if(receipts.error)throw new Error('Could not load the custodian receipt review.');
+  if(newFlow&&!existing.data&&flow.receipt_reviewed_by!==user.id)throw new Error('Complete and save the physical receipt review before preparing approval.');
+  const voucher=await db.from('vouchers').select('*').eq('id',l.data.voucher_id).single();
+  if(voucher.error)throw new Error('Could not read the voucher number.');
+  const voucherNumber=(voucher.data as typeof voucher.data & {flow_version:number}).flow_version===2 ? voucher.data.paper_pcv_number??'' : l.data.pcv_number;
+  const legacyExpenses=(newFlow?[]:(items.data??[])).map(item=>{
    const detail=(item as typeof item & {sheet_details?:Record<string,string>}).sheet_details??{};
    if(!detail.expense_date)throw new Error(`Enter the actual expense date for expense ${item.position}. Flag it for correction if needed.`);
    return {id:item.id,expense_date:detail.expense_date,particulars:item.particulars,amount:Number(item.amount),category:detail.sheet_category||(cats.data?.find(c=>c.id===item.category_id)?.name??''),person:l.data.employee_name,supplier:detail.supplier??'',plate:detail.plate??'',receipt_number:detail.receipt_number??'',tin:detail.tin??'',address:detail.address??'',voucher:l.data.pcv_number,company:detail.company||(w.data.id==='dryve'?'DRYVE':'MAD')};
   });
+  const expenses:ExpenseForSheet[]=newFlow ? (receipts.data??[]).map(receipt=>({
+    id:receipt.id,expense_date:receipt.expense_date,particulars:receipt.particulars,amount:Number(receipt.amount),
+    category:receipt.tag,person:l.data.employee_name,supplier:receipt.supplier,plate:receipt.plate,
+    receipt_number:receipt.receipt_number,tin:receipt.tin,address:'',voucher:voucherNumber,company:w.data.id==='dryve'?'DRYVE':'MAD',
+  })) : legacyExpenses;
+  if(newFlow&&Math.round(expenses.reduce((sum,expense)=>sum+expense.amount,0)*100)!==Math.round(Number(l.data.total_spent)*100))throw new Error('Receipt entries do not match the requester total.');
   const rows:Cell[][]=[];let cursor:number|null=0;let offline=false;
   if(expenses.length){try {
    while(cursor!==null){const response:ReadResult=await sheetsBridge<ReadResult>({action:'read',book:w.data.id,sheetId:w.data.active_sheet_id,startRow:cursor,limit:500});for(const sheet of response.snapshot.data.sheets??[])for(const block of sheet.data??[])for(const [i,row] of (block.rowData??[]).entries())rows[(block.startRow??cursor)+i]=row.values??[];const next:number|null=response.snapshot.nextRow;if(next!==null&&next<=cursor)throw new Error('Invalid Google pagination.');cursor=next;}
@@ -46,7 +62,7 @@ export async function previewSheetApproval(id:string) {
   if(requests.length){try{google=await sheetsBridge({action:'preview',book:w.data.id,operationId:operation,requests});}catch{offline=true;requests=[];google={preview:{token:'needs-preview'}};}}
   if(google.preview.alreadyApplied&&existing.data){await admin.from('sheet_jobs').update({status:'synced',report:google.preview.report??null,error:null}).eq('id',existing.data.id);return {ok:false as const,error:'This update was already delivered. Refresh to view its report.'};}
   const tab=(w.data.catalog as unknown as SheetTab[]).find(t=>t.sheetId===w.data.active_sheet_id);
-  const previewId=randomUUID();const summary={warning:offline?'Google is unavailable. Approval can be recorded; delivery will wait for a fresh preview and confirmation.':'',workbook:w.data.name,worksheet:tab?.title??String(w.data.active_sheet_id),expenses,total:expenses.reduce((s,i)=>s+i.amount,0),url:`https://docs.google.com/spreadsheets/d/${w.data.spreadsheet_id}/edit#gid=${w.data.active_sheet_id}`};
+  const previewId=randomUUID();const summary={review_revision:flow.receipt_review_revision,warning:offline?'Google is unavailable. Approval can be recorded; delivery will wait for a fresh preview and confirmation.':'',workbook:w.data.name,worksheet:tab?.title??String(w.data.active_sheet_id),expenses,total:expenses.reduce((s,i)=>s+i.amount,0),url:`https://docs.google.com/spreadsheets/d/${w.data.spreadsheet_id}/edit#gid=${w.data.active_sheet_id}`};
   const saved=await admin.from('sheet_previews').insert({id:previewId,liquidation_id:id,reviewer_id:user.id,revision:l.data.revision,book_id:w.data.id,config_version:w.data.config_version,sheet_id:w.data.active_sheet_id,sheet_name:summary.worksheet,operation_id:operation,requests:requests as Json,google_token:google.preview.token!,summary:summary as unknown as Json,expires_at:new Date(Date.now()+240000).toISOString(),created_at:new Date().toISOString()});
   if(saved.error)throw new Error('Could not save update preview.');
   return {ok:true as const,id:previewId,summary,retry:Boolean(existing.data)};

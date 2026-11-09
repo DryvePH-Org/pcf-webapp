@@ -1,4 +1,6 @@
 "use server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -164,4 +166,17 @@ export async function closeReplenishment(id: string): Promise<ActionResult> {
   );
   revalidateReplenishment(parsedId.data);
   return { ok: true };
+}
+
+export async function approveReplenishment(id:string, approve:boolean, note:string = ""):Promise<ActionResult> {
+  const user=await getCurrentUser();
+  if(!user||!["admin","approver"].includes(user.role))return actionError("Approver access required.");
+  const parsed=replenishmentReviewSchema.safeParse({replenishment_id:id,approve,note});
+  if(!parsed.success)return validationError(parsed.error);
+  const db=await createClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const {error}=await db.rpc("approve_replenishment",{p_id:id,p_approve:approve,p_note:note||null});
+  if(error)return actionError(safeDbMessage(error));
+  queueNotification(approve?"replenishment.approved":"replenishment.rejected",()=>approve?notifyReplenishmentApproved(id,user.id):notifyReplenishmentRejected(id,user.id));
+  revalidateReplenishment(id);
+  return {ok:true};
 }

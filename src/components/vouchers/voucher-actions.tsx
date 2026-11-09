@@ -68,6 +68,7 @@ export function VoucherActions({
     approval_threshold: string;
     needs_approval: boolean;
     prepared_by: string;
+    flow_version?: number;
     receipt_path: string | null;
     no_receipt_reason: string | null;
     replenishment_id: string | null;
@@ -85,7 +86,7 @@ export function VoucherActions({
   const preApproved = voucher.status === "approved" && !voucher.released_at;
   const isReleased = Boolean(voucher.released_at);
   const hasProof =
-    Boolean(voucher.receipt_path) || Boolean(voucher.no_receipt_reason?.trim());
+    voucher.flow_version === 2 || Boolean(voucher.receipt_path) || Boolean(voucher.no_receipt_reason?.trim());
   const custodianSide =
     own || viewer.role === "admin"
       ? canPerform(viewer.role, "voucher.release")
@@ -95,7 +96,7 @@ export function VoucherActions({
   const canRelease =
     ((isDraft && !voucher.needs_approval) || preApproved) && custodianSide;
   const canAttach =
-    isDraft &&
+    voucher.flow_version !== 2 && isDraft &&
     own &&
     canPerform(viewer.role, "voucher.create");
   const canEdit = isDraft && own && canPerform(viewer.role, "voucher.create");

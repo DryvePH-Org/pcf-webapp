@@ -54,7 +54,7 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
     { count: reviewRequests, href: "/requests?status=submitted", label: "budget requests to review" },
     { count: reviewLiquidations, href: "/liquidations?status=submitted", label: "liquidations to review" },
     { count: approvalCount, href: "/approvals", label: "vouchers to approve or review" },
-    { count: replenishmentCount, href: "/replenishments?status=submitted", label: "replenishments to review" },
+    { count: replenishmentCount, href: "/replenishments", label: "replenishments to review" },
   ].filter(queue => queue.count > 0);
 
   return (

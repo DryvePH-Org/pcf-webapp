@@ -7,6 +7,7 @@ import {
 const TONES: Record<ReplenishmentStatus, Tone> = {
   draft: "neutral",
   submitted: "waiting",
+  accounting_approved: "info",
   approved: "success",
   rejected: "danger",
   closed: "done",

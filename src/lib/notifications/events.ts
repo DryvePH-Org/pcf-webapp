@@ -82,7 +82,7 @@ async function loadReplenishment(id: string) {
   const admin = createAdminClient();
   const { data: request, error } = await admin
     .from("replenishments")
-    .select("id, request_no, total, requested_by, review_note, fund_id")
+    .select("id, request_no, total, requested_by, review_note, fund_id, status")
     .eq("id", id)
     .single();
   if (error) throw error;
@@ -301,20 +301,21 @@ export async function notifyReplenishmentSubmitted(id: string, actorId: string) 
 export async function notifyReplenishmentApproved(id: string, actorId: string) {
   const { request, rows } = await loadReplenishment(id);
   const actor = await nameOf(actorId);
+  const awaitingApprover = String(request.status) === "accounting_approved";
   await notify({
     event: "replenishment.approved",
     entityType: "replenishments",
     entityId: id,
-    recipients: await recipientsByRole([], {
+    recipients: await recipientsByRole(awaitingApprover ? ["approver"] : ["accounting"], {
       include: [request.requested_by],
       exclude: exclude(actorId),
     }),
-    subject: `Approved: ${request.request_no}`,
+    subject: `${awaitingApprover ? "Awaiting approver" : "Approved for cash handover"}: ${request.request_no}`,
     content: () => ({
       tone: "info",
-      heading: `${request.request_no} was approved`,
+      heading: `${request.request_no} ${awaitingApprover ? "passed Accounting review" : "was approved"}`,
       paragraphs: [
-        `${actor} approved this replenishment request. It will be closed once the cash has been handed back to the fund.`,
+        awaitingApprover ? `${actor} completed Accounting review. An independent Approver must approve the request before cash handover.` : `${actor} approved this replenishment. Accounting can now hand cash to the custodian and confirm the fund replenishment.`,
       ],
       rows,
       cta: { label: "Open request", path: `/replenishments/${id}` },

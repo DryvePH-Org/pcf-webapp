@@ -53,3 +53,15 @@ export function findLedgerBoundary(grid:Cell[][],header:number,out:number):numbe
  if(subtotal>=0)return subtotal;
  return grid.findIndex((row,index)=>index>header&&row.some(cell=>/^TOTAL DISBURSEMENTS?$/.test(text(cell))));
 }
+
+/** Account-summary formulas also include tags with no historical expenses yet. */
+export function sheetExpenseTags(grid: Cell[][]): string[] {
+  const tags = new Set<string>();
+  for (const row of grid) {
+    for (const cell of row) {
+      const formula = cell?.userEnteredValue?.formulaValue ?? "";
+      for (const match of formula.matchAll(/SUMIF\([^,]+,\s*"([^"]+)"/gi)) tags.add(match[1]);
+    }
+  }
+  return [...tags].sort();
+}

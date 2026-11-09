@@ -8,6 +8,8 @@ import type { VoucherStatus } from "@/lib/voucher-status";
 // particulars / amount table and two signature lines.
 export function VoucherPrint({
   pcvNumber,
+  budgetVoucher = false,
+  documentNumber,
   fundName,
   voucherDate,
   payee,
@@ -22,6 +24,8 @@ export function VoucherPrint({
   voidReason,
 }: {
   pcvNumber: string;
+  budgetVoucher?: boolean;
+  documentNumber?: string | null;
   fundName: string;
   voucherDate: string;
   payee: string;
@@ -36,7 +40,7 @@ export function VoucherPrint({
   noReceiptReason: string | null;
   voidReason: string | null;
 }) {
-  const multiple = lines.length > 1;
+  const multiple = !budgetVoucher && lines.length > 1;
   return (
     <div className="mx-auto max-w-3xl bg-white p-2 text-black">
       <div className="border-2 border-black p-6">
@@ -44,7 +48,7 @@ export function VoucherPrint({
           <p className="text-[10px] uppercase">{fundName}</p>
           <div className="text-right text-[10px] uppercase">
             <p>
-              PCV No. <span className="font-mono text-sm font-bold">{pcvNumber}</span>
+              PCV No. <span className="font-mono text-sm font-bold">{budgetVoucher ? documentNumber || "—" : pcvNumber}</span>
             </p>
             <p>Status: {VOUCHER_STATUS_LABELS[status]}</p>
           </div>
@@ -128,7 +132,7 @@ export function VoucherPrint({
           {amountInWords(amount)}
         </p>
 
-        {noReceiptReason ? (
+        {!budgetVoucher && noReceiptReason ? (
           <p className="mt-2 text-xs">
             <span className="font-semibold">No receipt: </span>
             {noReceiptReason}

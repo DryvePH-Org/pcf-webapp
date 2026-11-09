@@ -1,5 +1,6 @@
 import 'server-only';
 import { sheetsAdmin, sheetsBridge, type Catalog, type ReadResult } from './bridge';
+import { sheetExpenseTags } from './planner';
 import { parseExpenseRows } from './parser';
 import type { Cell, SheetExpense } from './types';
 import type { Json } from '@/lib/database.types';
@@ -18,6 +19,7 @@ export async function refreshWorkbook(book:string) {
     for(const sheet of response.snapshot.data.sheets??[])for(const block of sheet.data??[])for(const [offset,row] of (block.rowData??[]).entries())rows[(block.startRow??cursor)+offset]=row.values??[];
     const next:number|null=response.snapshot.nextRow;if(next!==null&&next<=cursor)throw new Error('Invalid Google pagination.');cursor=next;
    }
+   tab.expenseTags=sheetExpenseTags(Array.from({length:rows.length},(_,i)=>rows[i]??[]));
    expenses.push(...parseExpenseRows(book,tab.sheetId,tab.title,Array.from({length:rows.length},(_,i)=>rows[i]??[])));
   }
   const saved=await db.rpc('replace_sheet_mirror',{p_id:book,p_rows:expenses as unknown as Json,p_catalog:entry.tabs as unknown as Json,p_token:claim.data});if(saved.error)throw new Error(saved.error.message);

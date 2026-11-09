@@ -5,7 +5,7 @@ import { ReceiptText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { VoucherForm } from "@/components/vouchers/voucher-form";
-import type { CategoryOption, FundOption } from "@/components/vouchers/types";
+import type { FundOption } from "@/components/vouchers/types";
 import type { Database } from "@/lib/database.types";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -25,21 +25,8 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
     request = data;
   }
 
-  const [fundsResult, categoriesResult] = await Promise.all([
-    supabase
-      .from("funds")
-      .select("id, name, per_txn_limit, approval_threshold")
-      .eq("is_active", true)
-      .order("created_at"),
-    supabase
-      .from("categories")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("name"),
-  ]);
-
+  const fundsResult = await supabase.from("funds").select("id, name, per_txn_limit, approval_threshold").eq("is_active",true).order("created_at");
   if (fundsResult.error) throw new Error(fundsResult.error.message);
-  if (categoriesResult.error) throw new Error(categoriesResult.error.message);
 
   const funds: FundOption[] = fundsResult.data.filter(fund => !request || fund.id === request.fund_id).map((fund) => ({
     id: fund.id,
@@ -47,18 +34,14 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
     per_txn_limit: String(fund.per_txn_limit),
     approval_threshold: String(fund.approval_threshold),
   }));
-  const categories: CategoryOption[] = categoriesResult.data.map(
-    (category) => ({ id: category.id, name: category.name }),
-  );
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="New voucher"
-        description="Record a petty cash expense. Saving and releasing cash hands the money out before the approver reviews it."
+        description="Create a budget voucher. Approval limits apply before cash is released."
       />
 
-      {funds.length === 0 || categories.length === 0 ? (
+      {funds.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
           title={
@@ -69,13 +52,12 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
           description={
             funds.length === 0 && user.role === "custodian"
               ? "Ask an administrator to assign you a fund before recording a voucher."
-              : "Add at least one active fund and category before recording a voucher."
+              : "Add an active fund before recording a voucher."
           }
         />
       ) : (
         <VoucherForm
           funds={funds}
-          categories={categories}
           request={request ? { id: request.id, fund_id: request.fund_id, name: request.requester_name, purpose: request.purpose, amount: Number(request.amount).toFixed(2) } : undefined}
         />
       )}

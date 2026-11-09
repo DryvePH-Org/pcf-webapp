@@ -41,7 +41,7 @@ export default async function ReplenishmentsPage({ searchParams }: { searchParam
         )
         .order("created_at", { ascending: false }).order("id").range((page - 1) * 20, page * 20 - 1),
       supabase.from("funds").select("id, name, is_active"),
-      supabase.rpc("replenishment_fund_options"),
+      user.role === "approver" ? Promise.resolve({data:[],error:null}) : supabase.rpc("replenishment_fund_options"),
     ]);
 
   if (replenishmentsResult.error) throw new Error(replenishmentsResult.error.message);

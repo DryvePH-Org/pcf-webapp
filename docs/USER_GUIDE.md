@@ -220,3 +220,38 @@ exactly to enable deletion. **Cancel** closes the preview without deleting data.
 Accounts, Google workbook contents, and the audit trail are retained. A full
 reset clears fund assignments and disables sheet automation until reassigned.
 Use **Retry pending file cleanup** if a prior removal was interrupted.
+
+
+## Requester expenses and custodian receipt review
+
+1. The requester submits a budget request. The custodian reviews it and creates
+   a voucher. The existing fund limit determines whether an Approver must approve
+   before cash release.
+2. Voucher creation contains the date, payee, and particulars with amounts.
+   Choose automatic numbering, enter a manual receipt/voucher number, or select
+   no document number. Automatic numbering follows the last saved numbered
+   voucher in that fund. When no numbered app voucher exists, it uses the latest
+   usable number in the assigned workbook mirror, then the fund counter. The app
+   keeps its internal reference for audit and links.
+3. After spending, the requester files liquidation with their locked account name
+   and filing date, department, particulars, amounts, and optional plate numbers.
+   Every expense needs a receipt picture. Received cash comes from the voucher.
+   Spent, return due, and reimbursement due are calculated automatically.
+4. The custodian verifies the physical receipts and completes separate receipt
+   entries. Entries may split or combine receipt amounts, but their sum must match
+   the requester total. Enter the supplier, TIN or NON VAT, exact CE/NCE workbook
+   tag, transaction or liquidation date, plate, and optional invoice number.
+5. Extraction can suggest details from the requester picture or a new photograph
+   of the physical receipt. Edit suggestions and confirm each physical receipt,
+   then save the review. The Google Sheets preview is available after this step.
+   Confirming approval queues the reviewed receipt entries for the assigned
+   workbook. Input VAT remains excluded.
+
+## Replenishment approvals and actual cash handover
+
+The custodian bundles approved, settled voucher expenses and submits the request.
+Accounting reviews the request and vouchers, then sends it to an independent
+Approver. Every replenishment requires this approval. Accounting records the
+actual cash handover only after approval. This restores the corresponding cash
+and requests the next numbered Google worksheet. Approval alone does not move
+cash. Existing open accounting approvals also require the new Approver stage.

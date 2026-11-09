@@ -18,7 +18,7 @@ export const voucherLineSchema = z.object({
     .string()
     .trim()
     .refine(isPositiveMoney, "Enter an amount greater than zero."),
-  category_id: z.uuid("Choose a category."),
+  category_id: z.uuid().optional(),
 });
 
 export type VoucherLineValues = z.infer<typeof voucherLineSchema>;
@@ -26,6 +26,8 @@ export type VoucherLineValues = z.infer<typeof voucherLineSchema>;
 export const createVoucherSchema = z.object({
   fund_id: z.uuid("Choose a fund."),
   budget_request_id: z.uuid().optional(),
+  number_mode: z.enum(["auto", "manual", "none"]).optional(),
+  number_value: text({ max: 30 }).optional(),
   voucher_date: z
     .string()
     .regex(datePattern, "Choose a valid voucher date."),

@@ -1,6 +1,7 @@
 export const REPLENISHMENT_STATUSES = [
   "draft",
   "submitted",
+  "accounting_approved",
   "approved",
   "rejected",
   "closed",
@@ -13,8 +14,9 @@ export const REPLENISHMENT_STATUS_LABELS: Record<
   string
 > = {
   draft: "Draft",
-  submitted: "Submitted",
-  approved: "Approved",
+  submitted: "Awaiting Accounting",
+  accounting_approved: "Awaiting Approver",
+  approved: "Approved for cash handover",
   rejected: "Rejected",
   closed: "Closed",
 };

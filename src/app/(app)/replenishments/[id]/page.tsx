@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,7 +59,13 @@ export default async function ReplenishmentDetailPage({
   const { data: expenseLines, error: expenseError } = await supabase.from("liquidation_items").select("liquidation_id,amount,category_id").in("liquidation_id", liquidationIds);
   if (expenseError) throw new Error(expenseError.message);
 
+  const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const receipts = await workflow.from("liquidation_receipt_lines").select("*").in("liquidation_id",liquidationIds);
+  if (receipts.error) throw new Error(receipts.error.message);
+  const stages = replenishment as typeof replenishment & {approver_id:string|null;approver_approved_at:string|null;paid_by:string|null;paid_at:string|null};
   const profileIds = [
+    stages.approver_id,
+    stages.paid_by,
     replenishment.requested_by,
     replenishment.reviewed_by,
   ].filter((value): value is string => Boolean(value));
@@ -115,7 +123,7 @@ export default async function ReplenishmentDetailPage({
   const vouchers: ReplenishmentVoucherRow[] = vouchersData.map((voucher) => {
     const snapshot = snapshotByVoucher.get(voucher.id);
     const actualLines = expenseLines.filter(line => line.liquidation_id === snapshot?.liquidation_id);
-    const lines = (
+    const legacyLines = (
       snapshot?.liquidation_id ? actualLines : voucher.voucher_items.length
         ? voucher.voucher_items
         : [{ amount: voucher.amount, category_id: voucher.category_id }]
@@ -123,6 +131,8 @@ export default async function ReplenishmentDetailPage({
       amount: String(line.amount),
       category_name: categoryNames.get(line.category_id) ?? "—",
     }));
+    const receiptLines = (receipts.data??[]).filter(line=>line.liquidation_id===snapshot?.liquidation_id);
+    const lines = receiptLines.length ? receiptLines.map(line=>({amount:String(line.amount),category_name:line.tag})) : legacyLines;
     const distinct = new Set(lines.map((line) => line.category_name));
     return {
       id: voucher.id,
@@ -137,7 +147,7 @@ export default async function ReplenishmentDetailPage({
       category_name:
         distinct.size > 1
           ? "Multiple categories"
-          : (categoryNames.get(voucher.category_id) ?? "—"),
+          : (lines[0]?.category_name ?? "—"),
       lines,
       receipt_url: receiptUrls.get(voucher.id) ?? null,
       no_receipt_reason: voucher.no_receipt_reason,
@@ -368,7 +378,7 @@ export default async function ReplenishmentDetailPage({
                     value={`${requestedByName} · ${formatDateTime(replenishment.created_at)}`}
                   />
                   <Detail
-                    label="Reviewed by"
+                    label="Accounting review"
                     value={
                       reviewedByName
                         ? `${reviewedByName}${
@@ -379,6 +389,8 @@ export default async function ReplenishmentDetailPage({
                         : "Not yet reviewed"
                     }
                   />
+                  <Detail label="Approver approval" value={stages.approver_id ? `${profileNames.get(stages.approver_id)??'Approver'} · ${stages.approver_approved_at?formatDateTime(stages.approver_approved_at):''}` : replenishment.status === "closed" ? "Not recorded on legacy request" : "Awaiting approval"}/>
+                  <Detail label="Cash handover" value={stages.paid_by ? `${profileNames.get(stages.paid_by)??'Accounting'} · ${stages.paid_at?formatDateTime(stages.paid_at):''}` : "Not recorded"}/>
                 </dl>
 
                 {replenishment.review_note ? (
@@ -399,6 +411,8 @@ export default async function ReplenishmentDetailPage({
                 id: replenishment.id,
                 status,
                 requested_by: replenishment.requested_by,
+                reviewed_by: replenishment.reviewed_by,
+                approver_id: stages.approver_id,
               }}
               viewer={{ id: user.id, role: user.role }}
             />
@@ -407,6 +421,7 @@ export default async function ReplenishmentDetailPage({
       </div>
 
       <div className="hidden print:block">
+        <div className="hidden print:block text-sm">Approver {stages.approver_id?profileNames.get(stages.approver_id):replenishment.status==='closed'?'Not recorded':'Pending'} · Cash handed over {stages.paid_at?formatDateTime(stages.paid_at):'Not recorded'}</div>
         <ReplenishmentPrint
           requestNo={replenishment.request_no}
           fundName={fundName}

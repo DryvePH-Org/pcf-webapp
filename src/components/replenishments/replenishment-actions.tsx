@@ -6,6 +6,7 @@ import { CircleCheck, Lock, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  approveReplenishment,
   closeReplenishment,
   reviewReplenishment,
   submitReplenishment,
@@ -34,6 +35,8 @@ export function ReplenishmentActions({
     id: string;
     status: ReplenishmentStatus;
     requested_by: string | null;
+    reviewed_by?: string | null;
+    approver_id?: string | null;
   };
   viewer: { id: string; role: Role };
 }) {
@@ -48,10 +51,20 @@ export function ReplenishmentActions({
   const canReview =
     replenishment.status === "submitted" &&
     canPerform(viewer.role, "replenishment.review");
-  const canRejectApproved = replenishment.status === "approved" && canPerform(viewer.role, "replenishment.review");
+  const isApproverStage = replenishment.status === "accounting_approved";
+  const canApproveStage =
+    isApproverStage &&
+    ["admin", "approver"].includes(viewer.role) &&
+    ![replenishment.requested_by, replenishment.reviewed_by].includes(
+      viewer.id,
+    );
+  const canRejectApproved =
+    ["approved", "accounting_approved"].includes(replenishment.status) &&
+    canPerform(viewer.role, "replenishment.review");
   const canClose =
     replenishment.status === "approved" &&
-    canPerform(viewer.role, "replenishment.close");
+    canPerform(viewer.role, "replenishment.close") &&
+    Boolean(replenishment.approver_id);
 
   const close = () => setDialog(null);
 
@@ -74,14 +87,23 @@ export function ReplenishmentActions({
     });
   }
 
-  if (!canSubmit && !canReview && !canClose && !canRejectApproved) return null;
+  if (
+    !canSubmit &&
+    !canReview &&
+    !canClose &&
+    !canRejectApproved &&
+    !canApproveStage
+  )
+    return null;
 
   return (
     <>
       <Card>
         <CardHeader>
           <CardTitle>Actions</CardTitle>
-          <CardDescription>{describeState(replenishment.status)}</CardDescription>
+          <CardDescription>
+            {describeState(replenishment.status)}
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {canSubmit ? (
@@ -91,7 +113,7 @@ export function ReplenishmentActions({
             </Button>
           ) : null}
 
-          {canReview ? (
+          {canReview || canApproveStage ? (
             <>
               <Button disabled={pending} onClick={() => setDialog("approve")}>
                 <CircleCheck />
@@ -108,11 +130,19 @@ export function ReplenishmentActions({
             </>
           ) : null}
 
-          {canRejectApproved ? <Button variant="outline" disabled={pending} onClick={() => setDialog("reject")}>Reject and release vouchers</Button> : null}
+          {canRejectApproved ? (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => setDialog("reject")}
+            >
+              Reject and release vouchers
+            </Button>
+          ) : null}
           {canClose ? (
             <Button disabled={pending} onClick={() => setDialog("close")}>
               <Lock />
-              Mark as replenished and close
+              Confirm cash handed to custodian
             </Button>
           ) : null}
         </CardContent>
@@ -144,18 +174,26 @@ export function ReplenishmentActions({
             if (!open) close();
           }}
           title="Approve this replenishment?"
-          description="Approving confirms the request. Closing it restores the fund afterwards."
+          description={
+            isApproverStage
+              ? "Authorize Accounting to hand the cash to the custodian. Cash changes only when Accounting confirms handover."
+              : "Send the reviewed request and vouchers to an independent Approver. Every replenishment requires this approval."
+          }
           confirmLabel="Approve"
           pending={pending}
           onConfirm={() =>
             run(
               () =>
-                reviewReplenishment({
-                  replenishment_id: replenishment.id,
-                  approve: true,
-                  note: "",
-                }),
-              "Replenishment approved.",
+                isApproverStage
+                  ? approveReplenishment(replenishment.id, true)
+                  : reviewReplenishment({
+                      replenishment_id: replenishment.id,
+                      approve: true,
+                      note: "",
+                    }),
+              isApproverStage
+                ? "Approved for Accounting cash handover."
+                : "Accounting review saved. Sent to Approver.",
             )
           }
         />
@@ -177,11 +215,13 @@ export function ReplenishmentActions({
           onSubmit={(note) =>
             run(
               () =>
-                reviewReplenishment({
-                  replenishment_id: replenishment.id,
-                  approve: false,
-                  note,
-                }),
+                canApproveStage
+                  ? approveReplenishment(replenishment.id, false, note)
+                  : reviewReplenishment({
+                      replenishment_id: replenishment.id,
+                      approve: false,
+                      note,
+                    }),
               "Replenishment rejected. Vouchers returned to the pool.",
             )
           }
@@ -194,9 +234,9 @@ export function ReplenishmentActions({
           onOpenChange={(open) => {
             if (!open) close();
           }}
-          title="Close this replenishment?"
+          title="Confirm actual cash handover?"
           description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone. A new numbered Google worksheet will also be requested for the assigned workbook. Any pending sheet creation appears on the Accounting sheets dashboard."
-          confirmLabel="Close replenishment"
+          confirmLabel="Confirm cash handed over"
           pending={pending}
           onConfirm={() =>
             run(
@@ -216,8 +256,10 @@ function describeState(status: ReplenishmentStatus) {
       return "Bundled vouchers are waiting. Submit when the request is ready.";
     case "submitted":
       return "Waiting for accounting to review this request.";
+    case "accounting_approved":
+      return "Accounting reviewed the vouchers. Waiting for independent Approver approval.";
     case "approved":
-      return "Approved. Closing restores the fund.";
+      return "Approver approved. Accounting must confirm the actual cash handover.";
     case "rejected":
       return "Rejected. The vouchers were returned to the pool.";
     case "closed":

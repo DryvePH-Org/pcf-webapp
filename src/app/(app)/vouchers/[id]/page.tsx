@@ -113,6 +113,7 @@ export default async function VoucherDetailPage({
     category_name: categoryById.get(item.category_id) ?? "—",
   }));
   const distinctCategories = new Set(lines.map((line) => line.category_name));
+  const budgetVoucher = (voucher as typeof voucher & {flow_version?:number}).flow_version === 2;
   const categoryName =
     distinctCategories.size > 1
       ? "Multiple categories"
@@ -255,7 +256,7 @@ export default async function VoucherDetailPage({
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {fundName} · {categoryName}
+                    {fundName}{budgetVoucher ? "" : ` · ${categoryName}`}
                   </p>
                 </div>
 
@@ -284,7 +285,7 @@ export default async function VoucherDetailPage({
                 <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                   <Detail label="Voucher date" value={formatDate(voucher.voucher_date)} />
                   <Detail label="Payee" value={voucher.payee} />
-                  <Detail label="Category" value={categoryName} />
+                  {!budgetVoucher ? <Detail label="Category" value={categoryName} /> : <Detail label="Receipt / voucher number" value={voucher.paper_pcv_number || "Not provided"} />}
                   <Detail label="Fund" value={fundName} />
                   <Detail label="Prepared by" value={preparedByName} />
                   <Detail
@@ -329,7 +330,7 @@ export default async function VoucherDetailPage({
                       >
                         <div className="min-w-0">
                           <p className="whitespace-pre-wrap">{line.particulars}</p>
-                          {lines.length > 1 ? (
+                          {!budgetVoucher && lines.length > 1 ? (
                             <p className="text-xs text-muted-foreground">
                               {line.category_name}
                             </p>
@@ -343,7 +344,7 @@ export default async function VoucherDetailPage({
               </CardContent>
             </Card>
 
-            <Card>
+            {!budgetVoucher ? <Card>
               <CardHeader>
                 <CardTitle>Receipt</CardTitle>
                 <CardDescription>
@@ -359,7 +360,7 @@ export default async function VoucherDetailPage({
                 />
                 {receiptDriveUrl ? <DriveLink href={receiptDriveUrl} /> : null}
               </CardContent>
-            </Card>
+            </Card> : null}
 
             {paperUrl ? (
               <Card>
@@ -391,6 +392,7 @@ export default async function VoucherDetailPage({
                 prepared_by: voucher.prepared_by,
                 receipt_path: voucher.receipt_path,
                 no_receipt_reason: voucher.no_receipt_reason,
+                flow_version: (voucher as typeof voucher & {flow_version?:number}).flow_version,
                 replenishment_id: voucher.replenishment_id,
               }}
               viewer={{ id: user.id, role: user.role }}
@@ -457,6 +459,8 @@ export default async function VoucherDetailPage({
 
       <div className="hidden print:block">
         <VoucherPrint
+          budgetVoucher={budgetVoucher}
+          documentNumber={voucher.paper_pcv_number}
           pcvNumber={voucher.pcv_number}
           fundName={fundName}
           voucherDate={voucher.voucher_date}
