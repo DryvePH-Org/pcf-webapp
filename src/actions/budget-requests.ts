@@ -22,12 +22,12 @@ function refresh(id?: string) {
 export async function createBudgetRequest(input: CreateBudgetRequestValues): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Sign in to request a budget." };
-  const parsed = createBudgetRequestSchema.safeParse(input);
+  const parsed = createBudgetRequestSchema.safeParse({ ...input, requester_name: user.full_name });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
   if (!(await withinLimit(`request:create:${user.id}`, 20, 60))) return { ok: false, error: "Too many requests. Wait a minute and try again." };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_budget_request", {
-    p_fund_id: parsed.data.fund_id, p_name: parsed.data.requester_name,
+    p_fund_id: parsed.data.fund_id, p_name: user.full_name,
     p_amount: toMoneyNumber(parsed.data.amount), p_purpose: parsed.data.purpose,
   });
   if (error) return { ok: false, error: safeDbMessage(error) };

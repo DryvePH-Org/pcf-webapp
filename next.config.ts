@@ -10,11 +10,11 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "X-DNS-Prefetch-Control", value: "off" },
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
-  // The camera is needed to photograph receipts; nothing else is.
+  // Camera supports receipt uploads, and microphone supports budget dictation.
   {
     key: "Permissions-Policy",
     value:
-      "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
   },
 ];
 

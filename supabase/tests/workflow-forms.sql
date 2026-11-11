@@ -20,6 +20,7 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  assert not has_function_privilege('authenticated','public.create_voucher_lines(uuid,text,jsonb,date,text,text,text)','execute'),'legacy creation cannot bypass the new flow';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
  req:=create_budget_request('91000000-0000-4000-8000-000000000010','Editable request name',500,'Fuel budget');
+ assert (select requester_name='Workflow Requester' from budget_requests where id=req),'requester name comes from the signed-in profile';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  perform review_budget_request(req,true,null);
  update sheet_expenses set voucher='0049' where book_id='buying' and sheet_id=1 and source_row=1;
