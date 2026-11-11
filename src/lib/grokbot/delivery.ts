@@ -1,7 +1,5 @@
 import "server-only";
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
 import { GROKBOT_BUYING_TARGET, grokbotFinancialEvent } from "./contract";
@@ -87,10 +85,6 @@ async function deliverOperation(
   operation: Database["public"]["Tables"]["grokbot_operations"]["Row"],
 ) {
   const { url, secret } = configuration();
-  const routine = await readFile(
-    join(process.cwd(), "docs", "GROKBOT_BUYING_ROUTINE.md"),
-    "utf8",
-  );
   const db = createAdminClient();
   const expiry = await db
     .from("grokbot_operations")
@@ -102,18 +96,6 @@ async function deliverOperation(
     })
     .eq("id", operation.id);
   if (expiry.error) throw new Error("Could not prepare Grokbot callback.");
-  const payload = operation.payload as Record<string, Json>;
-  const event =
-    payload.event ??
-    (operation.kind === "workbook_refresh"
-      ? "pcf.workbook.refresh"
-      : "pcf.integration_test");
-  const mode =
-    operation.kind === "integration_test"
-      ? "test"
-      : operation.kind === "workbook_refresh"
-        ? "dry_run"
-        : "production";
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -122,22 +104,13 @@ async function deliverOperation(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        protocol_version: "pcf.grokbot.v1",
         operation_id: operation.id,
-        event,
-        mode,
-        target: GROKBOT_BUYING_TARGET,
-        required_editor_account: GROKBOT_EDITOR,
-        audit_sheet_id: GROKBOT_AUDIT_SHEET_ID,
         callback: {
           url: `https://pcf.dryveph.io/api/grokbot/operations/${operation.id}`,
           token: grokbotCallbackToken(operation.id),
         },
-        payload,
-        previous_report: operation.report,
         message:
-          "Execute the saved MAD PCF Buying routine. Use only the verified admin.manilaautodisplay@gmail.com Google connection. Before any work, GET callback status. A completed result ends the run. Generate a runner UUID for this run and POST status running with top-level runner_id. Continue only after HTTP 200. HTTP 409 means another runner owns this job and this run must stop. Include that same runner_id in every subsequent callback. Preserve prior report evidence for retries. Financial writes require append-only audit events in GROKBOT EDIT AUDIT, sheet ID 2133354940. Completed reports must include verified:true, editor_account, spreadsheet_id, sheet_id, rows_written, in_amount, out_amount, before_balance, after_balance, replenishment_number, audit_tab_id, audit_rows, and checks with all required checks true. Use exact decimal PHP strings for report amounts. For liquidation check all amounts, dates, numbering, running_balance, summary_formulas, input_vat_preserved, write_scope, duplicate_free. For replenishment also verify the green marker. For integration tests include restored:true and the same checks, plus the requested applied and restored evidence. Post a failed or blocked report if any check fails. A workbook refresh is strictly read-only, including the audit tab. Its completed report must include snapshot containing spreadsheet_id, sheet_id, sheet_title, and grid, a complete A1-based Cell[][] array with userEnteredValue, effectiveValue and formattedValue. Include all ledger, summary and signoff rows and relevant tag formula cells, up to 1000 rows and 30 columns. Use numeric effective values for computed cells. Do not truncate a larger sheet. Report blocked if the complete snapshot cannot fit the callback size limit. Read-only refreshes need verified:true, write_scope:true in checks, and the target IDs. Input VAT values always remain unchanged. Follow payload's narrower test scope and preconditions when supplied.\n\nCurrent complete routine follows.\n" +
-          routine,
+          "GET callback.url with Authorization: Bearer callback.token. Fetch payload_url and routine_url from that response with the same header. Download both completely. This notification carries no financial data. Persist a fresh runner UUID in a private per-run file before claiming. Reuse that UUID in every callback. Follow the fetched routine and payload.",
       }),
       redirect: "error",
       signal: AbortSignal.timeout(30000),

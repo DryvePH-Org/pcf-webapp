@@ -164,3 +164,25 @@ it("requires a runner claim and rejects another runner or unverified financial c
   ).toBe(422);
   expect(update).not.toHaveBeenCalled();
 });
+
+it("serves the complete authenticated payload outside the compact webhook", async () => {
+  const lines = Array.from({ length: 40 }, (_, index) => ({
+    entry_id: index,
+    particulars: "Exact line " + index,
+  }));
+  state.record!.payload = { event: "pcf.liquidation.approved", lines };
+  state.record!.kind = "liquidation_approved";
+  const response = await GET(
+    new Request(
+      "https://pcf.dryveph.io/api/grokbot/operations/" + id + "?part=payload",
+      { headers: { authorization: "Bearer " + token } },
+    ),
+    context,
+  );
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.payload.lines).toEqual(lines);
+  expect(body.operation_id).toBe(id);
+  expect(JSON.stringify(body)).not.toContain("callback_hash");
+  expect(JSON.stringify(body)).not.toContain(token);
+});

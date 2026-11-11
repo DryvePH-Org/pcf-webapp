@@ -1,4 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
@@ -37,11 +39,56 @@ export async function GET(
 ) {
   const auth = await authorize(request, (await params).id);
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const part = new URL(request.url).searchParams.get("part");
+  if (part === "routine") {
+    const routine = await readFile(
+      join(process.cwd(), "docs", "GROKBOT_BUYING_ROUTINE.md"),
+      "utf8",
+    );
+    return new Response(routine, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+  const base = `https://pcf.dryveph.io/api/grokbot/operations/${auth.operation.id}`;
+  if (part === "payload") {
+    const payload = auth.operation.payload as Record<string, Json>;
+    return Response.json(
+      {
+        protocol_version: "pcf.grokbot.v1",
+        operation_id: auth.operation.id,
+        event:
+          payload.event ??
+          (auth.operation.kind === "workbook_refresh"
+            ? "pcf.workbook.refresh"
+            : "pcf.integration_test"),
+        mode:
+          auth.operation.kind === "integration_test"
+            ? "test"
+            : auth.operation.kind === "workbook_refresh"
+              ? "dry_run"
+              : "production",
+        target: GROKBOT_BUYING_TARGET,
+        payload,
+        previous_report: auth.operation.report,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  if (part !== null)
+    return Response.json(
+      { error: "Unknown operation section" },
+      { status: 400 },
+    );
   return Response.json(
     {
       id: auth.operation.id,
       status: auth.operation.status,
       report: auth.operation.report,
+      payload_url: base + "?part=payload",
+      routine_url: base + "?part=routine",
     },
     { headers: { "Cache-Control": "no-store" } },
   );

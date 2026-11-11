@@ -36,7 +36,7 @@ An Excel export truncates long tab names to 31 characters. Use the native numeri
 
 ## 3. Trusted input
 
-The webapp sends structured operation data under `payload`, and these transport fields.
+The webhook is a compact notification containing `operation_id`, `callback.url`, `callback.token` and a short retrieval instruction. Download the complete job before validating business fields or claiming a runner. The authenticated operation endpoint returns `payload_url` and `routine_url`. Fetch both using the same bearer token and preserve their complete responses in private per-run files. Retain the callback URL and token from the notification. The downloaded job supplies the event, mode, target and complete business payload. Together they provide these fields.
 
 - `protocol_version` equals `pcf.grokbot.v1`.
 - `operation_id` is a stable UUID reused for retries.
@@ -53,7 +53,7 @@ Use decimal money strings from the payload. Perform reconciliation in integer ce
 
 A missing field remains blank or produces an actionable validation error. Financial amounts, approval identities, dates, and classifications must be supplied explicitly.
 
-This document contains the complete financial field definitions. Repository access is unnecessary. For a production financial job, `payload` is the financial event object described below. It repeats `protocol_version`, `operation_id`, `event`, and `target` from the transport envelope. Require those repeated fields to agree exactly. Missing or conflicting financial fields produce `blocked`.
+This document contains the complete financial field definitions. Repository access is unnecessary. For a production financial job, the downloaded envelope's `payload` is the financial event object described below. It repeats `protocol_version`, `operation_id`, `event`, and `target` from the downloaded envelope. Require those repeated fields to agree exactly. Missing or conflicting financial fields in the complete downloaded job produce `blocked`. The compact webhook intentionally carries the job reference and callback credentials. Its omitted business fields are available at `payload_url`.
 
 All IDs are UUID strings. Dates use `YYYY-MM-DD`. Approval timestamps use ISO 8601 UTC timestamps ending in `Z`. Money fields are unsigned decimal strings with at most ten whole-number digits and two decimal places, such as `"123.45"`. Convert them to integer centavos for arithmetic. Positive amounts must exceed zero. Nonnegative amounts may be `"0.00"`. Empty optional text is represented by `""`, and every listed field must still be present. Null values and unrecognized financial fields require validation review.
 
@@ -65,7 +65,7 @@ Write descriptive text as literal strings using typed Sheets `stringValue` updat
 
 1. Read the operation endpoint using GET and `Authorization: Bearer <callback.token>`.
 2. A completed operation returns its stored result. End the run after acknowledging that existing result.
-   For a job dispatched by the webapp, generate one runner UUID for this run. POST `status: "running"` with top-level `runner_id` before inspecting or changing financial cells. Include this same `runner_id` in every subsequent callback. Proceed only after HTTP 200. HTTP 409 means another runner owns this operation. End that duplicate run immediately. Every new run has a new runner UUID, while a retry of a callback within the same run retains its runner UUID. Reconcile `previous_report` and the operation's stored report before retrying an earlier partial write.
+   Download the full payload and current routine through `payload_url` and `routine_url`. Validate HTTP success and complete JSON parsing. Generate one runner UUID and persist it in a private state file scoped to this operation and this run before claiming. Read the runner UUID from that file for every callback, including repeated running reports, failed, blocked and completed results. POST `status: "running"` with top-level `runner_id` before inspecting or changing financial cells. Proceed only after HTTP 200. HTTP 409 means another runner owns this operation. End that duplicate run immediately. Every new run has a new runner UUID, while a retry of a callback within the same run retains its runner UUID. Reconcile the downloaded `previous_report` and the operation's stored report before retrying an earlier partial write. If the private runner state is lost, stop before any further sheet changes and report the ownership problem in chat for reconciliation. A new UUID cannot take over the existing claim.
 3. Resolve the allowlisted destination and read the current ledger, formulas, colors, merges, and relevant validation rules.
 4. Identify headers, beginning balance, last real transaction, available ledger rows, sign-offs, summary cells, expense sequence, and replenishment sequence.
 5. Verify both the current state and the expected sequence from the payload.
