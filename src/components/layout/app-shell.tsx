@@ -37,7 +37,7 @@ export function AppShell({
           <UserMenu user={user} compact />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-10 lg:pb-10 print:max-w-none print:p-0">
+        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-10 lg:pb-10 print:max-w-none print:p-0">
           {children}
         </main>
       </div>

@@ -80,7 +80,7 @@ export function BottomTabBar({
               </SheetTrigger>
               <SheetContent
                 side="bottom"
-                className="max-h-[80svh] rounded-t-2xl"
+                className="max-h-[80dvh] overflow-y-auto overscroll-contain rounded-t-2xl"
               >
                 <SheetHeader>
                   <SheetTitle>More</SheetTitle>
@@ -88,7 +88,7 @@ export function BottomTabBar({
                     Additional navigation links
                   </SheetDescription>
                 </SheetHeader>
-                <div className="grid grid-cols-2 gap-2 overflow-y-auto px-4 pb-8">
+                <div className="grid min-h-0 grid-cols-2 gap-2 overflow-y-auto px-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
                   {overflow.map((item) => (
                     <Link
                       key={item.href}

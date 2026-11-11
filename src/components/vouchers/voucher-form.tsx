@@ -318,7 +318,7 @@ export function VoucherForm({
               Add particular
             </Button>
           </fieldset>
-          <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 space-y-3 rounded-xl border bg-card/95 p-4 backdrop-blur lg:bottom-4">
+          <div className="lg:sticky lg:z-20 space-y-3 rounded-xl border bg-card/95 p-4 backdrop-blur lg:bottom-4">
             <div className="flex flex-wrap justify-between gap-2">
               <strong>
                 Total <MoneyText value={total / 100} />

@@ -325,7 +325,7 @@ export async function confirmSheetApproval(previewId: string) {
     .eq("liquidation_id", p.data.liquidation_id)
     .maybeSingle();
   if (job.data?.status === "synced")
-    return { ok: true, message: "Already delivered. View the saved report." };
+    return { ok: true, status: "synced" as const, message: "Already delivered. View the saved report." };
   if (job.data) {
     const w = await admin
       .from("sheet_workbooks")
@@ -402,8 +402,8 @@ export async function confirmSheetApproval(previewId: string) {
     revalidatePath("/accounting");
     return {
       ok: true,
-      message:
-        "Liquidation approved and Google Sheets updated. View the saved update report.",
+      status: "synced" as const,
+      message: "Encoding complete. Google Sheets updated successfully. View the saved report below.",
     };
   } catch (error) {
     const message =
@@ -420,8 +420,8 @@ export async function confirmSheetApproval(previewId: string) {
     revalidatePath("/liquidations");
     return {
       ok: true,
-      message:
-        "Liquidation approved — sheet update pending. Review and retry the sheet update.",
+      status: "pending" as const,
+      message: "Liquidation approved. Google Sheets encoding is pending. Review and retry the sheet update.",
     };
   }
 }
