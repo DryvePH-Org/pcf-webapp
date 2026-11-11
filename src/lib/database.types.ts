@@ -473,6 +473,86 @@ export type Database = {
         }
         Relationships: []
       }
+      grokbot_operations: {
+        Row: {
+          callback_hash: string
+          created_at: string
+          error: string | null
+          expires_at: string
+          id: string
+          kind: string
+          liquidation_id: string | null
+          payload: Json
+          replenishment_id: string | null
+          report: Json | null
+          sheet_id: number
+          spreadsheet_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          callback_hash: string
+          created_at?: string
+          error?: string | null
+          expires_at: string
+          id: string
+          kind: string
+          liquidation_id?: string | null
+          payload: Json
+          replenishment_id?: string | null
+          report?: Json | null
+          sheet_id: number
+          spreadsheet_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          callback_hash?: string
+          created_at?: string
+          error?: string | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          liquidation_id?: string | null
+          payload?: Json
+          replenishment_id?: string | null
+          report?: Json | null
+          sheet_id?: number
+          spreadsheet_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grokbot_operations_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grokbot_operations_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "grokbot_operations_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "grokbot_operations_replenishment_id_fkey"
+            columns: ["replenishment_id"]
+            isOneToOne: false
+            referencedRelation: "replenishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidation_items: {
         Row: {
           amount: number
