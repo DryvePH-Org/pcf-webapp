@@ -16,6 +16,9 @@ const money = z
 const nonnegativeMoney = z
   .string()
   .refine((value) => parseMoney(value) !== null);
+const approvalTimestamp = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value).toISOString());
 const line = z
   .object({
     entry_id: z.uuid(),
@@ -52,7 +55,7 @@ export const grokbotFinancialEvent = z
         requester_name: text({ min: 1, max: 100 }),
         department: text({ max: 100 }),
         filing_date: z.iso.date(),
-        custodian_approved_at: z.iso.datetime(),
+        custodian_approved_at: approvalTimestamp,
         custodian_id: z.uuid(),
         amount_received: money,
         total_spent: nonnegativeMoney,
@@ -69,8 +72,8 @@ export const grokbotFinancialEvent = z
         replenishment_number: z.number().int().positive(),
         expected_previous_replenishment_number: z.number().int().nonnegative(),
         approved_amount: money,
-        accounting_approved_at: z.iso.datetime(),
-        approver_approved_at: z.iso.datetime(),
+        accounting_approved_at: approvalTimestamp,
+        approver_approved_at: approvalTimestamp,
         accounting_id: z.uuid(),
         approver_id: z.uuid(),
         custodian_name: text({ min: 1, max: 100 }),

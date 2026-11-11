@@ -38,18 +38,18 @@ export async function queueGrokbotOperation(input: {
   const db = createAdminClient();
   const id = input.id ?? randomUUID();
   const token = grokbotCallbackToken(id);
-  if (
+  const payload =
     input.kind === "liquidation_approved" ||
     input.kind === "replenishment_approved"
-  )
-    grokbotFinancialEvent.parse(input.payload);
+      ? grokbotFinancialEvent.parse(input.payload)
+      : input.payload;
   const saved = await db.from("grokbot_operations").insert({
     id,
     kind: input.kind,
     spreadsheet_id: GROKBOT_BUYING_TARGET.spreadsheet_id,
     sheet_id: GROKBOT_BUYING_TARGET.sheet_id,
     callback_hash: createHash("sha256").update(token).digest("hex"),
-    payload: input.payload as Json,
+    payload: payload as Json,
     liquidation_id: input.liquidationId,
     replenishment_id: input.replenishmentId,
     expires_at: new Date(Date.now() + 2 * 3600000).toISOString(),

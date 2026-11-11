@@ -54,6 +54,20 @@ it("validates change, reimbursement, and zero-spend liquidations", () => {
     }).success,
   ).toBe(true);
 });
+it("normalizes Supabase offset approval timestamps to UTC", () => {
+  const parsed = grokbotFinancialEvent.parse({
+    ...liquidation,
+    custodian_approved_at: "2026-11-11T16:39:12.123456+08:00",
+  });
+  expect(parsed.event === "pcf.liquidation.approved" && parsed.custodian_approved_at)
+    .toBe("2026-11-11T08:39:12.123Z");
+  expect(grokbotFinancialEvent.safeParse({
+    ...liquidation, custodian_approved_at: "2026-11-11T08:39:12.123456+00:00",
+  }).success).toBe(true);
+  expect(grokbotFinancialEvent.safeParse({
+    ...liquidation, custodian_approved_at: "2026-11-11T08:39:12",
+  }).success).toBe(false);
+});
 it("rejects wrong destinations, duplicate entries, and inconsistent totals", () => {
   expect(
     grokbotFinancialEvent.safeParse({
