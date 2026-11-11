@@ -3,7 +3,7 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Json } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import { GROKBOT_BUYING_TARGET, grokbotFinancialEvent } from "./contract";
 
 export const GROKBOT_EDITOR = "admin.manilaautodisplay@gmail.com";
@@ -75,19 +75,31 @@ export async function queueGrokbotOperation(input: {
 
 // Claim under a database lock so concurrent requests dispatch one destination at a time.
 export async function dispatchGrokbot() {
+  configuration();
+  const db = createAdminClient();
+  const claim = await db.rpc("claim_grokbot_dispatch");
+  if (claim.error) throw new Error("Could not claim Grokbot delivery.");
+  const operation = claim.data?.[0];
+  if (operation) await deliverOperation(operation);
+}
+
+async function deliverOperation(
+  operation: Database["public"]["Tables"]["grokbot_operations"]["Row"],
+) {
   const { url, secret } = configuration();
   const routine = await readFile(
     join(process.cwd(), "docs", "GROKBOT_BUYING_ROUTINE.md"),
     "utf8",
   );
   const db = createAdminClient();
-  const claim = await db.rpc("claim_grokbot_dispatch");
-  if (claim.error) throw new Error("Could not claim Grokbot delivery.");
-  const operation = claim.data?.[0];
-  if (!operation) return;
   const expiry = await db
     .from("grokbot_operations")
-    .update({ expires_at: new Date(Date.now() + 2 * 3600000).toISOString() })
+    .update({
+      expires_at: new Date(Date.now() + 2 * 3600000).toISOString(),
+      callback_hash: createHash("sha256")
+        .update(grokbotCallbackToken(operation.id))
+        .digest("hex"),
+    })
     .eq("id", operation.id);
   if (expiry.error) throw new Error("Could not prepare Grokbot callback.");
   const payload = operation.payload as Record<string, Json>;
@@ -150,6 +162,17 @@ export async function dispatchGrokbot() {
 
 export async function retryGrokbotOperation(id: string) {
   const db = createAdminClient();
+  const existing = await db
+    .from("grokbot_operations")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (existing.error) throw new Error("Could not read the saved operation.");
+  if (existing.data.status === "running" && existing.data.runner_id === null) {
+    // A delayed first webhook and this retry still compete for the same runner claim.
+    await deliverOperation(existing.data);
+    return;
+  }
   const saved = await db
     .from("grokbot_operations")
     .update({
