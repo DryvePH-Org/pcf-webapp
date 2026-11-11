@@ -13,7 +13,6 @@ export function planExpenses(sheetId:number,grid:Cell[][],items:ExpenseForSheet[
  if(balance<0||inflow<0||out<0)throw new Error('Worksheet cash columns were not recognized.');
  const knownTags=new Set<string>();
  for(const row of grid)for(const cell of row){const formula=cell?.userEnteredValue?.formulaValue;const match=formula?.match(/SUMIF\([^,]+,\s*"([^"]+)"/i);if(match)knownTags.add(match[1]);}
- if(knownTags.size)for(const item of items)if(!knownTags.has(item.category))throw new Error(`Expense tag "${item.category}" does not match this worksheet's account summaries. Select its exact tag or enter a sheet tag override.`);
  const insertion=total-1,tail=grid[insertion]??[];
  if(vat>=0&&tail[vat]?.userEnteredValue)throw new Error('The final ledger row contains VAT. Select a reviewed template before inserting.');
  // Insert within existing sum ranges, preserve the old final ledger row in place,
@@ -29,7 +28,7 @@ export function planExpenses(sheetId:number,grid:Cell[][],items:ExpenseForSheet[
   if(!/^\d{4}-\d{2}-\d{2}$/.test(item.expense_date)||!Number.isFinite(item.amount)||item.amount<=0)throw new Error('Expense date and positive amount are required.');
   const row=insertion+index+1;
   requests.push({copyPaste:{source:{sheetId,startRowIndex:insertion,endRowIndex:insertion+1,startColumnIndex:0,endColumnIndex:balance+1},destination:{sheetId,startRowIndex:row,endRowIndex:row+1,startColumnIndex:0,endColumnIndex:balance+1},pasteType:'PASTE_FORMAT'}});
-  requests.push({copyPaste:{source:{sheetId,startRowIndex:insertion,endRowIndex:insertion+1,startColumnIndex:0,endColumnIndex:balance+1},destination:{sheetId,startRowIndex:row,endRowIndex:row+1,startColumnIndex:0,endColumnIndex:balance+1},pasteType:'PASTE_DATA_VALIDATION'}});
+  if(!knownTags.size||knownTags.has(item.category))requests.push({copyPaste:{source:{sheetId,startRowIndex:insertion,endRowIndex:insertion+1,startColumnIndex:0,endColumnIndex:balance+1},destination:{sheetId,startRowIndex:row,endRowIndex:row+1,startColumnIndex:0,endColumnIndex:balance+1},pasteType:'PASTE_DATA_VALIDATION'}});
   const strings:[number,string][]=[[col('TAG','EXPENSE TYPE'),item.category],[col('PARTICULAR','PARTICULARS'),item.particulars],[col('PCF#','PCF VOUCHER #'),item.voucher],[col('POINT PERSON'),item.person],[col('COMPANY / PAYEE','PAYEE/COMPANY'),item.supplier],[col('PLATE','PLATE#'),item.plate],[col('SI/OR#','SI#'),item.receipt_number],[col('TIN','TIN NUMBER'),item.tin],[col('ADDRESS'),item.address],[col('COMPANY'),item.company]];
   for(const [column,value] of strings)set(row,column,{stringValue:value});
   set(row,col('DATE'),{numberValue:Math.round((Date.parse(item.expense_date+'T00:00:00Z')-Date.UTC(1899,11,30))/86400000)});

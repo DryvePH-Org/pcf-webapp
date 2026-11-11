@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDate } from "@/lib/dates";
+import { ReceiptAttachment } from "./receipt-attachment";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
@@ -101,29 +103,24 @@ export function LiquidationForm({
           }}
         >
           <p className="text-sm text-muted-foreground">
-            Enter the actual amounts and upload a receipt picture for each
-            particular. Give the physical receipts to your custodian for
-            verification.
+            Enter the actual amounts and attach any receipts you have.
           </p>
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          <fieldset disabled={disabled} className="space-y-5">
+          <fieldset disabled={disabled} className="min-w-0 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="liquidation-name">Name</Label>
                 <Input id="liquidation-name" value={employeeName} readOnly />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="liquidation-date">Filing date</Label>
-                <Input
-                  id="liquidation-date"
-                  type="date"
-                  value={form.filing_date}
-                  readOnly
-                />
+                <p className="text-sm font-medium">Filing date</p>
+                <p className="rounded-md bg-muted px-3 py-2 text-sm">
+                  {formatDate(initial.filing_date)}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Fixed when this form was created.
                 </p>
@@ -201,60 +198,52 @@ export function LiquidationForm({
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`receipt-${item.id}`}>
-                    {item.receipt_path
-                      ? "Replace receipt picture"
-                      : "Receipt picture (required)"}
-                  </Label>
-                  <Input
-                    id={`receipt-${item.id}`}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      event.target.value = "";
-                      if (!file) return;
-                      if (
-                        !["image/jpeg", "image/png", "image/webp"].includes(
-                          file.type,
-                        )
-                      ) {
-                        setError(
-                          "Upload a JPEG, PNG, or WebP receipt picture.",
-                        );
-                        return;
-                      }
-                      setUploading(item.id);
-                      setError("");
-                      try {
-                        const path = await uploadLiquidationReceipt(
-                          file,
-                          form.id,
-                          item.id,
-                        );
+                <ReceiptAttachment
+                  id={`receipt-${item.id}`}
+                  attached={Boolean(item.receipt_path)}
+                  uploading={uploading === item.id}
+                  onRemove={() => updateLine(index, { receipt_path: "" })}
+                  onChoose={async (file) => {
+                    setUploading(item.id);
+                    setError("");
+                    try {
+                      const path = await uploadLiquidationReceipt(
+                        file,
+                        form.id,
+                        item.id,
+                      );
+                      updateLine(index, {
+                        receipt_path: path,
+                        no_receipt_reason: "",
+                      });
+                    } catch (problem) {
+                      setError(
+                        problem instanceof Error
+                          ? problem.message
+                          : "Upload failed.",
+                      );
+                    } finally {
+                      setUploading(null);
+                    }
+                  }}
+                />
+                {!item.receipt_path && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`receipt-note-${item.id}`}>
+                      Missing receipt note (optional)
+                    </Label>
+                    <Input
+                      id={`receipt-note-${item.id}`}
+                      maxLength={300}
+                      value={item.no_receipt_reason}
+                      onChange={(event) =>
                         updateLine(index, {
-                          receipt_path: path,
-                          no_receipt_reason: "",
-                        });
-                        toast.success("Picture uploaded. Save to attach it.");
-                      } catch (problem) {
-                        setError(
-                          problem instanceof Error
-                            ? problem.message
-                            : "Upload failed.",
-                        );
-                      } finally {
-                        setUploading(null);
+                          no_receipt_reason: event.target.value,
+                        })
                       }
-                    }}
-                  />
-                  {item.receipt_path ? (
-                    <p className="text-xs text-muted-foreground">
-                      Receipt picture attached
-                    </p>
-                  ) : null}
-                </div>
+                    />
+                  </div>
+                )}
               </div>
             ))}
             <Button
@@ -297,7 +286,7 @@ export function LiquidationForm({
               </div>
             ) : null}
           </fieldset>
-          <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 space-y-4 rounded-xl border bg-card/95 p-4 backdrop-blur lg:bottom-4">
+          <div className="lg:sticky lg:z-20 space-y-4 rounded-xl border bg-card/95 p-4 backdrop-blur lg:bottom-4">
             <dl className="grid gap-3 sm:grid-cols-3">
               {[
                 ["Amount received", received],
@@ -315,7 +304,7 @@ export function LiquidationForm({
                 </div>
               ))}
             </dl>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button type="submit" variant="outline" disabled={disabled}>
                 {pending ? "Saving…" : "Save draft"}
               </Button>
@@ -332,7 +321,7 @@ export function LiquidationForm({
             open={confirm}
             onOpenChange={setConfirm}
             title="Submit liquidation?"
-            description="Confirm the amounts and receipt pictures are complete. The custodian will check them against your physical receipts."
+            description="Confirm the amounts and any attached receipts before sending them to your custodian."
             confirmLabel="Submit for review"
             pending={pending}
             onConfirm={() => void save(true)}

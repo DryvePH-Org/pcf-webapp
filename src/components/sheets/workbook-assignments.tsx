@@ -5,7 +5,7 @@ import { WorkbookAssignment } from "@/components/sheets/assignment-form";
 export async function WorkbookAssignments() {
   await requireUser("/accounting/workbooks");
   const db = await createClient();
-  const [books, custodians, funds] = await Promise.all([
+  const [books, custodians, funds, assignments] = await Promise.all([
     sheetsAdmin().from("sheet_workbooks").select("*").order("name"),
     db
       .from("profiles")
@@ -14,8 +14,9 @@ export async function WorkbookAssignments() {
       .eq("is_active", true)
       .order("full_name"),
     db.from("funds").select("id,name").eq("is_active", true).order("name"),
+    db.from("fund_custodians").select("fund_id,custodian_id"),
   ]);
-  for (const result of [books, custodians, funds])
+  for (const result of [books, custodians, funds, assignments])
     if (result.error) throw new Error("Could not load workbook assignments.");
   return (
     <div className="space-y-6">
@@ -25,6 +26,7 @@ export async function WorkbookAssignments() {
           book={book}
           custodians={custodians.data ?? []}
           funds={funds.data ?? []}
+          assignments={assignments.data ?? []}
         />
       ))}
     </div>

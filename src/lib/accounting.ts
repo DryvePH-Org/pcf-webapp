@@ -76,7 +76,7 @@ export function normalizeAccountingFilters(
         ? "custom"
         : params.month
           ? "month"
-          : "latest");
+          : "all");
   const filters: AccountingFilters = {
     book: params.book ?? "",
     custodian: params.custodian ?? "",

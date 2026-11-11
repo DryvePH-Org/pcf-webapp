@@ -8,7 +8,16 @@ const s = (value: string): Cell => ({
 });
 const n = (value: number): Cell => ({ effectiveValue: { numberValue: value } });
 it("scopes latest month, leap months, custom ranges and missing dates", () => {
-  expect(normalizeAccountingFilters({}, "2026-10-02").filters).toMatchObject({
+  expect(normalizeAccountingFilters({}, null).filters).toMatchObject({
+    period: "all",
+    book: "",
+    custodian: "",
+    from: "",
+    to: "",
+  });
+  expect(
+    normalizeAccountingFilters({ period: "latest" }, "2026-10-02").filters,
+  ).toMatchObject({
     from: "2026-10-01",
     to: "2026-10-31",
   });

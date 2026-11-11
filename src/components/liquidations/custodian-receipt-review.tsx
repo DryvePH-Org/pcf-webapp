@@ -1,5 +1,7 @@
 "use client";
 
+import { ReceiptAttachment } from "./receipt-attachment";
+import { canExtractLiquidationAttachment } from "@/lib/liquidation-attachment";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Sparkles, Trash2 } from "lucide-react";
@@ -50,10 +52,12 @@ export function CustodianReceiptReview({
 }) {
   const router = useRouter();
   const [lines, setLines] = useState(initial);
+  const [customTags, setCustomTags] = useState<Record<string, boolean>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [extractionWarnings,setExtractionWarnings]=useState<string[]>([]);
+  const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
   const sum = lines.reduce(
     (amount, line) => amount + (parseMoney(line.amount) ?? 0),
@@ -119,11 +123,11 @@ export function CustodianReceiptReview({
       <CardHeader>
         <CardTitle>Custodian receipt review</CardTitle>
         <CardDescription>
-          Reconcile these entries to the requester’s total and verify every
-          physical receipt. Tags come from your assigned workbook.
+          Match the requester’s total and review each expense, including
+          expenses without receipts.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="min-w-0 space-y-5">
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -134,7 +138,17 @@ export function CustodianReceiptReview({
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}
-        {extractionWarnings.length ? <Alert><AlertDescription><ul className="list-disc space-y-1 pl-4">{extractionWarnings.map(warning=><li key={warning}>{warning}</li>)}</ul></AlertDescription></Alert> : null}
+        {extractionWarnings.length ? (
+          <Alert>
+            <AlertDescription>
+              <ul className="list-disc space-y-1 pl-4">
+                {extractionWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {!aiReady ? (
           <p className="text-sm text-muted-foreground">
             Automatic extraction is unavailable. Enter receipt details manually.
@@ -143,12 +157,12 @@ export function CustodianReceiptReview({
         {!tags.length ? (
           <Alert>
             <AlertDescription>
-              No workbook tags are available. Ask Admin to assign your workbook
-              and refresh its data before encoding.
+              No workbook tags are available. You can enter a tag now.
+              Accounting can check your workbook assignment for Sheets delivery.
             </AlertDescription>
           </Alert>
         ) : null}
-        <fieldset disabled={busy} className="space-y-5">
+        <fieldset disabled={busy} className="min-w-0 space-y-5">
           {lines.map((line, index) => (
             <div key={line.id} className="space-y-4 rounded-lg border p-4">
               <div className="flex flex-wrap justify-between gap-2">
@@ -167,75 +181,63 @@ export function CustodianReceiptReview({
                 </Button>
               </div>
               <div className="flex flex-wrap gap-3">
-                {urls[line.receipt_path] ? (
-                  <a
-                    className="text-sm underline underline-offset-4"
-                    href={urls[line.receipt_path]}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View requester / saved receipt
-                  </a>
-                ) : null}
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!aiReady || !line.receipt_path}
+                  disabled={
+                    !aiReady ||
+                    !canExtractLiquidationAttachment(line.receipt_path)
+                  }
                   onClick={() => void extract(index, line.receipt_path)}
                 >
                   <Sparkles />
                   Extract and autofill
                 </Button>
+                {line.receipt_path &&
+                  !canExtractLiquidationAttachment(line.receipt_path) && (
+                    <p className="self-center text-xs text-muted-foreground">
+                      Enter details manually for PDF, HEIC, and HEIF
+                      attachments.
+                    </p>
+                  )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor={`physical-upload-${line.id}`}>
-                  Upload a picture of the physical receipt (optional
-                  replacement)
-                </Label>
-                <Input
-                  id={`physical-upload-${line.id}`}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = "";
-                    if (!file) return;
-                    if (
-                      !["image/jpeg", "image/png", "image/webp"].includes(
-                        file.type,
-                      )
-                    ) {
-                      setError(
-                        "Use a receipt picture in JPEG, PNG, or WebP format.",
-                      );
-                      return;
-                    }
-                    setBusy(true);
-                    setError("");
-                    try {
-                      const path = await uploadLiquidationReceipt(
-                        file,
-                        id,
-                        line.id,
-                      );
-                      update(index, {
-                        receipt_path: path,
-                        physical_checked: false,
-                      });
-                      if (aiReady) await extract(index, path);
-                    } catch (problem) {
-                      setError(
-                        problem instanceof Error
-                          ? problem.message
-                          : "Receipt upload failed.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                />
-              </div>
+              <ReceiptAttachment
+                id={`physical-upload-${line.id}`}
+                attached={Boolean(line.receipt_path)}
+                uploading={uploading === line.id}
+                url={urls[line.receipt_path]}
+                onRemove={() =>
+                  update(index, { receipt_path: "", physical_checked: false })
+                }
+                onChoose={async (file) => {
+                  setBusy(true);
+                  setUploading(line.id);
+                  setError("");
+                  try {
+                    const path = await uploadLiquidationReceipt(
+                      file,
+                      id,
+                      line.id,
+                    );
+                    update(index, {
+                      receipt_path: path,
+                      physical_checked: false,
+                    });
+                    if (aiReady && canExtractLiquidationAttachment(path))
+                      await extract(index, path);
+                  } catch (problem) {
+                    setError(
+                      problem instanceof Error
+                        ? problem.message
+                        : "Receipt upload failed.",
+                    );
+                  } finally {
+                    setUploading(null);
+                    setBusy(false);
+                  }
+                }}
+              />
               <div className="grid gap-4 sm:grid-cols-2">
                 {(
                   [
@@ -270,18 +272,51 @@ export function CustodianReceiptReview({
                 ))}
                 <div className="min-w-0 space-y-2">
                   <Label htmlFor={`tag-${line.id}`}>
-                    Workbook tag (CE / NCE)
+                    Workbook tag
                   </Label>
-                  <OptionSelect
-                    id={`tag-${line.id}`}
-                    value={line.tag}
-                    disabled={busy}
-                    onValueChange={(tag) => update(index, { tag })}
-                    options={[
-                      { value: "", label: "Choose the exact workbook tag" },
-                      ...tags.map((tag) => ({ value: tag, label: tag })),
-                    ]}
-                  />
+                  {(customTags[line.id] ??
+                  (!tags.length ||
+                    Boolean(line.tag && !tags.includes(line.tag)))) ? (
+                    <Input
+                      id={`tag-${line.id}`}
+                      maxLength={150}
+                      value={line.tag}
+                      placeholder="Enter a tag"
+                      onChange={(event) =>
+                        update(index, { tag: event.target.value })
+                      }
+                    />
+                  ) : (
+                    <OptionSelect
+                      id={`tag-${line.id}`}
+                      value={line.tag}
+                      onValueChange={(tag) => update(index, { tag })}
+                      options={[
+                        { value: "", label: "Choose a workbook tag" },
+                        ...tags.map((tag) => ({ value: tag, label: tag })),
+                      ]}
+                    />
+                  )}
+                  {tags.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const custom =
+                          customTags[line.id] ??
+                          Boolean(line.tag && !tags.includes(line.tag));
+                        setCustomTags({ ...customTags, [line.id]: !custom });
+                        if (custom && !tags.includes(line.tag))
+                          update(index, { tag: "" });
+                      }}
+                    >
+                      {(customTags[line.id] ??
+                      Boolean(line.tag && !tags.includes(line.tag)))
+                        ? "Choose existing tag"
+                        : "Enter a custom tag"}
+                    </Button>
+                  )}
                 </div>
               </div>
               <Label className="flex min-h-11 items-start gap-3">
@@ -293,8 +328,9 @@ export function CustodianReceiptReview({
                     update(index, { physical_checked: event.target.checked })
                   }
                 />
-                I checked this receipt’s physical copy against its picture,
-                amount, supplier, date, and classification.
+                {line.receipt_path
+                  ? "I verified the receipt and expense details."
+                  : "I reviewed this expense without an attached receipt."}
               </Label>
             </div>
           ))}
@@ -315,7 +351,7 @@ export function CustodianReceiptReview({
                   expense_date: filingDate,
                   plate: "",
                   receipt_number: "",
-                  receipt_path: initial[0]?.receipt_path ?? "",
+                  receipt_path: "",
                   physical_checked: false,
                 },
               ]);

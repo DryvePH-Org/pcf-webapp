@@ -35,8 +35,7 @@ broken formulas rather than silently repairing financial records.
 Collect the fields required by the chosen destination: expense date, category,
 particulars, amount, employee/point person, supplier, receipt number, vehicle
 plate(s), and supplier TIN/address where the template includes them. Supplier
-metadata is per expense line, not just per voucher. Missing receipt reasons
-remain mandatory when no attachment exists. AI receipt scanning remains removed.
+metadata is per expense line, not just per voucher. Receipt attachments and missing-receipt notes are optional. The custodian reviews every expense.
 No extra Accounting approval stage is required before the custodian's sheet sync.
 
 ## Approval and delivery
@@ -147,11 +146,12 @@ Use exact worksheet account tags for categories. A per-line Google Sheets tag ov
 
 ### Custodian receipt encoding
 
-New liquidations synchronize the custodian receipt entries after physical-copy
-verification. The receipt entries reconcile to the requester total. The preview
+New liquidations synchronize custodian-reviewed expense entries, including expenses
+without receipt attachments. The receipt entries reconcile to the requester total. The preview
 binds to the saved receipt-review revision, so changing the review requires a
-fresh preview. Tags are selected from the assigned workbook mirror and are
-validated against its live summary formulas. Supplier TIN may be entered as
+fresh preview. Tags come from the assigned workbook and include custom tags used in synchronized
+reviews. Custodians may enter a custom tag. Custom tags are written to ledger rows.
+Existing tag-summary formulas total the tags in their configured criteria. Supplier TIN may be entered as
 NON VAT when applicable. Input VAT is never encoded.
 
 Receipt extraction uses Groq vision with image input and structured
@@ -161,7 +161,8 @@ Extraction provides editable suggestions and has no approval or cash authority.
 
 ### Accounting dashboard
 
-Accounting combines the mirrored expense ledgers with workbook, current custodian,
+Accounting opens with all workbooks and all dates selected. It combines the mirrored
+expense ledgers with workbook, current custodian,
 worksheet, month, date range, tag, CE/NCE, company, receipt-number, and detail filters.
 Totals cover all matching records. CSV exports share the same filters and include
 source links. Exact dated, referenced copies across worksheets are consolidated
@@ -172,3 +173,7 @@ Current worksheet ledger balance, physical cash, and unliquidated values are sho
 separately from selected-period spending. Missing values and broken formulas are
 flagged. Accounting and Admin can manage audited workbook assignments. Manual
 refresh reads all workbooks, while background refresh rotates the oldest workbook.
+
+Liquidation attachments support JPEG, PNG, WebP, PDF, HEIC, and HEIF up to 20 MB.
+Groq extraction currently accepts JPEG, PNG, and WebP images. PDF and HEIC/HEIF
+files retain their original format and support manual receipt encoding.

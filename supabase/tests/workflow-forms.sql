@@ -39,19 +39,26 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  blocked:=false;
  begin perform save_liquidation(liquidation,'Operations',current_date+1,'[]','Not spent');exception when others then blocked:=true;end;
  assert blocked,'filing date cannot change';
+ blocked:=false;begin update liquidations set filing_date=filing_date+1 where id=liquidation;exception when others then blocked:=true;end;assert blocked,'direct updates cannot change the filing date';
  perform save_liquidation(liquidation,'Operations',current_date,jsonb_build_array(jsonb_build_object('id',line,'particulars','Fuel','amount',500,'sheet_details',jsonb_build_object('supplier','FORGED','plate','ABC123'))),null);
  assert (select sheet_details->>'supplier' is null from liquidation_items where liquidation_id=liquidation),'requester cannot encode supplier or tags';
- blocked:=false;begin perform submit_liquidation(liquidation);exception when others then blocked:=true;end;assert blocked,'every requester line requires an image';
- path:=liquidation::text||'/'||line::text||'/receipt.jpg';
+ path:=liquidation::text||'/'||line::text||'/receipt.heic';
  insert into storage.objects(bucket_id,name) values('liquidation-receipts',path);
- perform save_liquidation(liquidation,'Operations',current_date,jsonb_build_array(jsonb_build_object('id',line,'particulars','Fuel','amount',500,'receipt_path',path,'sheet_details',jsonb_build_object('plate','ABC123'))),null);
+ perform save_liquidation(liquidation,'Operations',current_date,jsonb_build_array(
+  jsonb_build_object('id',line,'particulars','Fuel','amount',250,'receipt_path',path,'sheet_details',jsonb_build_object('plate','ABC123')),
+  jsonb_build_object('id',gen_random_uuid(),'particulars','Parking','amount',250)
+ ),null);
  perform submit_liquidation(liquidation);
+ assert (select count(*)=1 from liquidation_items where liquidation_id=liquidation and receipt_path is null and no_receipt_reason='No receipt provided'),'receiptless expense can be submitted';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  select receipt_review_revision into rev from liquidations where id=liquidation;
  blocked:=false;
  begin perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',500,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',false)));exception when others then blocked:=true;end;
  assert blocked,'physical receipt check is mandatory';
- perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',500,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true)));
+ perform save_custodian_receipts(liquidation,rev,jsonb_build_array(
+  jsonb_build_object('particulars','Fuel','amount',250,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true),
+  jsonb_build_object('particulars','Parking','amount',250,'tag','NCE - CUSTOM','expense_date',current_date,'physical_checked',true)
+ ));
  select receipt_review_revision into rev from liquidations where id=liquidation;
  insert into sheet_previews(liquidation_id,reviewer_id,revision,book_id,config_version,sheet_id,sheet_name,operation_id,requests,google_token,summary)
  select liquidation,auth.uid(),l.revision,'buying',w.config_version,1,'Test sheet','workflow_test','[]','test',jsonb_build_object('review_revision',rev-1) from liquidations l cross join sheet_workbooks w where l.id=liquidation and w.id='buying' returning id into preview;
@@ -60,6 +67,7 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  perform approve_liquidation_with_sheet(preview);
  assert (select expected_cash=9500 from fund_balance_v where fund_id='91000000-0000-4000-8000-000000000010'),'liquidation approval does not change cash';
  update sheet_jobs set status='synced' where liquidation_id=liquidation;
+ assert 'NCE - CUSTOM'=any(list_custodian_tags('91000000-0000-4000-8000-000000000010')),'custom tags are available for the workbook after sync';
  replenishment:=create_replenishment('91000000-0000-4000-8000-000000000010');perform submit_replenishment(replenishment);
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000003',true);
  perform review_replenishment(replenishment,true,null);

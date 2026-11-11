@@ -1,3 +1,4 @@
+import { liquidationAttachmentType, LIQUIDATION_ATTACHMENT_LIMIT } from "@/lib/liquidation-attachment";
 import { describe, expect, it } from "vitest";
 import { liquidationDifference } from "@/lib/liquidation";
 import { saveLiquidationSchema, submitLiquidationSchema, liquidationReviewSchema, settlementSchema } from "@/lib/validators/liquidation";
@@ -18,11 +19,11 @@ describe("liquidation money", () => {
   it("rejects malformed money", () => { expect(() => liquidationDifference("oops", "100")).toThrow(); });
 });
 describe("liquidation validation", () => {
-  it("rejects a missing receipt even when a reason is supplied", () => { expect(submitLiquidationSchema.safeParse(form).success).toBe(false); });
-  it("permits draft lines without proofs but requires them at submission", () => {
+  it("accepts a missing receipt with a note", () => { expect(submitLiquidationSchema.safeParse(form).success).toBe(true); });
+  it("permits draft and submitted lines without receipts or notes", () => {
     const draft = { ...form, items: [{ ...form.items[0], no_receipt_reason: "" }] };
     expect(saveLiquidationSchema.safeParse(draft).success).toBe(true);
-    expect(submitLiquidationSchema.safeParse(draft).success).toBe(false);
+    expect(submitLiquidationSchema.safeParse(draft).success).toBe(true);
   });
   it("accepts a receipt picture without a missing-receipt explanation", () => {
     expect(submitLiquidationSchema.safeParse({ ...form, items: [{ ...form.items[0], receipt_path: `${id}/${id}/receipt.jpg`, no_receipt_reason: "" }] }).success).toBe(true);
@@ -48,4 +49,12 @@ describe("liquidation validation", () => {
   it("makes the liquidation area available to every role", () => {
     for (const role of ALL_ROLES) expect(canAccessRoute(role, "/liquidations")).toBe(true);
   });
+});
+
+it("accepts iPhone receipt files larger than 5 MB and enforces the 20 MB limit", () => {
+  const heic = new File([new Uint8Array(6 * 1024 * 1024)], "Receipt.HEIC");
+  expect(liquidationAttachmentType(heic)).toEqual({ extension: "heic", mime: "image/heic" });
+  expect(liquidationAttachmentType(new File(["test"], "photo", {type:"image/heic"})).extension).toBe("heic");
+  const oversized = new File([new Uint8Array(LIQUIDATION_ATTACHMENT_LIMIT + 1)], "Receipt.pdf", { type: "application/pdf" });
+  expect(() => liquidationAttachmentType(oversized)).toThrow(/20 MB/);
 });

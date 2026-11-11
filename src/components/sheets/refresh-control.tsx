@@ -2,7 +2,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-export function SheetsRefresh({ book = "" }: { book?: string }) {
+export function SheetsRefresh({
+  book = "",
+  automatic = true,
+}: {
+  book?: string;
+  automatic?: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
@@ -32,18 +38,24 @@ export function SheetsRefresh({ book = "" }: { book?: string }) {
     [book, router],
   );
   useEffect(() => {
-    const poll = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, 15000);
-    const sync = setInterval(() => void refresh(true), 90000);
+    const poll =
+      automatic || message.startsWith("Refresh queued")
+        ? setInterval(() => {
+            if (document.visibilityState === "visible") router.refresh();
+          }, 15000)
+        : undefined;
+    const sync = automatic
+      ? setInterval(() => void refresh(true), 90000)
+      : undefined;
     return () => {
       clearInterval(poll);
       clearInterval(sync);
     };
-  }, [refresh, router]);
+  }, [automatic, message, refresh, router]);
   return (
     <div className="space-y-2 print:hidden">
       <Button
+        type="button"
         variant="outline"
         disabled={pending}
         onClick={() => void refresh()}
@@ -56,7 +68,7 @@ export function SheetsRefresh({ book = "" }: { book?: string }) {
       </Button>
       <p role="status" className="text-xs text-muted-foreground">
         {message ||
-          "Background refresh rotates workbooks while this page is open."}
+          (automatic ? "Background refresh runs while this page is open." : "")}
       </p>
     </div>
   );

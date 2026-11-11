@@ -48,9 +48,6 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const receiptRows = await workflow.from("liquidation_receipt_lines").select("*").eq("liquidation_id", id).order("position");
   if (receiptRows.error) throw new Error(receiptRows.error.message);
   const flow = l as typeof l & {flow_version:number;receipt_review_revision:number;receipt_reviewed_by:string|null};
-  const tagOptions = ["admin","custodian"].includes(user.role)
-    ? await workflow.rpc("list_custodian_tags", {p_fund:l.fund_id}) : {data:[],error:null};
-  if (tagOptions.error) throw new Error(tagOptions.error.message);
   const rows = items.data ?? [];
   const cats = categories.data ?? [];
   const voucher = context.data?.[0];
@@ -58,6 +55,10 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const difference = liquidationDifference(String(l.amount_received), String(l.total_spent));
   const settlement = settlements.data;
   const canReview = l.status === "submitted" && user.id !== l.owner_id && ["admin", "custodian"].includes(user.role);
+  const tagOptions = canReview && flow.flow_version === 2
+    ? await workflow.rpc("list_custodian_tags", { p_fund: l.fund_id })
+    : { data: [] };
+
   const needsApproval = difference.kind === "reimbursement" && l.total_spent >= voucher.approval_threshold;
   const waitingApproval = needsApproval && !l.reimbursement_approved_by;
   const exceedsLimit = difference.kind === "reimbursement" && l.total_spent > voucher.per_txn_limit;
@@ -78,8 +79,8 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   ];
   const nextStep = () => {
     if (l.status === "flagged") return <Callout tone="danger" title={isOwner ? "Your custodian asked for corrections" : "Waiting for the employee to correct this"}>{l.review_note ? <>Note: {l.review_note}</> : "Fix the expenses below, then submit again."}</Callout>;
-    if (l.status === "draft") return <Callout tone="info" title={isOwner ? "Draft: not submitted yet" : "The employee has not submitted this yet"}>{isOwner ? "Check each expense, upload a receipt picture per particular, then choose Submit for review." : "It will appear for review after submission."}</Callout>;
-    if (l.status === "submitted") return canReview ? <Callout tone="warning" title="This liquidation needs your review">Complete the receipt entries, verify the physical copies, and save your review before preparing the Google Sheets approval preview.</Callout> : <Callout tone="info" title="Waiting for custodian review">Editing is locked until the custodian responds.</Callout>;
+    if (l.status === "draft") return <Callout tone="info" title={isOwner ? "Draft: not submitted yet" : "The employee has not submitted this yet"}>{isOwner ? "Check each expense, attach any available receipts, then choose Submit for review." : "It will appear for review after submission."}</Callout>;
+    if (l.status === "submitted") return canReview ? <Callout tone="warning" title="This liquidation needs your review">Review the expenses and any available receipts, then save your review before preparing the Google Sheets approval preview.</Callout> : <Callout tone="info" title="Waiting for custodian review">Editing is locked until the custodian responds.</Callout>;
     if (settled) return <Callout tone="success" title={difference.kind === "none" ? "Fully reconciled" : "Settled"}>{difference.kind === "none" ? "The advance matched the expenses, so no cash needs to move." : "The cash movement has been recorded."}</Callout>;
     if (canApproveReimbursement) return <Callout tone="warning" title="Additional reimbursement needs your approval">Spending was above the cash received. An independent approver must approve before the custodian pays it.</Callout>;
     if (canSettle) return <Callout tone="warning" title={difference.kind === "return" ? "Next: record the cash returned" : "Next: record the reimbursement paid"}>Use the button below once the money has actually changed hands.</Callout>;
@@ -87,7 +88,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     return <Callout tone="info" title={difference.kind === "return" ? "Waiting for the cash to be returned" : "Waiting for the reimbursement to be paid"}>The custodian records it once the cash has actually moved.</Callout>;
   };
   return <div className="space-y-6 print:space-y-4">
-    <div className="print:hidden"><PageHeader title="Liquidation / reimbursement" description={`${l.pcv_number} · ${l.fund_name}`} actions={<><PrintButton /><CsvExportButton filename={`${l.pcv_number}-liquidation.csv`} header={["PCV", "Name", "Department", "Filing date", "Particulars", "Category", "Amount", "Receipt attached", "Missing receipt reason", "Advance", "Total spent", "Return amount", "Reimbursement amount", "Status"]} rows={rows.length ? rows.map(item => [l.pcv_number, l.employee_name, l.department, l.filing_date, item.particulars, nameByCategory.get(item.category_id) ?? "", item.amount, item.receipt_path ? "Yes" : "No", item.no_receipt_reason ?? "", l.amount_received, l.total_spent, difference.kind === "return" ? difference.amount : "0", difference.kind === "reimbursement" ? difference.amount : "0", LIQUIDATION_LABELS[l.status]]) : [[l.pcv_number, l.employee_name, l.department, l.filing_date, l.unspent_reason ?? "No expenses", "", 0, "No", "", l.amount_received, l.total_spent, difference.amount, "0", LIQUIDATION_LABELS[l.status]]]} /><Link className="text-sm underline" href="/liquidations">All liquidations</Link></>} /></div>
+    <div className="print:hidden"><PageHeader title="Liquidation / reimbursement" description={`${l.pcv_number} · ${l.fund_name}`} actions={<><PrintButton /><CsvExportButton filename={`${l.pcv_number}-liquidation.csv`} header={["PCV", "Name", "Department", "Filing date", "Particulars", "Category", "Amount", "Receipt attached", "Missing receipt reason", "Advance", "Total spent", "Return amount", "Reimbursement amount", "Status"]} rows={rows.length ? rows.map(item => [l.pcv_number, l.employee_name, l.department, l.filing_date, item.particulars, flow.flow_version === 2 ? "" : nameByCategory.get(item.category_id) ?? "", item.amount, item.receipt_path ? "Yes" : "No", item.no_receipt_reason ?? "", l.amount_received, l.total_spent, difference.kind === "return" ? difference.amount : "0", difference.kind === "reimbursement" ? difference.amount : "0", LIQUIDATION_LABELS[l.status]]) : [[l.pcv_number, l.employee_name, l.department, l.filing_date, l.unspent_reason ?? "No expenses", "", 0, "No", "", l.amount_received, l.total_spent, difference.amount, "0", LIQUIDATION_LABELS[l.status]]]} /><Link className="text-sm underline" href="/liquidations">All liquidations</Link></>} /></div>
     {nextStep()}
     <FlowSteps label="Liquidation progress" steps={steps} />
     <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-6 print:border-black print:bg-white print:text-black">
@@ -124,7 +125,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
                 ? <a href={urls.get(item.receipt_path)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-800 underline underline-offset-4"><Paperclip className="size-4" aria-hidden />View receipt</a>
                 : <p className="text-sm font-medium text-destructive">Receipt attachment currently unavailable</p>
             ) : (
-              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-sm text-amber-900 print:bg-white print:text-black"><span className="font-semibold">No receipt:</span> {item.no_receipt_reason || "Receipt picture required before submission"}</p>
+              <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-sm text-amber-900 print:bg-white print:text-black"><span className="font-semibold">No receipt:</span> {item.no_receipt_reason || "No attachment provided"}</p>
             )}
           </div>
         ))}
@@ -155,7 +156,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     <LiquidationActions canPrepareApproval={flow.flow_version!==2} id={id} canReview={canReview} canSettle={canSettle} canApproveReimbursement={canApproveReimbursement} amount={difference.amount} kind={difference.kind} />
     {canReview && flow.flow_version===2 ? <CustodianReceiptReview key={`${id}:${flow.receipt_review_revision}`} id={id} revision={flow.receipt_review_revision} total={Number(l.total_spent)} filingDate={l.filing_date} tags={tagOptions.data??[]} urls={Object.fromEntries(urls)} aiReady={Boolean(process.env.GROQ_API_KEY)} reviewSaved={flow.receipt_reviewed_by===user.id}
       initial={receiptRows.data?.length ? receiptRows.data.map(row=>({...row,amount:String(row.amount),receipt_path:row.receipt_path??''})) : rows.map(item=>({id:item.id,particulars:item.particulars,amount:String(item.amount),supplier:'',tin:'',tag:'',expense_date:l.filing_date,plate:(item.sheet_details as Record<string,string>|null)?.plate??'',receipt_number:'',receipt_path:item.receipt_path??'',physical_checked:false}))} /> : null}
-    {receiptRows.data?.length ? <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Custodian receipt entries</h2>{receiptRows.data.map(row=><div key={row.id} className="space-y-1 border-t pt-3 text-sm"><p>{row.supplier} · {row.tag} · {formatDate(row.expense_date)}</p><p>{row.particulars} · {formatPHP(row.amount)}</p><p>TIN {row.tin} · Plate {row.plate||'—'} · Receipt {row.receipt_number||'—'}</p><p className="text-muted-foreground">Physical receipt checked</p></div>)}</section>:null}
+    {receiptRows.data?.length ? <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Custodian receipt entries</h2>{receiptRows.data.map(row=><div key={row.id} className="space-y-1 border-t pt-3 text-sm"><p>{row.supplier} · {row.tag} · {formatDate(row.expense_date)}</p><p>{row.particulars} · {formatPHP(row.amount)}</p><p>TIN {row.tin} · Plate {row.plate||'—'} · Receipt {row.receipt_number||'—'}</p><p className="text-muted-foreground">{row.receipt_path ? "Receipt verified" : "Reviewed without a receipt attachment"}</p></div>)}</section>:null}
     <section className="space-y-3 print:hidden"><h2 className="font-semibold">Submission history</h2><p className="text-sm text-muted-foreground">Every submitted version is retained, including its receipt references. Page {historyPage}.</p>{(revisions.data ?? []).map(r => <details key={r.id} className="rounded-lg border p-3"><summary className="cursor-pointer text-sm">Submission {r.revision} · {LIQUIDATION_LABELS[r.status]} · {formatDateTime(r.created_at)}</summary><div className="mt-3 space-y-3">{r.review_note ? <p>{r.review_note}</p> : null}{snapshotItems(r.payload).map((item, index) => <div key={index}><p>{item.particulars} · {formatPHP(item.amount)}</p>{item.receipt_path ? (urls.has(item.receipt_path) ? <a href={urls.get(item.receipt_path)} target="_blank" rel="noreferrer" className="text-sm underline">Submitted receipt</a> : <p className="text-sm text-destructive">Submitted receipt currently unavailable</p>) : <p className="text-sm">No receipt: {item.no_receipt_reason}</p>}</div>)}</div></details>)}<div className="flex justify-between">{historyPage > 1 ? <Link className="underline" href={`?history=${historyPage - 1}`}>Previous submissions</Link> : <span />}{historyPage * 10 < (revisions.count ?? 0) ? <Link className="underline" href={`?history=${historyPage + 1}`}>Older submissions</Link> : null}</div></section>
   </div>;
 }

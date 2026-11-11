@@ -20,8 +20,17 @@ export async function refreshWorkbook(book: string) {
     const entry = catalog.books.find((b) => b.key === book);
     if (!entry) throw new Error("Workbook missing from Google catalog.");
     const expenses: SheetExpense[] = [];
+    const config = await db
+      .from("sheet_workbooks")
+      .select("active_sheet_id")
+      .eq("id", book)
+      .single();
+    if (config.error) throw new Error(config.error.message);
     const tabs = entry.tabs.filter(
-      (tab) => /REPL[EI]NISHMENT/i.test(tab.title) || tab.title === "Sheet19",
+      (tab) =>
+        /REPL[EI]NISHMENT/i.test(tab.title) ||
+        tab.title === "Sheet19" ||
+        tab.sheetId === config.data.active_sheet_id,
     );
     // Bound concurrent reads while keeping large workbooks within the refresh lease.
     for (let offset = 0; offset < tabs.length; offset += 2) {

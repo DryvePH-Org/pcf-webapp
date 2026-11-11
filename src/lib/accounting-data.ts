@@ -11,7 +11,8 @@ import {
 import { todayInAppTz } from "@/lib/dates";
 export async function loadAccountingFilters(params: AccountingParams) {
   const preliminary = normalizeAccountingFilters(params, null);
-  if (preliminary.error) return preliminary;
+  if (preliminary.error || preliminary.filters.period !== "latest")
+    return preliminary;
   const db = await createClient();
   let query = db
     .from("sheet_expenses")

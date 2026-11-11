@@ -1,15 +1,28 @@
 "use client";
 import { createClient } from "@/lib/supabase/client";
 import { compressReceipt } from "@/lib/receipts";
+import {
+  liquidationAttachmentType,
+} from "@/lib/liquidation-attachment";
 
-export async function uploadLiquidationReceipt(file: File, liquidationId: string, lineId: string) {
-  const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-  if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024 || file.size === 0) throw new Error("Use a JPEG, PNG, WebP, or PDF file up to 5 MB.");
-  const pdf = file.type === "application/pdf";
-  const body = pdf ? file : await compressReceipt(file);
-  const path = `${liquidationId}/${lineId}/${crypto.randomUUID()}.${pdf ? "pdf" : "jpg"}`;
+export async function uploadLiquidationReceipt(
+  file: File,
+  liquidationId: string,
+  lineId: string,
+) {
+  const { extension, mime } = liquidationAttachmentType(file);
+  const image = ["image/jpeg", "image/png", "image/webp"].includes(mime);
+  const body = image
+    ? await compressReceipt(new File([file], file.name, { type: mime }))
+    : file;
+  const path = `${liquidationId}/${lineId}/${crypto.randomUUID()}.${image ? "jpg" : extension}`;
   const client = createClient();
-  const { error } = await client.storage.from("liquidation-receipts").upload(path, body, { contentType: pdf ? "application/pdf" : "image/jpeg", upsert: false });
+  const { error } = await client.storage
+    .from("liquidation-receipts")
+    .upload(path, body, {
+      contentType: image ? "image/jpeg" : mime,
+      upsert: false,
+    });
   if (error) throw new Error("Could not upload the receipt. Try again.");
   return path;
 }
