@@ -366,6 +366,12 @@ export async function confirmSheetApproval(previewId: string) {
       payload: event,
       liquidationId: p.data.liquidation_id,
     });
+    const delivery = await admin.from("sheet_jobs").update({
+      error: null,
+      attempts: job.data.attempts + 1,
+      updated_at: new Date().toISOString(),
+    }).eq("id", job.data.id).neq("status", "synced");
+    if (delivery.error) throw new Error("Could not refresh the queued delivery status.");
     await retryGrokbotOperation(event.operation_id);
     await dispatchGrokbot();
     revalidatePath("/liquidations");
