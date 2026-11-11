@@ -45,7 +45,7 @@ export function SheetsRefresh({
           }, 15000)
         : undefined;
     const sync = automatic
-      ? setInterval(() => void refresh(true), 90000)
+      ? setInterval(() => void refresh(true), 900000)
       : undefined;
     return () => {
       clearInterval(poll);
@@ -64,11 +64,11 @@ export function SheetsRefresh({
           ? "Requesting refresh…"
           : book
             ? "Refresh workbook"
-            : "Refresh all workbooks"}
+            : "Refresh Buying workbook"}
       </Button>
       <p role="status" className="text-xs text-muted-foreground">
         {message ||
-          (automatic ? "Background refresh runs while this page is open." : "")}
+          (automatic ? "Buying refresh runs every 15 minutes while this page is open." : "")}
       </p>
     </div>
   );

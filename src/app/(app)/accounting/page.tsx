@@ -480,7 +480,7 @@ export default async function AccountingPage({
       {pending.data.length ? (
         <Card>
           <CardHeader>
-            <CardTitle>Pending replenishment worksheets</CardTitle>
+            <CardTitle>Pending replenishment encoding</CardTitle>
             <CardDescription>
               {pending.count} worksheet updates need attention.
             </CardDescription>
@@ -495,7 +495,7 @@ export default async function AccountingPage({
                   {item.target_name ?? "Review replenishment"}
                 </Link>
                 <p className="text-sm text-muted-foreground">
-                  {item.error ?? "Waiting for worksheet creation"}
+                  {item.error ?? "Waiting for Grokbot encoding"}
                 </p>
                 <RolloverRetry id={item.replenishment_id} />
               </div>

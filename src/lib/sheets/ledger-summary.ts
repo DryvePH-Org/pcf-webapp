@@ -1,5 +1,5 @@
 import type { Cell } from "./types";
-import { findLedgerBoundary } from "./planner";
+import { findLedgerBoundary } from "./grid";
 export type LedgerSummary = {
   opening_balance: number | null;
   inflows: number;

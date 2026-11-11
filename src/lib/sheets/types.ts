@@ -21,3 +21,5 @@ export type SheetPreview = {id:string;liquidation_id:string;reviewer_id:string;r
 export type SheetJob = {id:string;liquidation_id:string;preview_id:string;book_id:string;operation_id:string;status:string;report:Json|null;error:string|null;attempts:number;updated_at:string};
 
 export type SheetRollover={id:string;replenishment_id:string;book_id:string|null;operation_id:string;status:string;target_sheet_id:number|null;target_name:string|null;requests:Json|null;report:Json|null;error:string|null;created_at:string};
+
+export type ExpenseForSheet = { id:string;expense_date:string;particulars:string;amount:number;category:string;person:string;supplier:string;plate:string;receipt_number:string;tin:string;address:string;voucher:string;company:string };

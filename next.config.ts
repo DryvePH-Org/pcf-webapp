@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
   // run beside the main one: NEXT_DIST_DIR=.next-alt pnpm dev -p 3200
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/*": ["./docs/GROKBOT_BUYING_ROUTINE.md"],
+  },
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

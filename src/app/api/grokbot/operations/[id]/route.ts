@@ -2,6 +2,16 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/database.types";
+import { after } from "next/server";
+import { dispatchGrokbot } from "@/lib/grokbot/delivery";
+import {
+  buyingSnapshotSchema,
+  validateFinancialResult,
+} from "@/lib/grokbot/results";
+import { parseExpenseRows } from "@/lib/sheets/parser";
+import { summarizeLedger } from "@/lib/sheets/ledger-summary";
+import { sheetExpenseTags } from "@/lib/sheets/grid";
+import { GROKBOT_BUYING_TARGET } from "@/lib/grokbot/contract";
 
 async function authorize(request: Request, id: string) {
   if (!z.uuid().safeParse(id).success) return null;
@@ -70,6 +80,7 @@ export async function POST(
       status: z.enum(["running", "completed", "blocked", "failed"]),
       report: z.record(z.string(), z.unknown()).optional(),
       error: z.string().max(2000).optional(),
+      runner_id: z.uuid().optional(),
     })
     .safeParse(body);
   if (!parsed.success)
@@ -85,6 +96,152 @@ export async function POST(
       { error: "Completion report required" },
       { status: 400 },
     );
+  const payload = auth.operation.payload as Record<string, Json>;
+  const financial = ["liquidation_approved", "replenishment_approved"].includes(
+    auth.operation.kind,
+  );
+  const controlled =
+    financial ||
+    auth.operation.kind === "workbook_refresh" ||
+    payload?.source === "webapp-simulation";
+  if (controlled) {
+    const runner = parsed.data.runner_id;
+    if (!runner)
+      return Response.json({ error: "Runner ID required" }, { status: 400 });
+    if (parsed.data.status === "running") {
+      const claim = await auth.db.rpc("claim_grokbot_runner", {
+        p_id: auth.operation.id,
+        p_runner: runner,
+      });
+      if (claim.error || !claim.data)
+        return Response.json(
+          { error: "Operation owned by another runner" },
+          { status: 409 },
+        );
+    } else if (auth.operation.runner_id !== runner) {
+      return Response.json(
+        { error: "Runner ownership mismatch" },
+        { status: 409 },
+      );
+    }
+    const report = parsed.data.report ?? {};
+    if (parsed.data.status === "completed") {
+      if (
+        (financial || payload.source === "webapp-simulation") &&
+        !validateFinancialResult(payload, report)
+      )
+        return Response.json(
+          {
+            error:
+              "Verified amounts, audit evidence, target and required checks must match the operation",
+          },
+          { status: 422 },
+        );
+      if (auth.operation.kind === "workbook_refresh") {
+        const snapshot = buyingSnapshotSchema.safeParse(report.snapshot);
+        if (
+          !snapshot.success ||
+          report.verified !== true ||
+          report.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
+          report.sheet_id !== GROKBOT_BUYING_TARGET.sheet_id ||
+          (report.checks as Record<string, unknown>)?.write_scope !== true
+        )
+          return Response.json(
+            { error: "Complete verified Buying snapshot required" },
+            { status: 422 },
+          );
+        const { grid } = snapshot.data;
+        const summary = summarizeLedger(grid);
+        if (
+          !summary ||
+          summary.formula_errors > 0 ||
+          summary.balanced === false
+        )
+          return Response.json(
+            { error: "Ledger snapshot has missing or inconsistent balances" },
+            { status: 422 },
+          );
+        const expenses = parseExpenseRows(
+          "buying",
+          GROKBOT_BUYING_TARGET.sheet_id,
+          GROKBOT_BUYING_TARGET.sheet_title,
+          grid,
+        );
+        const tab = {
+          sheetId: GROKBOT_BUYING_TARGET.sheet_id,
+          title: GROKBOT_BUYING_TARGET.sheet_title,
+          gridProperties: { rowCount: grid.length, columnCount: 30 },
+          expenseTags: sheetExpenseTags(grid),
+          ledger: summary,
+          replenishmentNumber: Math.max(
+            0,
+            ...grid.map((row) => {
+              const label =
+                row[5]?.userEnteredValue?.stringValue ??
+                row[5]?.formattedValue ??
+                "";
+              return Number(
+                label.match(/^PCF REPLENISHMENT #(\d+)(?:\s|$)/i)?.[1] ?? 0,
+              );
+            }),
+          ),
+        };
+        const saved = await auth.db.rpc("apply_grokbot_snapshot", {
+          p_rows: expenses as unknown as Json,
+          p_tab: tab as unknown as Json,
+          p_token: String(payload.refresh_token),
+        });
+        if (saved.error)
+          return Response.json(
+            {
+              error: "Could not save snapshot. Refresh lease may have changed.",
+            },
+            { status: 409 },
+          );
+      }
+    }
+    const saved = await auth.db.rpc("record_grokbot_result", {
+      p_id: auth.operation.id,
+      p_runner: runner,
+      p_status: parsed.data.status,
+      p_report: report as Json,
+      p_error: parsed.data.error ?? "",
+    });
+    if (saved.error)
+      return Response.json(
+        { error: "Could not save owned operation result" },
+        { status: 409 },
+      );
+    if (parsed.data.status !== "running") {
+      if (
+        auth.operation.kind === "workbook_refresh" &&
+        parsed.data.status !== "completed"
+      ) {
+        await auth.db
+          .from("sheet_workbooks")
+          .update({
+            refresh_until: null,
+            sync_error: parsed.data.error ?? "Grokbot refresh needs review.",
+          })
+          .eq("id", "buying")
+          .eq("refresh_token", String(payload.refresh_token));
+      }
+      after(async () => {
+        try {
+          if (financial && parsed.data.status === "completed") {
+            const { refreshWorkbook } = await import("@/lib/sheets/refresh");
+            await refreshWorkbook("buying");
+          }
+          await dispatchGrokbot();
+        } catch {
+          console.error(
+            "Grokbot queue needs attention. Check saved operation status.",
+          );
+        }
+      });
+    }
+    return Response.json({ ok: true });
+  }
   const saved = await auth.db
     .from("grokbot_operations")
     .update({

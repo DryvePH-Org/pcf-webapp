@@ -176,6 +176,10 @@ export async function approveReplenishment(id:string, approve:boolean, note:stri
   const db=await createClient() as unknown as SupabaseClient<WorkflowDatabase>;
   const {error}=await db.rpc("approve_replenishment",{p_id:id,p_approve:approve,p_note:note||null});
   if(error)return actionError(safeDbMessage(error));
+  if (approve) {
+    const { syncSheetRollover } = await import("@/lib/sheets/sync-rollover");
+    await syncSheetRollover(id);
+  }
   queueNotification(approve?"replenishment.approved":"replenishment.rejected",()=>approve?notifyReplenishmentApproved(id,user.id):notifyReplenishmentRejected(id,user.id));
   revalidateReplenishment(id);
   return {ok:true};

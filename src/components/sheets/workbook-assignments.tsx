@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { sheetsAdmin } from "@/lib/sheets/bridge";
+import { sheetsAdmin } from "@/lib/sheets/database";
 import { WorkbookAssignment } from "@/components/sheets/assignment-form";
 export async function WorkbookAssignments() {
   await requireUser("/accounting/workbooks");

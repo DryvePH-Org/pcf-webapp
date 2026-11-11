@@ -1,0 +1,78 @@
+import { randomUUID } from "node:crypto";
+import { formatInTimeZone } from "date-fns-tz";
+
+export function simulationPayload(id: string) {
+  const date = formatInTimeZone(new Date(), "Asia/Manila", "yyyy-MM-dd");
+  return {
+    action: "integration_test",
+    source: "webapp-simulation",
+    sheet_mutations_allowed: true,
+    audit_write_target: { sheet_id: 2133354940, title: "GROKBOT EDIT AUDIT" },
+    allowed_value_ranges: ["B7:K9", "M7:O9", "O10:O79"],
+    allowed_format_ranges: ["B7:O9"],
+    precondition:
+      "The read-only audit has verified zero actual transactions, zero replenishment markers, and a 40000.00 beginning balance. Recheck this before writing. A changed precondition produces blocked.",
+    expenses: [
+      {
+        entry_id: randomUUID(),
+        voucher_number: "TEST-GROK-001",
+        requester_name: "PCF Integration Test",
+        department: "TEST",
+        amount_received: "150.00",
+        amount: "123.45",
+        return_amount: "26.55",
+        reimbursement_amount: "0.00",
+        tag: "CE - FUEL",
+        expense_date: date,
+        particulars: "TEST ONLY - Grokbot first expense " + id,
+        supplier: "TEST ONLY",
+        tin: "",
+        receipt_number: "",
+        plate: "",
+        receipt_attached: false,
+      },
+      {
+        entry_id: randomUUID(),
+        voucher_number: "TEST-GROK-002",
+        requester_name: "PCF Integration Test",
+        department: "TEST",
+        amount_received: "50.00",
+        amount: "76.55",
+        return_amount: "0.00",
+        reimbursement_amount: "26.55",
+        tag: "CE - FUEL",
+        expense_date: date,
+        particulars: "TEST ONLY - Grokbot second expense " + id,
+        supplier: "TEST ONLY",
+        tin: "",
+        receipt_number: "",
+        plate: "",
+        receipt_attached: false,
+      },
+    ],
+    replenishment: {
+      number: 1,
+      expected_previous_number: 0,
+      approved_amount: "1000.00",
+      approval_date: date,
+      accounting_approved: true,
+      approver_approved: true,
+      approval_context: "Synthetic test fixture authorized by the user",
+      label: "PCF REPLENISHMENT #01 [TEST ONLY - " + id.slice(0, 8) + "]",
+    },
+    steps: [
+      "GET callback operation status. If completed, acknowledge the existing report and finish.",
+      "Read and capture exact before-values, formulas and complete formatting of B7:O9 and O10:O79. Preserve all other data. Use literal text values for descriptions and document identifiers. Exclude column L from value writes. Preserve summary formulas, metadata, other financial rows, tabs and workbooks. Append planned, applied, verified and restored audit events in the existing GROKBOT EDIT AUDIT tab, sheet ID2133354940, using the verified admin.manilaautodisplay@gmail.com connection. Preserve all audit history.",
+      "POST running with the before snapshot and proposed cells to callback. Verify successful HTTP response.",
+      "Encode first expense at row7 with expense number1 and running balance39876.55.",
+      "Encode green replenishment marker #01 at row8 with B8 and D8 empty, F8 set to the supplied replenishment.label, H8 set to PCF Integration Test, M8=1000, N8 empty, O8 balance formula evaluating to40876.55, and green #00FF00 fill across B8:O8. The number is #01. Archived tab numbering does not affect it.",
+      "Encode second expense at row9 with expense number2 and running balance40800.00.",
+      "Propagate existing balance convention to following unused O10:O79 so their balances roll forward to40800.00. Preserve all Input VAT values.",
+      "Read back values, dates, formulas and green formatting. Verify Q6=41000, R6=200, S6=40800 and CE - FUEL summary=200. Check return/reimbursement amounts did not produce extra rows.",
+      "Within this run, exercise the same-operation reconciliation branch against its recorded row mappings and confirm exactly one copy of each entry and one green marker.",
+      "Preserve an applied-state snapshot in the report. Then compare current test cells with the verified after-state and restore only the captured before-values, formulas and formatting. Preserve unrelated edits. A conflicting edit produces failed with cleanup_conflict details.",
+      "Read back after cleanup and verify the captured cells and formats exactly match their before-state. In the report provide tests with amounts, dates, expense numbering, green replenishment numbering, formula totals, scope, duplicate prevention, and restoration results.",
+      "POST completed with verified:true, restored:true, editor_account:admin.manilaautodisplay@gmail.com, target spreadsheet_id and sheet_id, audit_tab_id:2133354940, audit_rows in A<number>:V<number> form, rows_written:3, in_amount:1000.00, out_amount:200.00, before_balance:40000.00, after_balance:40800.00, replenishment_number:1. Provide checks with amounts, dates, numbering, running_balance, summary_formulas, input_vat_preserved, write_scope and duplicate_free all true. Money values must be decimal strings. Include applied-state and restored-state evidence and restored_balance:40000.00 as a decimal string. Every callback requires the same top-level runner_id from your initial running claim. Report failures or unsupported tools explicitly.",
+    ],
+  };
+}

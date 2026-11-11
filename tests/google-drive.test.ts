@@ -26,10 +26,6 @@ describe('google drive client', () => {
     expect(driveConfigured()).toBe(true);
     vi.stubEnv('GOOGLE_REFRESH_TOKEN', '');
     expect(driveConfigured()).toBe(false);
-    vi.stubEnv('GOOGLE_SCRIPT_URL', 'https://script.google.com/macros/s/abc/exec');
-    expect(driveConfigured()).toBe(false); // the script also needs its secret
-    vi.stubEnv('GOOGLE_SCRIPT_SECRET', 'a-long-random-secret-value');
-    expect(driveConfigured()).toBe(true);
   });
 
   it('makes names safe for Drive and for search queries', () => {
@@ -96,41 +92,6 @@ describe('google drive client', () => {
     await uploadToDrive(input);
     await uploadToDrive(input);
     expect(tokenCalls).toBe(1);
-  });
-
-  it('uploads through an Apps Script web app when one is configured', async () => {
-    vi.stubEnv('GOOGLE_SCRIPT_URL', 'https://script.google.com/macros/s/abc/exec');
-    vi.stubEnv('GOOGLE_SCRIPT_SECRET', 'a-long-random-secret-value');
-    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-      const sent = JSON.parse(init!.body as string);
-      expect(sent.secret).toBe('a-long-random-secret-value');
-      expect(sent.folders).toEqual(['Main-Fund', '2026-11']);
-      expect(sent.fileName).toBe('PCV-1-receipt.jpg');
-      expect(Buffer.from(sent.data, 'base64')).toEqual(Buffer.from([1, 2, 3]));
-      return json({ ok: true, id: 'f1', url: 'https://drive.google.com/file/d/f1/view' });
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const result = await uploadToDrive({
-      folders: ['Main/Fund', '2026-11'],
-      fileName: 'PCV-1-receipt.jpg',
-      mimeType: 'image/jpeg',
-      bytes: new Uint8Array([1, 2, 3]).buffer,
-    });
-    expect(result.url).toContain('drive.google.com');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a script that refuses or answers with a foreign link', async () => {
-    vi.stubEnv('GOOGLE_SCRIPT_URL', 'https://script.google.com/macros/s/abc/exec');
-    vi.stubEnv('GOOGLE_SCRIPT_SECRET', 'a-long-random-secret-value');
-    const input = { folders: [], fileName: 'a.jpg', mimeType: 'image/jpeg', bytes: new ArrayBuffer(1) };
-
-    vi.stubGlobal('fetch', vi.fn(async () => json({ ok: false, error: 'unauthorized' })));
-    await expect(uploadToDrive(input)).rejects.toThrow(/refused the upload \(unauthorized\)/);
-
-    vi.stubGlobal('fetch', vi.fn(async () => json({ ok: true, id: 'x', url: 'https://evil.example/x' })));
-    await expect(uploadToDrive(input)).rejects.toThrow(/unexpected link/);
   });
 
   it('fails loudly when Google refuses', async () => {

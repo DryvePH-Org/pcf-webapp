@@ -1,56 +1,6 @@
-# Copying voucher photos to Google Drive
+# Google Drive voucher photo copies
 
-When set up, every photo saved with a voucher (the store **receipt** and the
-**paper voucher** that was scanned) is also copied to your Google Drive:
-
-```
-My Drive / Petty Cash Vouchers / <Fund name> / <year-month> / PCV-2026-0001-receipt-2026-11-03.jpg
-```
-
-The app keeps its own private copy as well, so a Drive problem never stops
-anyone from working. Copies happen in the background; if one fails it is only
-logged and the voucher is unaffected. The voucher page shows a "Google Drive"
-link once the copy exists.
-
-The app signs in once as **you** (with a refresh token) and uses the narrow
-`drive.file` permission: it can only see the files and folders it created
-itself, never the rest of your Drive. Files count against your Drive storage.
-
-## Option 1: an Apps Script in your own Drive (no admin, no Cloud project)
-
-Use this if you are a member of a Google Workspace and cannot create the Google
-Cloud key file. The app sends each photo to a small script you deploy; the
-script runs **as you** and saves the file in your Drive.
-
-1. Make a secret and copy it to the clipboard without showing it:
-   ```bash
-   mkdir -p .secrets && openssl rand -hex 32 > .secrets/drive-script-secret
-   ```
-2. Open <https://script.google.com/> with your work account → **New project**,
-   name it "PCF Voucher Uploads". Replace everything in `Code.gs` with the file
-   `apps-script/Code.gs` from this repository (`pbcopy < apps-script/Code.gs`
-   copies it).
-3. **Project Settings** (gear) → **Script properties** → add
-   `UPLOAD_SECRET` = the contents of `.secrets/drive-script-secret`
-   (`pbcopy < .secrets/drive-script-secret`, then paste). Optional:
-   `ROOT_FOLDER_ID` = the id from the URL of an existing Drive folder you can
-   edit (`drive.google.com/drive/folders/<ID>`); without it a **Petty Cash
-   Vouchers** folder is created in My Drive.
-4. **Deploy → New deployment** → type **Web app** → Execute as **Me**, Who has
-   access **Anyone** → **Deploy**. Approve the permission prompt (*Advanced →
-   Go to ... → Allow*). Copy the **Web app URL** (ends in `/exec`).
-   - If "Anyone" is not offered, your company blocks it; use Option 2 instead.
-   - "Anyone" only means the address can be reached. Nothing is saved without
-     the secret, which is long and random.
-5. Open the URL in a browser: you should see `{"ok":true,...}`.
-6. Set `GOOGLE_SCRIPT_URL` and `GOOGLE_SCRIPT_SECRET` in `.env.local` for
-   local use, or in the PCF service's private environment on the VPS.
-7. Restart the PCF service and save a voucher with a photo.
-
-If you edit the script later, use **Deploy → Manage deployments → Edit → New
-version** so the same URL keeps working.
-
-## Option 2: Google sign-in with a key file
+## Google sign-in with a key file
 
 ### One-time setup (about 10 minutes)
 

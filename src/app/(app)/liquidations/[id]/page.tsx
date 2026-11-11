@@ -1,3 +1,4 @@
+import { SheetDeliveryProgress } from "@/components/sheets/delivery-progress";
 import { LiquidationDeadline } from "@/components/liquidations/deadline-indicator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkflowDatabase } from "@/lib/workflow";
@@ -8,7 +9,7 @@ import { Callout } from "@/components/shared/callout";
 import { FlowSteps, type FlowStep } from "@/components/shared/flow-steps";
 import { LiquidationStatusPill } from "@/components/shared/flow-status-pills";
 import { SheetApprovalControl } from "@/components/sheets/approval-control";
-import { sheetsAdmin } from "@/lib/sheets/bridge";
+import { sheetsAdmin } from "@/lib/sheets/database";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { PageHeader } from "@/components/layout/page-header";
@@ -154,7 +155,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
       ) : null}
     </section>
     {editAccess.data ? <LiquidationForm employeeName={l.employee_name} key={`${l.id}:${l.updated_at}`} received={Number(l.amount_received).toFixed(2)} initial={{ id: l.id, department: l.department, filing_date: l.filing_date, unspent_reason: l.unspent_reason ?? "", items: rows.map(item => ({ id: item.id, sheet_details: {plate:(item.sheet_details as Record<string,string>|null)?.plate??''}, particulars: item.particulars, amount: Number(item.amount).toFixed(2), category_id: item.category_id, receipt_path: item.receipt_path ?? "", no_receipt_reason: item.no_receipt_reason ?? "" })) }} /> : null}
-    {sheetJob?<section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Google Sheets update report</h2><p>{sheetJob.status==='synced'?'Delivered':'Approved — sheet update pending'} · {formatDateTime(sheetJob.updated_at)}</p>{sheetJob.error?<p className="text-sm text-destructive">{sheetJob.error}</p>:null}{sheetSummary?<div className="space-y-2 text-sm"><p>{String(sheetSummary.workbook??'')} · {String(sheetSummary.worksheet??'')}</p><p>{Array.isArray(sheetSummary.expenses)?sheetSummary.expenses.length:0} expense rows · {formatPHP(Number(sheetSummary.total??0))}</p>{typeof sheetSummary.url==='string'&&sheetSummary.url.startsWith('https://docs.google.com/spreadsheets/d/')?<a className="underline" href={sheetSummary.url} target="_blank" rel="noreferrer">Open updated worksheet</a>:null}</div>:null}{sheetJob.status!=='synced'&&['custodian','admin'].includes(user.role)?<SheetApprovalControl id={id} retry/>:null}</section>:null}
+    {sheetJob?<section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Grokbot encoding report</h2><SheetDeliveryProgress pending={sheetJob.status!=='synced'}/><p className="text-sm text-muted-foreground">{formatDateTime(sheetJob.updated_at)}</p>{sheetJob.error?<p className="text-sm text-destructive">{sheetJob.error}</p>:null}{sheetSummary?<div className="space-y-2 text-sm"><p>{String(sheetSummary.workbook??'')} · {String(sheetSummary.worksheet??'')}</p><p>{Array.isArray(sheetSummary.expenses)?sheetSummary.expenses.length:0} expense rows · {formatPHP(Number(sheetSummary.total??0))}</p>{typeof sheetSummary.url==='string'&&sheetSummary.url.startsWith('https://docs.google.com/spreadsheets/d/')?<a className="underline" href={sheetSummary.url} target="_blank" rel="noreferrer">Open updated worksheet</a>:null}</div>:null}{sheetJob.status!=='synced'&&['custodian','admin'].includes(user.role)?<SheetApprovalControl id={id} retry/>:null}</section>:null}
     <LiquidationActions canPrepareApproval={flow.flow_version!==2} id={id} canReview={canReview} canSettle={canSettle} canApproveReimbursement={canApproveReimbursement} amount={difference.amount} kind={difference.kind} />
     {canReview && flow.flow_version===2 ? <CustodianReceiptReview key={`${id}:${flow.receipt_review_revision}`} id={id} revision={flow.receipt_review_revision} total={Number(l.total_spent)} advance={Number(l.amount_received)} filingDate={l.filing_date} tags={tagOptions.data??[]} urls={Object.fromEntries(urls)} aiReady={Boolean(process.env.GROQ_API_KEY)} reviewSaved={flow.receipt_reviewed_by===user.id}
       initial={receiptRows.data?.length ? receiptRows.data.map(row=>({...row,amount:String(row.amount),receipt_path:row.receipt_path??''})) : rows.map(item=>({id:item.id,particulars:item.particulars,amount:String(item.amount),supplier:'',tin:'',tag:'',expense_date:l.filing_date,plate:(item.sheet_details as Record<string,string>|null)?.plate??'',receipt_number:'',receipt_path:item.receipt_path??'',physical_checked:false}))} /> : null}

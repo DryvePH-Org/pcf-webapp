@@ -12,7 +12,7 @@ insert into profiles(id,full_name,role) values
 ('91000000-0000-4000-8000-000000000004','Workflow Approver','approver');
 insert into funds(id,name,amount,per_txn_limit,approval_threshold) values('91000000-0000-4000-8000-000000000010','Workflow test fund',10000,5000,3000);
 insert into fund_custodians(fund_id,custodian_id) values('91000000-0000-4000-8000-000000000010','91000000-0000-4000-8000-000000000002');
-update sheet_workbooks set fund_id='91000000-0000-4000-8000-000000000010',custodian_id='91000000-0000-4000-8000-000000000002',enabled=true,active_sheet_id=1,catalog='[{"sheetId":1,"title":"Test sheet","expenseTags":["CE - FUEL","CE - OTHERS","NCE - OTHERS"]}]' where id='buying';
+update sheet_workbooks set fund_id='91000000-0000-4000-8000-000000000010',custodian_id='91000000-0000-4000-8000-000000000002',enabled=true,active_sheet_id=1042918180,catalog='[{"sheetId":1042918180,"title":"Test sheet","expenseTags":["CE - FUEL","CE - OTHERS","NCE - OTHERS"]}]' where id='buying';
 insert into sheet_expenses(book_id,sheet_id,source_row,sheet_name,expense_date,voucher,category,particulars,person,supplier,plate,receipt_number,company,amount)
 values('buying',1,1,'Test sheet',current_date,'TEST','CE - FUEL','Fuel','Employee','Supplier','','','MAD',500);
 
@@ -92,7 +92,7 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  ));
  select receipt_review_revision into rev from liquidations where id=liquidation;
  insert into sheet_previews(liquidation_id,reviewer_id,revision,book_id,config_version,sheet_id,sheet_name,operation_id,requests,google_token,summary)
- select liquidation,auth.uid(),l.revision,'buying',w.config_version,1,'Test sheet','workflow_test','[]','test',jsonb_build_object('review_revision',rev-1) from liquidations l cross join sheet_workbooks w where l.id=liquidation and w.id='buying' returning id into preview;
+ select liquidation,auth.uid(),l.revision,'buying',w.config_version,1042918180,'Test sheet','workflow_test','[]','test',jsonb_build_object('review_revision',rev-1) from liquidations l cross join sheet_workbooks w where l.id=liquidation and w.id='buying' returning id into preview;
  blocked:=false;begin perform approve_liquidation_with_sheet(preview);exception when others then blocked:=true;end;assert blocked,'stale receipt review cannot approve';
  update sheet_previews set summary=jsonb_build_object('review_revision',rev) where id=preview;
  perform approve_liquidation_with_sheet(preview);
@@ -107,10 +107,14 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000004',true);
  perform approve_replenishment(replenishment,true,null);
  assert (select expected_cash=9500 from fund_balance_v where fund_id='91000000-0000-4000-8000-000000000010'),'approver approval does not move cash';
+ assert (select count(*)=1 from sheet_rollovers where replenishment_id=replenishment),'both approvals immediately queue one continuous-ledger marker';
+ assert queue_grokbot_replenishment(replenishment,'91000000-0000-4000-8000-000000000099',repeat('a',64))='91000000-0000-4000-8000-000000000099','approved replenishment queues before cash handover';
+ assert queue_grokbot_replenishment(replenishment,gen_random_uuid(),repeat('b',64))='91000000-0000-4000-8000-000000000099','retry reuses replenishment operation';
+ assert (select payload->>'replenishment_number'='1' and payload->>'expected_previous_replenishment_number'='0' and payload->>'approved_amount'='500.00' from grokbot_operations where replenishment_id=replenishment),'continuous sequence begins at one with the approved amount';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000003',true);
  perform close_replenishment(replenishment);
  assert (select expected_cash=10000 from fund_balance_v where fund_id='91000000-0000-4000-8000-000000000010'),'actual handover restores fund';
- assert (select count(*)=1 from sheet_rollovers where replenishment_id=replenishment),'only cash handover queues next numbered worksheet';
+ assert (select count(*)=1 from sheet_rollovers where replenishment_id=replenishment),'cash handover preserves the one queued replenishment marker';
  blocked:=false;begin perform close_replenishment(replenishment);exception when others then blocked:=true;end;assert blocked,'cash cannot be recorded twice';
 end $$;
 
@@ -132,7 +136,7 @@ do $$ declare spent numeric; req uuid; voucher uuid; liquidation uuid; preview u
   perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Actual spending','amount',spent,'tag','CE - FUEL','expense_date',current_date,'physical_checked',true)));
   select receipt_review_revision into rev from liquidations where id=liquidation;
   insert into sheet_previews(liquidation_id,reviewer_id,revision,book_id,config_version,sheet_id,sheet_name,operation_id,requests,google_token,summary)
-  select liquidation,auth.uid(),l.revision,'buying',w.config_version,1,'Test sheet',gen_random_uuid()::text,'[]','test',jsonb_build_object('review_revision',rev)
+  select liquidation,auth.uid(),l.revision,'buying',w.config_version,1042918180,'Test sheet',gen_random_uuid()::text,'[]','test',jsonb_build_object('review_revision',rev)
   from liquidations l cross join sheet_workbooks w where l.id=liquidation and w.id='buying' returning id into preview;
   perform approve_liquidation_with_sheet(preview);
   assert (select status='approved' and amount_received=500 and total_spent=spent from liquidations where id=liquidation),'below-advance and above-advance spending both approve';

@@ -413,7 +413,7 @@ supabase/migrations/         every database change, in order
 tests/                       Vitest (unit and database integration)
 e2e/                         Playwright (browser)
 docs/                        guides (this file, USER_GUIDE, SECURITY, GOOGLE_DRIVE)
-scripts/  apps-script/       one-off setup helpers
+scripts/                    one-off setup helpers
 ```
 
 ### Decision table: "where does this go?"

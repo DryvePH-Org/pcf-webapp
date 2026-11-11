@@ -1,4 +1,4 @@
-import { findLedgerBoundary } from './planner';
+import { findLedgerBoundary } from './grid';
 import { z } from 'zod';
 import type { Cell, SheetExpense } from './types';
 const cellText=(c?:Cell)=>String(c?.effectiveValue?.stringValue??c?.userEnteredValue?.stringValue??c?.formattedValue??c?.effectiveValue?.numberValue??c?.userEnteredValue?.numberValue??'').trim();

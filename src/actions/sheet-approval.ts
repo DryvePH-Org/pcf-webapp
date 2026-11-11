@@ -6,17 +6,18 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/lib/database.types";
+import { sheetsAdmin } from "@/lib/sheets/database";
 import {
-  sheetsAdmin,
-  sheetsBridge,
-  type ReadResult,
-} from "@/lib/sheets/bridge";
+  GROKBOT_BUYING_TARGET,
+  grokbotFinancialEvent,
+} from "@/lib/grokbot/contract";
 import {
-  planExpenses,
-  sheetExpenseTags,
-  type ExpenseForSheet,
-} from "@/lib/sheets/planner";
-import type { SheetsDatabase, Cell, SheetTab } from "@/lib/sheets/types";
+  dispatchGrokbot,
+  queueGrokbotOperation,
+  retryGrokbotOperation,
+} from "@/lib/grokbot/delivery";
+import { type ExpenseForSheet } from "@/lib/sheets/types";
+import type { SheetsDatabase, SheetTab } from "@/lib/sheets/types";
 import type { WorkflowDatabase } from "@/lib/workflow";
 import { safeDbMessage } from "@/lib/db-error";
 export async function previewSheetApproval(id: string) {
@@ -74,33 +75,25 @@ export async function previewSheetApproval(id: string) {
       throw new Error(
         "Ask Accounting to enable a workbook for your custodian, fund, and active worksheet.",
       );
-    if (existing.data) {
-      const status = await sheetsBridge<{ receipt: Json | null }>({
-        action: "status",
-        book: w.data.id,
-        operationId: existing.data.operation_id,
-      });
-      if (status.receipt) {
-        await admin
-          .from("sheet_jobs")
-          .update({ status: "synced", report: status.receipt, error: null })
-          .eq("id", existing.data.id);
-        return {
-          ok: false as const,
-          error:
-            "Google already applied this update. Refresh to view the saved report.",
-        };
-      }
-      const original = await admin
-        .from("sheet_previews")
-        .select("sheet_id")
-        .eq("id", existing.data.preview_id)
-        .single();
-      if (original.error || original.data.sheet_id !== w.data.active_sheet_id)
-        throw new Error(
-          "The original destination worksheet changed. Ask an administrator to resolve the pending update before retrying.",
-        );
-    }
+    if (
+      w.data.id !== "buying" ||
+      w.data.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
+      w.data.active_sheet_id !== GROKBOT_BUYING_TARGET.sheet_id
+    )
+      throw new Error(
+        "Grokbot currently supports the configured MAD Buying worksheet. Configure the workbook before approving this sheet update.",
+      );
+    if (existing.data?.status === "synced")
+      throw new Error(
+        "This liquidation is already encoded. Refresh to view its report.",
+      );
+    if (
+      existing.data &&
+      !z.uuid().safeParse(existing.data.operation_id).success
+    )
+      throw new Error(
+        "This earlier delivery needs reconciliation before migration to Grokbot. Ask an administrator to inspect its saved report.",
+      );
     const pendingRollover = await admin
       .from("sheet_rollovers")
       .select("id")
@@ -111,7 +104,7 @@ export async function previewSheetApproval(id: string) {
       throw new Error("Could not verify worksheet rollover status.");
     if (!existing.data && pendingRollover.data?.length)
       throw new Error(
-        "Complete the pending replenishment worksheet before synchronizing more expenses.",
+        "Complete the pending Grokbot replenishment marker before synchronizing more expenses.",
       );
     const items = await db
       .from("liquidation_items")
@@ -199,60 +192,46 @@ export async function previewSheetApproval(id: string) {
       ) !== Math.round(Number(l.data.total_spent) * 100)
     )
       throw new Error("Receipt entries do not match the requester total.");
-    const rows: Cell[][] = [];
-    let cursor: number | null = 0;
-    if (expenses.length) {
-      while (cursor !== null) {
-        const response: ReadResult = await sheetsBridge<ReadResult>({
-          action: "read",
-          book: w.data.id,
-          sheetId: w.data.active_sheet_id,
-          startRow: cursor,
-          limit: 500,
-        });
-        for (const sheet of response.snapshot.data.sheets ?? [])
-          for (const block of sheet.data ?? [])
-            for (const [i, row] of (block.rowData ?? []).entries())
-              rows[(block.startRow ?? cursor) + i] = row.values ?? [];
-        const next: number | null = response.snapshot.nextRow;
-        if (next !== null && next <= cursor)
-          throw new Error("Invalid Google pagination.");
-        cursor = next;
-      }
-    }
-    const grid = Array.from({ length: rows.length }, (_, i) => rows[i] ?? []);
-    const requests = planExpenses(w.data.active_sheet_id, grid, expenses);
-    const formulaTags = sheetExpenseTags(grid);
+    const formulaTags =
+      (w.data.catalog as unknown as SheetTab[]).find(
+        (tab) => tab.sheetId === w.data.active_sheet_id,
+      )?.expenseTags ?? [];
     const customTags = expenses.filter(
       (expense) =>
         formulaTags.length && !formulaTags.includes(expense.category),
     );
-    const operation =
-      existing.data?.operation_id ?? `liquidation_${id.replaceAll("-", "")}`;
-    let google: {
-      preview: { token?: string; alreadyApplied?: boolean; report?: Json };
-    } = { preview: { token: "no-expenses" } };
-    if (requests.length)
-      google = await sheetsBridge({
-        action: "preview",
-        book: w.data.id,
-        operationId: operation,
-        requests,
-      });
-    if (google.preview.alreadyApplied && existing.data) {
-      await admin
-        .from("sheet_jobs")
-        .update({
-          status: "synced",
-          report: google.preview.report ?? null,
-          error: null,
-        })
-        .eq("id", existing.data.id);
-      return {
-        ok: false as const,
-        error: "This update was already delivered. Refresh to view its report.",
-      };
-    }
+    const operation = existing.data?.operation_id ?? randomUUID();
+    const received = Math.round(Number(l.data.amount_received) * 100);
+    const spent = Math.round(Number(l.data.total_spent) * 100);
+    const event = grokbotFinancialEvent.parse({
+      protocol_version: "pcf.grokbot.v1",
+      operation_id: operation,
+      event: "pcf.liquidation.approved",
+      target: GROKBOT_BUYING_TARGET,
+      liquidation_id: id,
+      voucher_id: l.data.voucher_id,
+      voucher_number: voucherNumber,
+      requester_name: l.data.employee_name,
+      department: l.data.department,
+      filing_date: l.data.filing_date,
+      custodian_approved_at: l.data.reviewed_at ?? new Date().toISOString(),
+      custodian_id: user.id,
+      amount_received: (received / 100).toFixed(2),
+      total_spent: (spent / 100).toFixed(2),
+      return_amount: (Math.max(received - spent, 0) / 100).toFixed(2),
+      reimbursement_amount: (Math.max(spent - received, 0) / 100).toFixed(2),
+      lines: expenses.map((expense) => ({
+        entry_id: expense.id,
+        particulars: expense.particulars,
+        amount: expense.amount.toFixed(2),
+        tag: expense.category,
+        expense_date: expense.expense_date,
+        supplier: expense.supplier,
+        tin: expense.tin,
+        receipt_number: expense.receipt_number,
+        plate: expense.plate,
+      })),
+    });
     const tab = (w.data.catalog as unknown as SheetTab[]).find(
       (t) => t.sheetId === w.data.active_sheet_id,
     );
@@ -278,8 +257,8 @@ export async function previewSheetApproval(id: string) {
       sheet_id: w.data.active_sheet_id,
       sheet_name: summary.worksheet,
       operation_id: operation,
-      requests: requests as Json,
-      google_token: google.preview.token!,
+      requests: event as unknown as Json,
+      google_token: "grokbot.v1",
       summary: summary as unknown as Json,
       expires_at: new Date(Date.now() + 240000).toISOString(),
       created_at: new Date().toISOString(),
@@ -325,7 +304,11 @@ export async function confirmSheetApproval(previewId: string) {
     .eq("liquidation_id", p.data.liquidation_id)
     .maybeSingle();
   if (job.data?.status === "synced")
-    return { ok: true, status: "synced" as const, message: "Already delivered. View the saved report." };
+    return {
+      ok: true,
+      status: "synced" as const,
+      message: "Already delivered. View the saved report.",
+    };
   if (job.data) {
     const w = await admin
       .from("sheet_workbooks")
@@ -362,48 +345,36 @@ export async function confirmSheetApproval(previewId: string) {
       error: "Could not load the saved Sheets delivery. Refresh and try again.",
     };
   try {
-    if (p.data.google_token === "needs-preview")
+    if (p.data.google_token !== "grokbot.v1")
       throw new Error(
-        "Google Sheets update is pending a fresh preview. Review and retry when the connection is available.",
+        "Prepare a fresh Grokbot preview before retrying this delivery.",
       );
-    await admin
-      .from("sheet_jobs")
-      .update({ attempts: job.data.attempts + 1 })
-      .eq("id", job.data.id);
-    const response =
-      p.data.google_token === "no-expenses"
-        ? {
-            report: {
-              message: "No expense rows; no Google write required.",
-              completedAt: new Date().toISOString(),
-            },
-          }
-        : await sheetsBridge<{ report: Json }>({
-            action: "commit",
-            book: p.data.book_id,
-            operationId: p.data.operation_id,
-            token: p.data.google_token,
-            requests: p.data.requests,
-          });
-    const saved = await admin
-      .from("sheet_jobs")
-      .update({
-        status: "synced",
-        report: response.report,
-        error: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", job.data.id);
-    if (saved.error)
-      throw new Error(
-        "Google delivery completed; report needs reconciliation.",
-      );
+    const approved = await admin
+      .from("liquidations")
+      .select("reviewed_at")
+      .eq("id", p.data.liquidation_id)
+      .single();
+    if (approved.error || !approved.data.reviewed_at)
+      throw new Error("Could not verify saved custodian approval.");
+    const event = grokbotFinancialEvent.parse({
+      ...(p.data.requests as Record<string, Json>),
+      custodian_approved_at: approved.data.reviewed_at,
+    });
+    await queueGrokbotOperation({
+      id: event.operation_id,
+      kind: "liquidation_approved",
+      payload: event,
+      liquidationId: p.data.liquidation_id,
+    });
+    await retryGrokbotOperation(event.operation_id);
+    await dispatchGrokbot();
     revalidatePath("/liquidations");
     revalidatePath("/accounting");
     return {
       ok: true,
-      status: "synced" as const,
-      message: "Encoding complete. Google Sheets updated successfully. View the saved report below.",
+      status: "pending" as const,
+      message:
+        "Liquidation approved. Grokbot encoding is queued. The saved report updates after verified completion.",
     };
   } catch (error) {
     const message =
@@ -421,7 +392,8 @@ export async function confirmSheetApproval(previewId: string) {
     return {
       ok: true,
       status: "pending" as const,
-      message: "Liquidation approved. Google Sheets encoding is pending. Review and retry the sheet update.",
+      message:
+        "Liquidation approved. Grokbot encoding is pending. Review the saved status before retrying.",
     };
   }
 }

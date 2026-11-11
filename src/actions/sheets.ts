@@ -18,5 +18,5 @@ export async function configureWorkbook(input:z.input<typeof assignment>) {
 export async function retrySheetRollover(replenishmentId:string) {
  const {getCurrentUser}=await import('@/lib/auth');const user=await getCurrentUser();
  if(!user||!['admin','accounting'].includes(user.role)||!z.uuid().safeParse(replenishmentId).success)return {ok:false,error:'Accounting access required.'};
- const {syncSheetRollover}=await import('@/lib/sheets/sync-rollover');await syncSheetRollover(replenishmentId);revalidatePath('/accounting');return {ok:true};
+ const {syncSheetRollover}=await import('@/lib/sheets/sync-rollover');await syncSheetRollover(replenishmentId,true);revalidatePath('/accounting');return {ok:true};
 }

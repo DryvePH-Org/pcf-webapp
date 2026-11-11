@@ -3,8 +3,10 @@ import { WorkbookAssignments } from "@/components/sheets/workbook-assignments";
 import { PageHeader } from "@/components/layout/page-header";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { GrokbotSimulation } from "@/components/sheets/grokbot-simulation";
+import { getGrokbotSimulation } from "@/actions/grokbot";
 export default async function SheetsAssignmentsPage() {
-  await requireUser("/admin/sheets");
+  const user = await requireUser("/admin/sheets");
   return (
     <div className="space-y-6">
       <PageHeader
@@ -21,6 +23,7 @@ export default async function SheetsAssignmentsPage() {
         }
       />
       <WorkbookAssignments />
+      {user.role === "admin" ? <GrokbotSimulation initial={await getGrokbotSimulation()}/> : null}
     </div>
   );
 }

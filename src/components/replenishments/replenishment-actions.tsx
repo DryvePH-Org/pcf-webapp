@@ -235,7 +235,7 @@ export function ReplenishmentActions({
             if (!open) close();
           }}
           title="Confirm actual cash handover?"
-          description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone. A new numbered Google worksheet will also be requested for the assigned workbook. Any pending sheet creation appears on the Accounting sheets dashboard."
+          description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone. Grokbot records the green replenishment marker after Accounting and Approver approval. Pending encoding appears on the Accounting sheets dashboard."
           confirmLabel="Confirm cash handed over"
           pending={pending}
           onConfirm={() =>

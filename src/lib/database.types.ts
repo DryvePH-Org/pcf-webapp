@@ -485,6 +485,7 @@ export type Database = {
           payload: Json
           replenishment_id: string | null
           report: Json | null
+          runner_id: string | null
           sheet_id: number
           spreadsheet_id: string
           status: string
@@ -501,6 +502,7 @@ export type Database = {
           payload: Json
           replenishment_id?: string | null
           report?: Json | null
+          runner_id?: string | null
           sheet_id: number
           spreadsheet_id: string
           status?: string
@@ -517,6 +519,7 @@ export type Database = {
           payload?: Json
           replenishment_id?: string | null
           report?: Json | null
+          runner_id?: string | null
           sheet_id?: number
           spreadsheet_id?: string
           status?: string
@@ -1511,6 +1514,7 @@ export type Database = {
           name: string
           refresh_token: string | null
           refresh_until: string | null
+          replenishment_sequence: number
           spreadsheet_id: string
           sync_error: string | null
         }
@@ -1527,6 +1531,7 @@ export type Database = {
           name: string
           refresh_token?: string | null
           refresh_until?: string | null
+          replenishment_sequence?: number
           spreadsheet_id: string
           sync_error?: string | null
         }
@@ -1543,6 +1548,7 @@ export type Database = {
           name?: string
           refresh_token?: string | null
           refresh_until?: string | null
+          replenishment_sequence?: number
           spreadsheet_id?: string
           sync_error?: string | null
         }
@@ -1910,6 +1916,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      apply_grokbot_snapshot: {
+        Args: { p_rows: Json; p_tab: Json; p_token: string }
+        Returns: undefined
+      }
       approve_liquidation_reimbursement: {
         Args: { p_id: string }
         Returns: undefined
@@ -1937,6 +1947,36 @@ export type Database = {
       cancel_budget_request: { Args: { p_id: string }; Returns: undefined }
       check_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: boolean
+      }
+      claim_grokbot_dispatch: {
+        Args: never
+        Returns: {
+          callback_hash: string
+          created_at: string
+          error: string | null
+          expires_at: string
+          id: string
+          kind: string
+          liquidation_id: string | null
+          payload: Json
+          replenishment_id: string | null
+          report: Json | null
+          runner_id: string | null
+          sheet_id: number
+          spreadsheet_id: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "grokbot_operations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_grokbot_runner: {
+        Args: { p_id: string; p_runner: string }
         Returns: boolean
       }
       claim_sheet_refresh: { Args: { p_id: string }; Returns: string }
@@ -2088,9 +2128,23 @@ export type Database = {
       pending_expense_category: { Args: never; Returns: string }
       plan_data_deletion: { Args: { p: Json }; Returns: Json }
       prepare_data_deletion: { Args: { p: Json }; Returns: Json }
+      queue_grokbot_replenishment: {
+        Args: { p_hash: string; p_id: string; p_operation: string }
+        Returns: string
+      }
       record_cash_count: {
         Args: { p_counted: number; p_fund_id: string; p_note?: string }
         Returns: string
+      }
+      record_grokbot_result: {
+        Args: {
+          p_error: string
+          p_id: string
+          p_report: Json
+          p_runner: string
+          p_status: string
+        }
+        Returns: undefined
       }
       record_liquidation_settlement: {
         Args: { p_amount: number; p_id: string; p_note?: string }

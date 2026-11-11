@@ -46,7 +46,9 @@ export function WorkbookAssignment({
       (link) => link.custodian_id === custodian && link.fund_id === item.id,
     ),
   );
-  const tabs = book.catalog as unknown as SheetTab[];
+  const tabs = (book.catalog as unknown as SheetTab[]).filter(
+    (tab) => book.id !== "buying" || tab.sheetId === 1042918180,
+  );
   const ready = Boolean(
     custodian &&
       eligibleFunds.some((item) => item.id === fund) &&

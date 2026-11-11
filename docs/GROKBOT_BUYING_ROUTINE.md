@@ -15,16 +15,20 @@ Every financial write must resolve to this exact destination.
 | Time zone | Asia/Manila |
 | First replenishment marker | `PCF REPLENISHMENT #01` |
 | Marker background | `#00FF00`, RGB `0,255,0` |
+| Required Google editor | `admin.manilaautodisplay@gmail.com` |
+| Audit tab | `GROKBOT EDIT AUDIT`, in this same spreadsheet |
 
 Resolve the spreadsheet ID and numeric sheet ID through the connected Google Sheets tools before planning a write. A title match alone is insufficient. A different destination or an ambiguous tab produces `blocked`.
 
-The MAD Bank reference is read-only. Its green funding rows and sequential replenishment labels provide the visual reference. Every other workbook and tab is outside the write allowlist.
+Use the Google Sheets connection authenticated as `admin.manilaautodisplay@gmail.com` for every write, including audit rows, formatting, and tab creation. Verify the selected connection's account identity and edit capability. If identity or access cannot be verified, report `blocked` with the required account and access problem.
+
+The MAD Bank reference is read-only. Its green funding rows and sequential replenishment labels provide the visual reference. The financial ledger tab and the `GROKBOT EDIT AUDIT` tab are the two allowed write destinations in the Buying spreadsheet. All financial entry values belong to the fixed ledger tab. Audit records belong to the audit tab. Every other workbook and tab is outside the write allowlist.
 
 ## 2. Source observations
 
 The reviewed Buying template has its headers at B5:O5, beginning balance at O6, ledger beginning at row 7, and sign-off area beginning at row 82. O6 was ₱40,000 when inspected. Always reread the live value.
 
-B7:B78 contains prefilled line numbers. O8:O79 contains prefilled balance values. Those cells alone represent unused template rows. Determine transaction occupancy from dates, descriptions, people, document references, and IN/OUT values.
+B7:B78 contains prefilled line numbers. The live audit confirmed balance formulas in O7:O79. Those cells alone represent unused template rows. Determine transaction occupancy from dates, descriptions, people, document references, and IN/OUT values.
 
 Q5:S6 is the cash summary. Q10:T46 contains expense-tag summaries. The template has several formula endpoints, including row 76, row 79, and row 109. Validate each affected formula against the actual ledger boundary.
 
@@ -49,10 +53,19 @@ Use decimal money strings from the payload. Perform reconciliation in integer ce
 
 A missing field remains blank or produces an actionable validation error. Financial amounts, approval identities, dates, and classifications must be supplied explicitly.
 
+This document contains the complete financial field definitions. Repository access is unnecessary. For a production financial job, `payload` is the financial event object described below. It repeats `protocol_version`, `operation_id`, `event`, and `target` from the transport envelope. Require those repeated fields to agree exactly. Missing or conflicting financial fields produce `blocked`.
+
+All IDs are UUID strings. Dates use `YYYY-MM-DD`. Approval timestamps use ISO 8601 UTC timestamps ending in `Z`. Money fields are unsigned decimal strings with at most ten whole-number digits and two decimal places, such as `"123.45"`. Convert them to integer centavos for arithmetic. Positive amounts must exceed zero. Nonnegative amounts may be `"0.00"`. Empty optional text is represented by `""`, and every listed field must still be present. Null values and unrecognized financial fields require validation review.
+
+The `pcf.reference_audit` and `pcf.integration_test` events use task-specific payloads with `action` and explicit scope. They are separate from production financial events. Audit requests permit zero mutations. Synthetic test approvals apply only inside their explicitly authorized test scope.
+
+Write descriptive text as literal strings using typed Sheets `stringValue` updates or equivalent RAW text writes. Preserve leading zeros and any literal leading `=` in supplied descriptions. Write PHP amounts as numbers and dates as real date values with the target date format. Limit formula writes to the balance and summary formulas authorized by this routine. Use separate value updates for B:K and M:O so column L is excluded from value updates.
+
 ## 4. Start every run with these checks
 
 1. Read the operation endpoint using GET and `Authorization: Bearer <callback.token>`.
 2. A completed operation returns its stored result. End the run after acknowledging that existing result.
+   For a job dispatched by the webapp, generate one runner UUID for this run. POST `status: "running"` with top-level `runner_id` before inspecting or changing financial cells. Include this same `runner_id` in every subsequent callback. Proceed only after HTTP 200. HTTP 409 means another runner owns this operation. End that duplicate run immediately. Every new run has a new runner UUID, while a retry of a callback within the same run retains its runner UUID. Reconcile `previous_report` and the operation's stored report before retrying an earlier partial write.
 3. Resolve the allowlisted destination and read the current ledger, formulas, colors, merges, and relevant validation rules.
 4. Identify headers, beginning balance, last real transaction, available ledger rows, sign-offs, summary cells, expense sequence, and replenishment sequence.
 5. Verify both the current state and the expected sequence from the payload.
@@ -65,7 +78,39 @@ An operation with an ambiguous destination, stale sequence, inconsistent amount,
 
 ## 5. Liquidation event
 
-Event name is `pcf.liquidation.approved`. Required business fields are defined by `src/lib/grokbot/contract.ts`.
+Event name is `pcf.liquidation.approved`. Its `payload` has the following required fields in addition to the four repeated envelope fields described above.
+
+| Field | Type and meaning |
+| --- | --- |
+| `liquidation_id` | UUID identifying the approved liquidation |
+| `voucher_id` | UUID identifying its parent voucher |
+| `voucher_number` | Text, up to 100 characters, may be empty |
+| `requester_name` | Authenticated requester name, 1–100 characters |
+| `department` | Text, up to 100 characters, may be empty |
+| `filing_date` | Creation date in `YYYY-MM-DD` format |
+| `custodian_approved_at` | UTC approval timestamp |
+| `custodian_id` | UUID of the approving custodian |
+| `amount_received` | Positive money string for the released advance |
+| `total_spent` | Nonnegative money string equal to the sum of all line amounts |
+| `return_amount` | Nonnegative money string for excess advance |
+| `reimbursement_amount` | Nonnegative money string for employee-funded excess spending |
+| `lines` | Array of 0–40 expense objects, defined below |
+
+Each `lines[]` object has exactly these required fields.
+
+| Field | Type and meaning |
+| --- | --- |
+| `entry_id` | UUID, unique within this event and stable across retries |
+| `particulars` | Description, 1–300 characters |
+| `amount` | Positive money string for this expense |
+| `tag` | Reviewed CE/NCE or custom tag, 1–150 characters |
+| `expense_date` | Reviewed transaction/liquidation date in `YYYY-MM-DD` format |
+| `supplier` | Text, up to 300 characters, may be empty |
+| `tin` | Text, up to 100 characters, may be empty or explicitly `NON VAT` |
+| `receipt_number` | Text, up to 100 characters, may be empty |
+| `plate` | Text, up to 300 characters, may be empty |
+
+Receipt images and AI extraction output are reviewed in the webapp before this event. Encode the saved, approved line values supplied here. Missing receipt images do not invalidate an otherwise valid approved entry.
 
 The event contains the saved custodian-approved entries. Each entry becomes one ledger expense row, including entries whose receipt is unavailable.
 
@@ -102,6 +147,23 @@ A zero-expense liquidation has an empty entry array and `total_spent: "0.00"`. R
 ## 6. Replenishment event
 
 Event name is `pcf.replenishment.approved`.
+
+Its `payload` has the following required fields in addition to the four repeated envelope fields described above.
+
+| Field | Type and meaning |
+| --- | --- |
+| `replenishment_id` | UUID identifying this replenishment |
+| `replenishment_number` | Positive integer for this continuous tab's next marker |
+| `expected_previous_replenishment_number` | Nonnegative integer for the greatest existing marker, initially `0` |
+| `approved_amount` | Positive money string for the approved inflow |
+| `accounting_approved_at` | UTC timestamp of Accounting approval |
+| `approver_approved_at` | UTC timestamp of Approver approval |
+| `accounting_id` | UUID of the Accounting reviewer |
+| `approver_id` | UUID of the independent Approver |
+| `custodian_name` | Custodian name, 1–100 characters |
+| `approval_date` | Posting date in `YYYY-MM-DD` format, supplied by the webapp |
+
+Require `replenishment_number = expected_previous_replenishment_number + 1`. The initial pair is `1` and `0`, producing `PCF REPLENISHMENT #01` in column F. Column D remains empty on this row.
 
 Both `accounting_approved_at` and `approver_approved_at` must be present, and the accounting and approver identities must differ. Post immediately after these two approvals. Subsequent cash-handover updates refer to the same replenishment ID.
 
@@ -195,6 +257,9 @@ Example completed result follows.
     "before_balance": "40000.00",
     "after_balance": "39800.00",
     "verified": true,
+    "editor_account": "admin.manilaautodisplay@gmail.com",
+    "audit_tab_id": 2133354940,
+    "audit_rows": "A3:V5",
     "checks": {
       "amounts": true,
       "dates": true,
@@ -213,9 +278,50 @@ Example completed result follows.
 
 Every actual result must use its real operation ID, ranges, amounts, verification findings, and completion timestamp.
 
+Webapp-dispatched callbacks include a top-level `runner_id` alongside `operation_id`, `status` and `report`. Financial completion is accepted only when the target, editor, audit evidence, row count and reconciled amounts match the operation, with every listed check true. Replenishment reports additionally include `checks.green_marker: true` and the exact `replenishment_number`. A zero-row liquidation still gets an audit record and the required successful zero-write checks. Callback validation failures return an actionable HTTP 422 response. Correct the report using actual evidence or report failed with the unresolved issue.
+
 For a blocked run, POST `status: "blocked"`, a concise `error`, and the inspected facts in `report`. For a failed or partially applied write, POST `status: "failed"` with applied ranges, failed step, and reconciliation details. Claim completion only after every required check passes.
 
 Retry a failed callback using the same operation ID and result. Keep the callback token within that operation's requests and exclude it from the report and Google cells.
+
+### Google editor audit worksheet
+
+Maintain a visible append-only tab named `GROKBOT EDIT AUDIT` in the same Buying spreadsheet. During explicitly authorized setup, create it if absent and record its numeric sheet ID in the callback. If it exists, verify its headers and identity before reusing it. An incompatible existing tab requires review before changing it.
+
+Use these columns in A1:V1 in this exact order.
+
+| Column | Header | Recorded value |
+| --- | --- | --- |
+| A | TIMESTAMP UTC | ISO UTC time of this audit event |
+| B | TIMESTAMP MANILA | Human-readable Asia/Manila date and time |
+| C | OPERATION ID | Stable webhook operation UUID |
+| D | AUDIT EVENT ID | Stable event key, such as operation ID plus stage and attempt |
+| E | EVENT | Liquidation, replenishment, integration test, or audit setup |
+| F | MODE | production, dry_run, or test |
+| G | STAGE | planned, applied, verified, restored, blocked, or failed |
+| H | EDITOR ACCOUNT | Verified Google connection email |
+| I | SOURCE ID | Liquidation/replenishment ID, or empty for setup/test |
+| J | LEDGER TAB ID | 1042918180 |
+| K | LEDGER RANGES | Exact ledger ranges affected or planned |
+| L | ROW COUNT | Number of financial rows affected, zero for setup |
+| M | BEFORE BALANCE PHP | Numeric balance before this stage, if observed |
+| N | IN PHP | Numeric inflow for this stage, if applicable |
+| O | OUT PHP | Numeric outflow for this stage, if applicable |
+| P | AFTER BALANCE PHP | Numeric verified balance after this stage, if observed |
+| Q | REPLENISHMENT NUMBER | Marker number, when applicable |
+| R | CHANGES | Concise per-range before/after values, formulas, and formatting summary |
+| S | VERIFICATION | Read-back checks and their results |
+| T | WARNINGS OR ERROR | Actionable warnings, conflicts, or failure details |
+| U | ATTEMPT | Attempt number for this stage |
+| V | RELATED AUDIT EVENT ID | Earlier event key for a retry, correction, or restoration |
+
+Freeze the header row, enable filtering, wrap long descriptions, and use readable date/currency formatting. Use literal text writes for all narrative and identifier fields. Exclude secrets, callback tokens, receipt images, and extracted receipt contents from audit records. Include only operational summaries needed to explain the edits. Preserve exact affected-cell snapshots in the app operation report within its size limits. Report the audit row ranges and numeric audit sheet ID back to the app.
+
+Before a financial write, append and read back its `planned` audit event with target ranges and before/expected-after summary. After writing, append `applied`, then `verified` only after successful read-back. Report blocked and failed attempts when audit access is available. If audit logging fails before financial writes, block the job. If it fails after a financial write, preserve the applied ranges in the app callback and report failure for reconciliation.
+
+Use the stable AUDIT EVENT ID to reconcile retries. Reuse an already confirmed identical audit event. An uncertain append requires a read-back search before retrying. Corrections append a new event referencing the old event. Preserve previous audit rows during cleanup and restore only the synthetic financial test cells. A restoration gets its own `restored` audit event. Audit rows are historical evidence, and tests retain those records.
+
+Read-only `reference_audit` jobs continue to make zero spreadsheet mutations, including audit-tab changes. Their reports remain in the app callback. Audit worksheet setup is a separate explicitly scoped job that creates or verifies only the audit tab, writes its headers and setup event, and reads back the result. It must preserve all ledger cells and formulas.
 
 ## 10. Read-only audit and test modes
 
@@ -223,7 +329,24 @@ A `reference_audit` operation reads the MAD Bank reference and target Buying tab
 
 A `dry_run` validates synthetic financial payloads and predicts row allocations and balances. It reports zero committed rows.
 
+A `pcf.workbook.refresh` event is strictly read-only, including the audit tab. Its payload includes `book_id: "buying"` and a webapp-owned `refresh_token` that the bot leaves unchanged. Claim the runner and return `verified: true`, the target `spreadsheet_id` and numeric `sheet_id`, `checks.write_scope: true`, and `snapshot` with the structure below.
+
+```json
+{
+  "spreadsheet_id": "1LJCbzcYSUQ0qiB5s_XA4-QkuecXSB-1P45nISZxsrEk",
+  "sheet_id": 1042918180,
+  "sheet_title": "PCF REPLENISHMENT - BUYING (NOV-DEC 2026)",
+  "grid": [
+    [{"userEnteredValue": {"stringValue": "Example A1 text"}}]
+  ]
+}
+```
+
+The example grid demonstrates the cell structure. The actual snapshot is a complete A1-based grid covering every used ledger, summary and signoff row, with empty arrays/objects preserving row/column positions. Include user-entered formulas under `userEnteredValue.formulaValue`, computed numeric values under `effectiveValue.numberValue`, literal text under `stringValue`, and display text under `formattedValue`. The server accepts 89–1000 rows and at most 30 columns per row, with a total callback limit of 200,000 bytes. Trim trailing unused rows/columns while retaining all required content. Report blocked when the complete used content exceeds these bounds. Refreshes update the app's saved Buying snapshot while preserving historical imports. They make zero Google cell changes.
+
 A `test` authorizes only the exact test entries and ranges explicitly supplied in that request. Test entries must carry `TEST ONLY` labels. Preserve an exact before-state and provide both the applied-state and restored-state reports. Test cleanup restores only its own captured cells after verifying that their current values still match its verified test after-state. Concurrent staff changes require a blocked cleanup report.
+
+For a webapp simulation (`payload.source: "webapp-simulation"`), retain planned, applied, verified and restored events in audit tab ID `2133354940`. Its final report includes `restored: true`, `restored_balance: "40000.00"`, `rows_written: 3`, `in_amount: "1000.00"`, `out_amount: "200.00"`, `before_balance: "40000.00"`, `after_balance: "40800.00"`, `replenishment_number: 1`, the verified editor and target IDs, `audit_tab_id`, and a real `audit_rows` span formatted as `A<number>:V<number>`. All required financial checks must pass. The `after_balance` records the verified applied state and `restored_balance` records the cleanup result.
 
 For a test starting from the reviewed ₱40,000 template, the expected arithmetic is:
 
