@@ -1,3 +1,4 @@
+import { OutstandingLiquidationNotice } from "@/components/liquidations/outstanding-notice";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
 
@@ -212,6 +213,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <OutstandingLiquidationNotice />
       <PageHeader
         title={`Welcome, ${firstName}`}
         description="Your petty cash overview and next actions."

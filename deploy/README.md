@@ -64,3 +64,15 @@ To roll back the app, point only PCF at that prior image and recreate only its
 app service. Do not roll back or reset the shared Supabase database automatically;
 use forward corrective migrations. Do not run Docker-wide prune/down commands,
 change another project's ports, or replace the global reverse proxy config.
+
+### Liquidation reminders
+
+Budget requests are blocked while the account has a released advance whose
+liquidation is unfiled, draft, or flagged. Submission lifts this restriction.
+The deadline is 48 hours after cash release.
+
+Enable Supabase's `pg_cron` extension before applying phase 35. The migration
+schedules `pcf-liquidation-reminders` hourly. The job inserts at most one overdue
+in-app reminder per voucher per Manila calendar day. Check `cron.job_run_details`
+to verify execution. For a project where Cron was enabled after migration, run
+`select cron.schedule('pcf-liquidation-reminders','0 * * * *','select public.generate_liquidation_reminders();');`.

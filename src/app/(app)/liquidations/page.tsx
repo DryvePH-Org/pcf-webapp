@@ -1,3 +1,4 @@
+import { LiquidationDeadline } from "@/components/liquidations/deadline-indicator";
 import { OptionSelect } from "@/components/shared/option-select";
 import { ResponsiveList } from "@/components/shared/responsive-list";
 import { MoneyText } from "@/components/shared/money-text";
@@ -23,11 +24,15 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
   const status = LIQUIDATION_STATUSES.find(s => s === params.status);
   const mine = params.mine === "1" || user.role === "requester";
   const db = await createClient();
-  let query = db.from("liquidations").select("*", { count: "exact" }).order("created_at", { ascending: false }).order("id");
+  let query = db.from("liquidations").select("*,vouchers(released_at)", { count: "exact" }).order("created_at", { ascending: false }).order("id");
   if (mine) query = query.eq("owner_id", user.id);
   if (status) query = query.eq("status", status);
   const { data, error, count } = await query.range((page - 1) * 20, page * 20 - 1);
   if (error) throw new Error(error.message);
+  const outstanding = await db.rpc("my_outstanding_liquidations");
+  if (outstanding.error) throw new Error("Could not load liquidation deadlines.");
+  const releasedByVoucher = new Map(outstanding.data.map(item => [item.voucher_id,item.released_at]));
+
   const pageLink = (next: number) => `/liquidations?${new URLSearchParams({ page: String(next), ...(status ? { status } : {}), ...(mine ? { mine: "1" } : {}) })}`;
   const hasFilters = Boolean(status) || (mine && user.role !== "requester");
   return (
@@ -75,7 +80,7 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
           { key: "received", header: "Received", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <MoneyText value={l.amount_received} /> },
           { key: "spent", header: "Spent", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <MoneyText value={l.total_spent} /> },
           { key: "result", header: "Result", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <Result l={l} /> },
-          { key: "status", header: "Status", cell: l => <LiquidationStatusPill status={l.status} /> },
+          { key: "status", header: "Status", cell: l => <div className="space-y-2"><LiquidationStatusPill status={l.status} /><LiquidationDeadline releasedAt={l.vouchers?.released_at ?? releasedByVoucher.get(l.voucher_id) ?? null} status={l.status}/></div> },
           { key: "date", header: "Filed", className: "whitespace-nowrap text-muted-foreground", cell: l => formatDate(l.filing_date) },
         ]}
         renderCard={l => (
@@ -92,7 +97,7 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
                   <div><p className="text-xs text-muted-foreground">Spent</p><MoneyText value={l.total_spent} className="font-semibold" /></div>
                   <div><p className="text-xs text-muted-foreground">Result</p><Result l={l} /></div>
                 </div>
-                <p className="text-xs text-muted-foreground">Filed {formatDate(l.filing_date)}</p>
+                <LiquidationDeadline releasedAt={l.vouchers?.released_at ?? releasedByVoucher.get(l.voucher_id) ?? null} status={l.status}/><p className="text-xs text-muted-foreground">Filed {formatDate(l.filing_date)}</p>
               </CardContent>
             </Card>
           </Link>

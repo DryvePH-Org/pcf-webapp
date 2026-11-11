@@ -248,6 +248,13 @@ export type Database = {
             foreignKeyName: "cash_settlements_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: true
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["liquidation_id"]
           },
@@ -257,6 +264,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_settlements_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["voucher_id"]
           },
           {
             foreignKeyName: "cash_settlements_voucher_id_fkey"
@@ -512,6 +526,13 @@ export type Database = {
             foreignKeyName: "liquidation_items_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["liquidation_id"]
           },
@@ -575,8 +596,68 @@ export type Database = {
             foreignKeyName: "liquidation_receipt_lines_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "liquidation_receipt_lines_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["liquidation_id"]
+          },
+        ]
+      }
+      liquidation_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          recipient_id: string
+          reminder_date: string
+          voucher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recipient_id: string
+          reminder_date: string
+          voucher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recipient_id?: string
+          reminder_date?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_reminders_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_reminders_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "liquidation_reminders_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "replenishment_eligibility_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "liquidation_reminders_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -621,6 +702,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "liquidations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_revisions_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
           },
           {
             foreignKeyName: "liquidation_revisions_liquidation_id_fkey"
@@ -755,6 +843,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidations_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: true
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["voucher_id"]
           },
           {
             foreignKeyName: "liquidations_voucher_id_fkey"
@@ -904,6 +999,13 @@ export type Database = {
             foreignKeyName: "replenishment_items_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["liquidation_id"]
           },
@@ -913,6 +1015,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "replenishments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "replenishment_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["voucher_id"]
           },
           {
             foreignKeyName: "replenishment_items_voucher_id_fkey"
@@ -1145,6 +1254,13 @@ export type Database = {
             foreignKeyName: "sheet_jobs_liquidation_id_fkey"
             columns: ["liquidation_id"]
             isOneToOne: true
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
+          },
+          {
+            foreignKeyName: "sheet_jobs_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: true
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["liquidation_id"]
           },
@@ -1220,6 +1336,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "liquidations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_previews_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["liquidation_id"]
           },
           {
             foreignKeyName: "sheet_previews_liquidation_id_fkey"
@@ -1404,6 +1527,13 @@ export type Database = {
             foreignKeyName: "voucher_items_voucher_id_fkey"
             columns: ["voucher_id"]
             isOneToOne: false
+            referencedRelation: "outstanding_liquidations_v"
+            referencedColumns: ["voucher_id"]
+          },
+          {
+            foreignKeyName: "voucher_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
             referencedRelation: "replenishment_eligibility_v"
             referencedColumns: ["voucher_id"]
           },
@@ -1575,6 +1705,37 @@ export type Database = {
         }
         Relationships: []
       }
+      outstanding_liquidations_v: {
+        Row: {
+          amount: number | null
+          due_at: string | null
+          fund_id: string | null
+          fund_name: string | null
+          liquidation_id: string | null
+          liquidation_status: string | null
+          overdue: boolean | null
+          owner_id: string | null
+          pcv_number: string | null
+          released_at: string | null
+          voucher_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "fund_balance_v"
+            referencedColumns: ["fund_id"]
+          },
+          {
+            foreignKeyName: "vouchers_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       replenishment_eligibility_v: {
         Row: {
           advance_amount: number | null
@@ -1727,6 +1888,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_budget_request_before_deadlines: {
+        Args: {
+          p_amount: number
+          p_fund_id: string
+          p_name: string
+          p_purpose: string
+        }
+        Returns: string
+      }
       create_liquidation: { Args: { p_voucher_id: string }; Returns: string }
       create_liquidation_legacy: {
         Args: { p_voucher_id: string }
@@ -1771,6 +1941,7 @@ export type Database = {
         Args: { p_confirmation: string; p_id: string }
         Returns: undefined
       }
+      generate_liquidation_reminders: { Args: never; Returns: number }
       liquidation_context: {
         Args: { p_voucher_id: string }
         Returns: {
@@ -1797,6 +1968,28 @@ export type Database = {
           id: string
           name: string
         }[]
+      }
+      my_outstanding_liquidations: {
+        Args: never
+        Returns: {
+          amount: number | null
+          due_at: string | null
+          fund_id: string | null
+          fund_name: string | null
+          liquidation_id: string | null
+          liquidation_status: string | null
+          overdue: boolean | null
+          owner_id: string | null
+          pcv_number: string | null
+          released_at: string | null
+          voucher_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "outstanding_liquidations_v"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       next_pcv_number: { Args: { p_fund_id: string }; Returns: string }
       notification_recipients: {

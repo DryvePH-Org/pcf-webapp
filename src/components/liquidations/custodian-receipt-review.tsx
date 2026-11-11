@@ -35,6 +35,7 @@ export function CustodianReceiptReview({
   initial,
   tags,
   total,
+  advance,
   filingDate,
   urls,
   aiReady,
@@ -45,6 +46,7 @@ export function CustodianReceiptReview({
   initial: CustodianReceipt[];
   tags: string[];
   total: number;
+  advance?: number;
   filingDate: string;
   urls: Record<string, string>;
   aiReady: boolean;
@@ -106,7 +108,9 @@ export function CustodianReceiptReview({
         return;
       }
       toast.success(
-        "Receipt review saved. Prepare the Google Sheets preview next.",
+        sum === Math.round(total * 100)
+          ? "Receipt review saved. Prepare the Google Sheets preview next."
+          : "Review saved. Reconcile the reviewed total with the reported spending before approval.",
       );
       setDirty(false);
       router.refresh();
@@ -128,6 +132,35 @@ export function CustodianReceiptReview({
         </CardDescription>
       </CardHeader>
       <CardContent className="min-w-0 space-y-5">
+        <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Cash received by employee
+            </p>
+            <MoneyText
+              className="text-lg font-semibold"
+              value={advance ?? total}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              Actual spending reported
+            </p>
+            <MoneyText className="text-lg font-semibold" value={total} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {(advance ?? total) >= total
+                ? "Employee returns"
+                : "Employee reimbursement due"}
+            </p>
+            <MoneyText
+              className="text-lg font-semibold"
+              value={Math.abs((advance ?? total) - total)}
+            />
+          </div>
+        </div>
+
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -271,9 +304,7 @@ export function CustodianReceiptReview({
                   </div>
                 ))}
                 <div className="min-w-0 space-y-2">
-                  <Label htmlFor={`tag-${line.id}`}>
-                    Workbook tag
-                  </Label>
+                  <Label htmlFor={`tag-${line.id}`}>Workbook tag</Label>
                   {(customTags[line.id] ??
                   (!tags.length ||
                     Boolean(line.tag && !tags.includes(line.tag)))) ? (
@@ -362,23 +393,17 @@ export function CustodianReceiptReview({
             Add receipt entry
           </Button>
         </fieldset>
-        <div className="flex flex-wrap justify-between gap-3 text-sm">
+        <div className="space-y-2 text-sm">
           <p>
-            Requester total <MoneyText value={total} />
+            Reviewed expense total <MoneyText value={sum / 100} />
           </p>
-          <p>
-            Receipt total <MoneyText value={sum / 100} />
-          </p>
-          <p
-            className={
-              sum !== Math.round(total * 100)
-                ? "text-destructive"
-                : "text-muted-foreground"
-            }
-          >
-            Difference{" "}
-            <MoneyText value={(sum - Math.round(total * 100)) / 100} />
-          </p>
+          {sum !== Math.round(total * 100) && (
+            <p role="status" className="text-destructive">
+              You can save this review. Reconcile{" "}
+              <MoneyText value={Math.abs(sum / 100 - total)} /> with the
+              requester’s actual spending before approval.
+            </p>
+          )}
         </div>
         {dirty ? (
           <p role="status" className="text-sm text-muted-foreground">
@@ -389,11 +414,7 @@ export function CustodianReceiptReview({
       </CardContent>
       <CardFooter className="flex-wrap justify-end gap-3">
         {reviewSaved && !dirty ? <SheetApprovalControl id={id} /> : null}
-        <Button
-          type="button"
-          disabled={busy || sum !== Math.round(total * 100)}
-          onClick={() => void save()}
-        >
+        <Button type="button" disabled={busy} onClick={() => void save()}>
           {busy ? "Working…" : "Save receipt review"}
         </Button>
       </CardFooter>

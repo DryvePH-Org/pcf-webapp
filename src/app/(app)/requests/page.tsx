@@ -1,3 +1,4 @@
+import { OutstandingLiquidationNotice } from "@/components/liquidations/outstanding-notice";
 import { OptionSelect } from "@/components/shared/option-select";
 import { ResponsiveList } from "@/components/shared/responsive-list";
 import { MoneyText } from "@/components/shared/money-text";
@@ -39,6 +40,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   const hasFilters = Boolean(status) || (mine && user.role !== "requester" && user.role !== "approver");
   return (
     <div className="space-y-6">
+      <OutstandingLiquidationNotice />
       <PageHeader
         title="Budget requests"
         description="Ask for a budget, track where your request stands, and review requests for your funds."

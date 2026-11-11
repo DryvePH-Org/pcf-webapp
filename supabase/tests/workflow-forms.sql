@@ -31,6 +31,17 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  assert (select paper_pcv_number='0001' and receipt_path is null from vouchers where id=voucher),'automatic number and no voucher attachment';
  perform release_voucher(voucher);
  assert (select expected_cash=9500 from fund_balance_v where fund_id='91000000-0000-4000-8000-000000000010'),'cash deducted only at release';
+ perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
+ blocked:=false;begin perform create_budget_request('91000000-0000-4000-8000-000000000010','Ignored',10,'Another request');exception when others then blocked:=true;end;
+ assert blocked,'outstanding released advance blocks another budget request';
+ update vouchers set released_at=now()-interval '49 hours' where id=voucher;
+ assert (select overdue from my_outstanding_liquidations() where voucher_id=voucher),'overdue after 48 hours';
+ perform generate_liquidation_reminders();
+ perform generate_liquidation_reminders();
+ assert (select count(*)=1 from liquidation_reminders where voucher_id=voucher),'daily reminder is idempotent';
+
+ assert (select due_at=released_at+interval '48 hours' from my_outstanding_liquidations() where voucher_id=voucher),'deadline is 48 hours after cash release';
+ perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  perform save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',null,'Manual',current_date,'[{"particulars":"Draft","amount":1}]','manual','0050');
  number:=suggest_voucher_number('91000000-0000-4000-8000-000000000010');assert number='0051','manual number advances the suggested sequence';
  perform save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',null,'No number',current_date,'[{"particulars":"Draft","amount":1}]','none',null);
@@ -51,11 +62,30 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  ),null);
  perform submit_liquidation(liquidation);
  assert (select count(*)=1 from liquidation_items where liquidation_id=liquidation and receipt_path is null and no_receipt_reason='No receipt provided'),'receiptless expense can be submitted';
+ assert not exists(select 1 from my_outstanding_liquidations()),'submitted liquidation lifts request restriction';
+ perform cancel_budget_request(create_budget_request('91000000-0000-4000-8000-000000000010','Ignored',10,'Request after submission'));
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  select receipt_review_revision into rev from liquidations where id=liquidation;
  blocked:=false;
  begin perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',500,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',false)));exception when others then blocked:=true;end;
  assert blocked,'physical receipt check is mandatory';
+
+ -- Savings and out-of-pocket spending both permit receipt review.
+ update liquidations set total_spent=450 where id=liquidation;
+ update liquidation_items set amount=200 where id=line;
+ perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',450,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true)));
+ assert (select receipt_reviewed_by=auth.uid() from liquidations where id=liquidation),'actual spending below advance can be reviewed';
+ select receipt_review_revision into rev from liquidations where id=liquidation;
+ update liquidations set total_spent=650 where id=liquidation;
+ update liquidation_items set amount=400 where id=line;
+ perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',650,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true)));
+ assert (select receipt_reviewed_by=auth.uid() from liquidations where id=liquidation),'spending above advance can be reviewed';
+ select receipt_review_revision into rev from liquidations where id=liquidation;
+ update liquidations set total_spent=500 where id=liquidation;
+ update liquidation_items set amount=250 where id=line;
+ perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Fuel','amount',450,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true)));
+ assert (select receipt_reviewed_by is null from liquidations where id=liquidation),'mismatched review saves without approval readiness';
+ select receipt_review_revision into rev from liquidations where id=liquidation;
  perform save_custodian_receipts(liquidation,rev,jsonb_build_array(
   jsonb_build_object('particulars','Fuel','amount',250,'supplier','Supplier','tin','NON VAT','tag','CE - FUEL','expense_date',current_date,'receipt_path',path,'physical_checked',true),
   jsonb_build_object('particulars','Parking','amount',250,'tag','NCE - CUSTOM','expense_date',current_date,'physical_checked',true)
@@ -83,4 +113,30 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  assert (select count(*)=1 from sheet_rollovers where replenishment_id=replenishment),'only cash handover queues next numbered worksheet';
  blocked:=false;begin perform close_replenishment(replenishment);exception when others then blocked:=true;end;assert blocked,'cash cannot be recorded twice';
 end $$;
+
+-- Approval supports both change returned and employee out-of-pocket spending.
+do $$ declare spent numeric; req uuid; voucher uuid; liquidation uuid; preview uuid; rev int; begin
+ for spent in select unnest(array[450,650]::numeric[]) loop
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
+  req:=create_budget_request('91000000-0000-4000-8000-000000000010','Ignored',500,'Cash difference test');
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
+  perform review_budget_request(req,true,null);
+  voucher:=save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',req,'Ignored',current_date,'[{"particulars":"Cash difference test","amount":500}]','auto',null);
+  perform release_voucher(voucher);
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
+  liquidation:=create_liquidation(voucher);
+  perform save_liquidation(liquidation,'Operations',current_date,jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'particulars','Actual spending','amount',spent)),null);
+  perform submit_liquidation(liquidation);
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
+  select receipt_review_revision into rev from liquidations where id=liquidation;
+  perform save_custodian_receipts(liquidation,rev,jsonb_build_array(jsonb_build_object('particulars','Actual spending','amount',spent,'tag','CE - FUEL','expense_date',current_date,'physical_checked',true)));
+  select receipt_review_revision into rev from liquidations where id=liquidation;
+  insert into sheet_previews(liquidation_id,reviewer_id,revision,book_id,config_version,sheet_id,sheet_name,operation_id,requests,google_token,summary)
+  select liquidation,auth.uid(),l.revision,'buying',w.config_version,1,'Test sheet',gen_random_uuid()::text,'[]','test',jsonb_build_object('review_revision',rev)
+  from liquidations l cross join sheet_workbooks w where l.id=liquidation and w.id='buying' returning id into preview;
+  perform approve_liquidation_with_sheet(preview);
+  assert (select status='approved' and amount_received=500 and total_spent=spent from liquidations where id=liquidation),'below-advance and above-advance spending both approve';
+ end loop;
+end $$;
+
 rollback;

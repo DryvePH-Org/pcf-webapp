@@ -24,6 +24,7 @@ it("requires saving changed receipt review before previewing approval",()=>{
  const html=renderToStaticMarkup(createElement(CustodianReceiptReview,{id,revision:0,initial:[{id,particulars:"Fuel",amount:"450",supplier:"Supplier",tin:"NON VAT",tag:"CE - FUEL",expense_date:"2026-11-09",plate:"ABC123",receipt_number:"123",receipt_path:`${id}/line/receipt.jpg`,physical_checked:false}],tags:['CE - FUEL'],total:500,filingDate:"2026-11-09",urls:{},aiReady:false,reviewSaved:false}));
  expect(html).toContain('I verified the receipt and expense details.');
  expect(html).toContain('Supplier TIN or NON VAT');
- expect(html).toMatch(/<button(?=[^>]*disabled)[^>]*>Save receipt review<\/button>/);
+ expect(html).toContain("Save receipt review");
+ expect(html).toContain("You can save this review.");
  expect(html).not.toContain('Approve and update Google Sheets');
 });
