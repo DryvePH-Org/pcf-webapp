@@ -86,6 +86,15 @@ export async function GET(
     {
       id: auth.operation.id,
       status: auth.operation.status,
+      runner_claimed: Boolean(auth.operation.runner_id),
+      next_action:
+        auth.operation.status === "running"
+          ? auth.operation.runner_id
+            ? "resume_with_saved_runner_or_stop"
+            : "claim_runner"
+          : auth.operation.status === "queued"
+            ? "wait_for_dispatch"
+            : "return_saved_result",
       report: auth.operation.report,
       payload_url: base + "?part=payload",
       routine_url: base + "?part=routine",

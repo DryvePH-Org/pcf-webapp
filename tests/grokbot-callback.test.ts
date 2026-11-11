@@ -186,3 +186,26 @@ it("serves the complete authenticated payload outside the compact webhook", asyn
   expect(JSON.stringify(body)).not.toContain("callback_hash");
   expect(JSON.stringify(body)).not.toContain(token);
 });
+it("distinguishes dispatched jobs from owned runner claims without exposing the owner's UUID", async () => {
+  const runner = "91000000-0000-4000-8000-000000000003";
+  state.record = { ...state.record, status: "running", runner_id: null };
+  const read = () =>
+    GET(
+      new Request("https://pcf.dryveph.io/api/grokbot/operations/" + id, {
+        headers: { authorization: "Bearer " + token },
+      }),
+      context,
+    );
+  expect(await (await read()).json()).toMatchObject({
+    status: "running",
+    runner_claimed: false,
+    next_action: "claim_runner",
+  });
+  state.record.runner_id = runner;
+  const owned = await (await read()).json();
+  expect(owned).toMatchObject({
+    runner_claimed: true,
+    next_action: "resume_with_saved_runner_or_stop",
+  });
+  expect(JSON.stringify(owned)).not.toContain(runner);
+});

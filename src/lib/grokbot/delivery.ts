@@ -110,7 +110,7 @@ async function deliverOperation(
           token: grokbotCallbackToken(operation.id),
         },
         message:
-          "GET callback.url with Authorization: Bearer callback.token. Fetch payload_url and routine_url from that response with the same header. Download both completely. This notification carries no financial data. Persist a fresh runner UUID in a private per-run file before claiming. Reuse that UUID in every callback. Follow the fetched routine and payload.",
+          "GET callback.url with Authorization: Bearer callback.token. running alone means dispatched. When runner_claimed=false, claim a runner. Fetch payload_url and routine_url with the same header. Download both completely. Persist a fresh runner UUID in a private per-run file before POST status running with that runner_id. Continue only after HTTP 200, stop on 409. Reuse the saved UUID in every callback. Follow the downloaded routine and payload.",
       }),
       redirect: "error",
       signal: AbortSignal.timeout(30000),
