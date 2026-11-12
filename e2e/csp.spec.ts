@@ -17,7 +17,7 @@ test("no CSP violations on main pages", async ({ browser, baseURL }) => {
   }
   // hydration works: the add-line button responds
   await page.goto(base + "/vouchers/new");
-  await page.getByRole("button", { name: "Add line" }).click();
+  await page.getByRole("button", { name: "Add particular" }).click();
   await expect(page.locator("#voucher-particulars-1")).toBeVisible();
   expect(problems).toEqual([]);
 });

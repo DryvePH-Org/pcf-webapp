@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
-import { ChevronDown, LogOut, MonitorDown } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ChevronDown, KeyRound, LogOut, MonitorDown } from "lucide-react";
 
 import { signOut } from "@/actions/auth";
+import { ChangePasswordDialog } from "@/components/account/change-password-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,8 +38,10 @@ export function UserMenu({
 }) {
   const [pending, startTransition] = useTransition();
   const { available: canInstall, promptInstall } = useInstallPrompt();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
@@ -90,6 +93,10 @@ export function UserMenu({
           </>
         ) : null}
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setChangingPassword(true)}>
+          <KeyRound />
+          Change password
+        </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
           disabled={pending}
@@ -104,5 +111,7 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
+    </>
   );
 }

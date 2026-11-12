@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { setUserActive, updateUserRole } from "@/actions/users";
 import { AssignFundsDialog } from "@/components/admin/assign-funds-dialog";
+import { ResetPasswordDialog } from "@/components/admin/reset-password-dialog";
 import type { FundAssignmentOption, UserRow } from "@/components/admin/types";
 import { UserFormDialog } from "@/components/admin/user-form-dialog";
 import { PageHeader } from "@/components/layout/page-header";
@@ -46,6 +47,7 @@ export function UsersManager({
   const [formOpen, setFormOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<UserRow | null>(null);
   const [assigning, setAssigning] = useState<UserRow | null>(null);
+  const [resetting, setResetting] = useState<UserRow | null>(null);
   const [pending, setPending] = useState(false);
 
   async function setActive(user: UserRow, isActive: boolean) {
@@ -117,23 +119,30 @@ export function UsersManager({
       headerClassName: "w-0",
       className: "text-right",
       cell: (user) =>
-        user.id === currentUserId ? null : user.is_active ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setDeactivating(user)}
-          >
-            Deactivate
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={pending}
-            onClick={() => void setActive(user, true)}
-          >
-            Activate
-          </Button>
+        user.id === currentUserId ? null : (
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setResetting(user)}>
+              Reset password
+            </Button>
+            {user.is_active ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeactivating(user)}
+              >
+                Deactivate
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={pending}
+                onClick={() => void setActive(user, true)}
+              >
+                Activate
+              </Button>
+            )}
+          </div>
         ),
     },
   ];
@@ -179,6 +188,11 @@ export function UsersManager({
                   disabled={user.id === currentUserId}
                   onChanged={() => router.refresh()}
                 />
+                {user.id === currentUserId ? null : (
+                  <Button variant="outline" size="sm" onClick={() => setResetting(user)}>
+                    Reset password
+                  </Button>
+                )}
                 {user.id === currentUserId ? null : user.is_active ? (
                   <Button
                     variant="destructive"
@@ -241,6 +255,17 @@ export function UsersManager({
           onSaved={() => {
             toast.success("Funds updated");
             router.refresh();
+          }}
+        />
+      ) : null}
+
+      {resetting ? (
+        <ResetPasswordDialog
+          key={resetting.id}
+          open
+          user={resetting}
+          onOpenChange={(next) => {
+            if (!next) setResetting(null);
           }}
         />
       ) : null}

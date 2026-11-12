@@ -14,7 +14,9 @@ import {
   notifyUserWelcome,
 } from "@/lib/notifications/events";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { resetPasswordSchema } from "@/lib/validators/auth";
 import {
   createUserSchema,
   setUserActiveSchema,
@@ -230,5 +232,55 @@ export async function setCustodianFunds(input: {
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/funds");
+  return { ok: true };
+}
+
+// An administrator sets a new password for someone else (for example after a
+// forgotten password). Your own password is changed from the account menu.
+export async function resetUserPassword(input: {
+  userId: string;
+  password: string;
+}): Promise<ActionResult> {
+  const admin = await getAdminUser();
+  if (!admin) return actionError("Only administrators can reset passwords.");
+
+  const parsed = resetPasswordSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  if (parsed.data.userId === admin.id) {
+    return actionError("Change your own password from your account menu.");
+  }
+  if (!(await withinLimit(`password:reset:${admin.id}`, 20, 600))) {
+    return actionError("Too many password resets. Wait a few minutes, then try again.");
+  }
+
+  const service = createAdminClient();
+  const { data: profile } = await service
+    .from("profiles")
+    .select("id, full_name")
+    .eq("id", parsed.data.userId)
+    .maybeSingle();
+  if (!profile) return actionError("User not found.");
+
+  const { error } = await service.auth.admin.updateUserById(profile.id, {
+    password: parsed.data.password,
+  });
+  if (error) {
+    return actionError(
+      error.code === "weak_password"
+        ? "That password is too easy to guess. Choose a longer one."
+        : "Could not reset the password. Try again.",
+    );
+  }
+
+  // Record who reset whose password (never the password itself).
+  await service.from("audit_log").insert({
+    entity_type: "profiles",
+    entity_id: profile.id,
+    action: "update",
+    actor_id: admin.id,
+    old_data: null,
+    new_data: { password: "reset by an administrator" },
+  });
+
   return { ok: true };
 }
