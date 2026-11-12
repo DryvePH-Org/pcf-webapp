@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { SheetsRefresh } from "@/components/sheets/refresh-control";
@@ -41,7 +42,7 @@ export function WorkbookAssignment({
     book.active_sheet_id === null ? "" : String(book.active_sheet_id),
   );
   const [enabled, setEnabled] = useState(book.enabled);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [error, setError] = useState("");
   const eligibleFunds = funds.filter((item) =>
     assignments.some(
@@ -77,7 +78,8 @@ export function WorkbookAssignment({
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        setPending(true);
+        if (isBusy()) return;
+    setPending(true);
         setError("");
         try {
           const result = await configureWorkbook({

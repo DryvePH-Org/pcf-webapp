@@ -22,7 +22,7 @@ import {
 import { notifyBudgetRequest } from "@/lib/notifications/requests";
 import { mirrorVoucherPhoto } from "@/lib/drive-mirror";
 import { queueNotification } from "@/lib/notifications/deliver";
-import { withinLimit } from "@/lib/rate-limit";
+import { withinLimit, isRepeat, REPEAT_MESSAGE } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
   createVoucherSchema,
@@ -100,6 +100,7 @@ export async function createVoucher(
   }
 
   const values = parsed.data;
+  if (await isRepeat(user.id, "voucher:create", values)) return createVoucherError(REPEAT_MESSAGE);
   const supabase = await createClient();
   const items = values.items.map(item => ({ particulars: item.particulars, amount: toMoneyNumber(item.amount), category_id: item.category_id }));
   const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;

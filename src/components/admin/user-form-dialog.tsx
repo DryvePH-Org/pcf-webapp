@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -50,9 +51,10 @@ export function UserFormDialog({
     defaultValues: emptyValues,
   });
   const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting, isBusy] = usePending();
 
   async function onSubmit(values: CreateUserValues) {
+    if (isBusy()) return;
     setSubmitting(true);
     setServerError(null);
     let result;

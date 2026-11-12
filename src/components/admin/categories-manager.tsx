@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
@@ -28,7 +29,7 @@ export function CategoriesManager({
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [deactivating, setDeactivating] = useState<CategoryRow | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
 
   function openCreate() {
     setEditing(null);
@@ -46,6 +47,7 @@ export function CategoriesManager({
   }
 
   async function setActive(category: CategoryRow, isActive: boolean) {
+    if (isBusy()) return;
     setPending(true);
     const result = await setCategoryActive({ id: category.id, isActive });
     setPending(false);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useGuardedTransition } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Lock, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -42,7 +43,7 @@ export function ReplenishmentActions({
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogKind | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
 
   const canSubmit =
     replenishment.status === "draft" &&

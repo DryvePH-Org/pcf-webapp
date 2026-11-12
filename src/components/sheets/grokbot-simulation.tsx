@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import {
   getGrokbotSimulation,
   startGrokbotSimulation,
@@ -21,7 +22,7 @@ type Simulation = Awaited<ReturnType<typeof getGrokbotSimulation>>;
 export function GrokbotSimulation({ initial }: { initial: Simulation }) {
   const [result, setResult] = useState(initial);
   const [confirm, setConfirm] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [error, setError] = useState("");
   const active = result && ["queued", "running"].includes(result.status);
   useEffect(() => {
@@ -138,7 +139,8 @@ export function GrokbotSimulation({ initial }: { initial: Simulation }) {
           confirmLabel="Start simulation"
           pending={pending}
           onConfirm={async () => {
-            setPending(true);
+            if (isBusy()) return;
+    setPending(true);
             setError("");
             try {
               const started = await startGrokbotSimulation();

@@ -1,6 +1,8 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
+import { useGuardedTransition } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -48,9 +50,10 @@ export function UsersManager({
   const [deactivating, setDeactivating] = useState<UserRow | null>(null);
   const [assigning, setAssigning] = useState<UserRow | null>(null);
   const [resetting, setResetting] = useState<UserRow | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
 
   async function setActive(user: UserRow, isActive: boolean) {
+    if (isBusy()) return;
     setPending(true);
     const result = await setUserActive({ userId: user.id, isActive });
     setPending(false);
@@ -335,7 +338,7 @@ function RoleSelect({
   onChanged: () => void;
 }) {
   const [role, setRole] = useOptimistic(user.role);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
 
   function change(next: Role) {
     if (next === role) return;

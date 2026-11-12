@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -28,7 +29,7 @@ export function NewReplenishmentButton({
   const [open, setOpen] = useState(false);
   const [fundId, setFundId] = useState(funds[0]?.fund_id ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
 
   const items = funds.map((fund) => ({
     value: fund.fund_id,
@@ -38,8 +39,10 @@ export function NewReplenishmentButton({
   }));
 
   async function create() {
+    if (isBusy()) return;
     setPending(true);
     setError(null);
+    let leaving = false;
     try {
       const result = await createReplenishment({ fund_id: fundId });
       if (!result.ok) {
@@ -47,6 +50,7 @@ export function NewReplenishmentButton({
         return;
       }
       toast.success("Replenishment draft created.");
+      leaving = true;
       setOpen(false);
       router.push(`/replenishments/${result.id}`);
     } catch (createError) {
@@ -56,7 +60,7 @@ export function NewReplenishmentButton({
           : "Something went wrong.",
       );
     } finally {
-      setPending(false);
+      if (!leaving) setPending(false);
     }
   }
 

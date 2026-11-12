@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,3 +41,25 @@ export async function withinLimit(key: string, limit: number, windowSeconds: num
   }
   return data === true;
 }
+
+// True when this exact action was just sent by the same person, for example a
+// double-click, or the same form sent twice from a slow connection. Two
+// different window lengths are checked so a repeat that lands on the edge of
+// one window is still caught by the other. The first send always passes.
+export async function isRepeat(
+  userId: string,
+  action: string,
+  payload: unknown,
+) {
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify(payload) ?? "")
+    .digest("hex")
+    .slice(0, 32);
+  const key = `once:${action}:${userId}:${fingerprint}`;
+  const first = await withinLimit(`${key}:a`, 1, 15);
+  const second = await withinLimit(`${key}:b`, 1, 23);
+  return !first || !second;
+}
+
+export const REPEAT_MESSAGE =
+  "That was already sent a moment ago. Check the list before trying again.";

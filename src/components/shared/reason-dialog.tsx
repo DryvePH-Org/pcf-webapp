@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useClickLatch } from "@/lib/use-single-flight";
 
 export function ReasonDialog({
   open,
@@ -35,6 +36,12 @@ export function ReasonDialog({
   const inputId = useId();
   const [reason, setReason] = useState(defaultValue);
   const [error, setError] = useState<string | null>(null);
+  const { once, release } = useClickLatch();
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending) release();
+    wasPending.current = pending;
+  }, [pending, release]);
 
   return (
     <ResponsiveDialog
@@ -79,7 +86,7 @@ export function ReasonDialog({
               setError("A reason is required.");
               return;
             }
-            onSubmit(trimmed);
+            once(() => onSubmit(trimmed));
           }}
         >
           {pending ? "Working..." : confirmLabel}

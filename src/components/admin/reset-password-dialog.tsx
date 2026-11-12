@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { Copy, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,10 +34,11 @@ export function ResetPasswordDialog({
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving, isBusy] = usePending();
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (isBusy()) return;
     setSaving(true);
     setError(null);
     const result = await resetUserPassword({ userId: user.id, password });

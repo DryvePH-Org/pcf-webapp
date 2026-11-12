@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useGuardedTransition } from "@/lib/use-single-flight";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CircleCheck, ExternalLink, Flag, Undo2 } from "lucide-react";
@@ -48,7 +49,7 @@ export function ApprovalsBoard({
   );
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   const sheetItem = sheetId

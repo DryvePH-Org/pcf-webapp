@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useGuardedTransition } from "@/lib/use-single-flight";
 import { ChevronDown, KeyRound, LogOut, MonitorDown } from "lucide-react";
 
 import { signOut } from "@/actions/auth";
@@ -36,7 +37,7 @@ export function UserMenu({
   user: { full_name: string; role: Role };
   compact?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
   const { available: canInstall, promptInstall } = useInstallPrompt();
   const [changingPassword, setChangingPassword] = useState(false);
 

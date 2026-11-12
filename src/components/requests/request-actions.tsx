@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cancelBudgetRequest, reviewBudgetRequest } from "@/actions/budget-requests";
@@ -14,8 +15,9 @@ export function RequestActions({ id, canReview, canCancel, canCreateVoucher }: {
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"approve" | "reject" | "cancel" | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   async function perform(action: "approve" | "reject" | "cancel", note = "") {
+    if (isBusy()) return;
     setPending(true);
     try {
       const result = action === "cancel" ? await cancelBudgetRequest(id) : await reviewBudgetRequest({ id, approve: action === "approve", note });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -33,9 +34,10 @@ export function CategoryFormDialog({
     defaultValues: { name: category?.name ?? "" },
   });
   const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting, isBusy] = usePending();
 
   async function onSubmit(values: CategoryFormValues) {
+    if (isBusy()) return;
     setSubmitting(true);
     setServerError(null);
     const result = category

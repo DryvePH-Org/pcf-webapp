@@ -3,6 +3,7 @@
 import { ReceiptAttachment } from "./receipt-attachment";
 import { canExtractLiquidationAttachment } from "@/lib/liquidation-attachment";
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -56,7 +57,7 @@ export function CustodianReceiptReview({
   const [lines, setLines] = useState(initial);
   const [customTags, setCustomTags] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy, isBusy] = usePending();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
@@ -73,6 +74,7 @@ export function CustodianReceiptReview({
     setNotice("");
   }
   async function extract(index: number, path: string) {
+    if (isBusy()) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -99,6 +101,7 @@ export function CustodianReceiptReview({
     }
   }
   async function save() {
+    if (isBusy()) return;
     setBusy(true);
     setError("");
     try {
@@ -244,7 +247,8 @@ export function CustodianReceiptReview({
                   update(index, { receipt_path: "", physical_checked: false })
                 }
                 onChoose={async (file) => {
-                  setBusy(true);
+                  if (isBusy()) return;
+    setBusy(true);
                   setUploading(line.id);
                   setError("");
                   try {

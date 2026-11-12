@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -55,13 +56,14 @@ export function FundFormDialog({
       : emptyValues,
   });
   const [serverError, setServerError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting, isBusy] = usePending();
   const [pendingValues, setPendingValues] = useState<FundFormValues | null>(
     null,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function persist(values: FundFormValues, confirmed: boolean) {
+    if (isBusy()) return;
     setSubmitting(true);
     setServerError(null);
     const result = await saveFund({

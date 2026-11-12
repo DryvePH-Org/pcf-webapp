@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { safeDbMessage } from "@/lib/db-error";
+import { isRepeat, REPEAT_MESSAGE } from "@/lib/rate-limit";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { queueNotification } from "@/lib/notifications/deliver";
@@ -74,6 +75,10 @@ export async function createReplenishment(
 
   const parsed = createReplenishmentSchema.safeParse(input);
   if (!parsed.success) return createValidationError(parsed.error);
+
+  if (await isRepeat(user.id, "replenishment:create", parsed.data)) {
+    return { ok: false, error: REPEAT_MESSAGE };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_replenishment", {

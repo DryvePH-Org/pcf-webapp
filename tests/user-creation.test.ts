@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     auth: { admin: { createUser: mocks.createUser, deleteUser: mocks.deleteUser } },
     from: () => ({ insert: mocks.insert }),
+    rpc: async () => ({ data: true, error: null }),
   }),
 }));
 vi.mock("@/lib/notifications/deliver", () => ({ queueNotification: mocks.queueNotification }));

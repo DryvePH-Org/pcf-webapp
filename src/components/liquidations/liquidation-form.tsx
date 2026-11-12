@@ -3,6 +3,7 @@
 import { formatDate } from "@/lib/dates";
 import { ReceiptAttachment } from "./receipt-attachment";
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ export function LiquidationForm({
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [uploading, setUploading] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +62,7 @@ export function LiquidationForm({
       setError(parsed.error.issues[0].message);
       return;
     }
+    if (isBusy()) return;
     setPending(true);
     setError("");
     try {

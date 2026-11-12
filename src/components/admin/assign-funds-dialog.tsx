@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 
 import { setCustodianFunds } from "@/actions/users";
 import type { FundAssignmentOption } from "@/components/admin/types";
@@ -29,7 +30,7 @@ export function AssignFundsDialog({
         funds.filter((fund) => fund.custodian_ids.includes(user.id)).map((fund) => fund.id),
       ),
   );
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving, isBusy] = usePending();
   const [error, setError] = useState<string | null>(null);
 
   function toggle(id: string) {
@@ -42,6 +43,7 @@ export function AssignFundsDialog({
   }
 
   async function save() {
+    if (isBusy()) return;
     setSaving(true);
     setError(null);
     const result = await setCustodianFunds({

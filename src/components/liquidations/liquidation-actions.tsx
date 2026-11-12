@@ -1,6 +1,7 @@
 "use client";
 import { SheetApprovalControl } from "@/components/sheets/approval-control";
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { approveLiquidationReimbursement, recordLiquidationSettlement, reviewLiquidation } from "@/actions/liquidations";
@@ -13,9 +14,10 @@ import { ReasonDialog } from "@/components/shared/reason-dialog";
 export function LiquidationActions({ id, canReview, canPrepareApproval = true, canApproveReimbursement, canSettle, kind, amount }: { id: string; canReview: boolean; canPrepareApproval?: boolean; canApproveReimbursement: boolean; canSettle: boolean; kind: string; amount: string }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"approve" | "flag" | "settle" | "reimburse" | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [note, setNote] = useState("");
   async function perform(action: string, reason = "") {
+    if (isBusy()) return;
     setPending(true);
     try {
       const result = action === "settle" ? await recordLiquidationSettlement({ id, amount, note }) : action === "reimburse" ? await approveLiquidationReimbursement(id) : await reviewLiquidation({ id, approve: action === "approve", note: reason });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useGuardedTransition } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { KeyRound, Loader2 } from "lucide-react";
 
@@ -19,7 +20,7 @@ const ERROR_MESSAGES = {
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
 
   function onSubmit(formData: FormData) {
     setError(null);

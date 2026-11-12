@@ -1,7 +1,7 @@
 "use client";
 
 import { Callout } from "@/components/shared/callout";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ export function DataDeletionCenter({ funds, custodians }: { funds: { id: string;
   const [preview, setPreview] = useState<DeletionPreview | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState<"preview" | "delete" | "cleanup" | null>(null);
+  const working = useRef(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const reset = filters.mode === "reset";
@@ -40,16 +41,17 @@ export function DataDeletionCenter({ funds, custodians }: { funds: { id: string;
     setPreview(null); setConfirmation(""); setError(""); setMessage("");
   }
   async function prepare() {
-    setBusy("preview"); setError(""); setMessage("");
+    if (working.current) return; working.current = true; setBusy("preview"); setError(""); setMessage("");
     try {
       const result = await previewDeletion(filters);
       if (result.ok) { setPreview(result.preview); setConfirmation(""); }
       else setError(result.error);
     } catch { setError("Could not prepare preview. Try again."); }
-    finally { setBusy(null); }
+    finally { working.current = false; setBusy(null); }
   }
   async function remove() {
     if (!preview) return;
+    if (working.current) return; working.current = true;
     setBusy("delete"); setError("");
     try {
       const result = await executeDeletion(preview.id, confirmation);
@@ -58,16 +60,17 @@ export function DataDeletionCenter({ funds, custodians }: { funds: { id: string;
         setPreview(null); setConfirmation(""); router.refresh();
       } else setError(result.message);
     } catch { setError("Could not confirm completion. Retry the same preview safely."); }
-    finally { setBusy(null); }
+    finally { working.current = false; setBusy(null); }
   }
   async function cleanup() {
+    if (working.current) return; working.current = true;
     setBusy("cleanup"); setError("");
     try {
       const result = await retryDeletionFiles();
       if (result.ok) { setMessage(result.message); toast.success("File cleanup checked"); }
       else setError(result.message);
     } catch { setError("Cleanup unavailable. Retry later."); }
-    finally { setBusy(null); }
+    finally { working.current = false; setBusy(null); }
   }
 
   return <div className="space-y-6">

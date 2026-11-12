@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useGuardedTransition, usePending } from "@/lib/use-single-flight";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -77,7 +78,7 @@ export function VoucherActions({
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogKind | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useGuardedTransition();
 
   const own = voucher.prepared_by === viewer.id;
   const isDraft = voucher.status === "draft";
@@ -506,13 +507,14 @@ function AttachReceiptDialog({
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
 
   async function upload() {
     if (!file) {
       setError("Choose a receipt photo first.");
       return;
     }
+    if (isBusy()) return;
     setPending(true);
     setError(null);
     try {

@@ -1,9 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
+import { useClickLatch } from "@/lib/use-single-flight";
 
 export function ConfirmDialog({
   open,
@@ -26,6 +27,14 @@ export function ConfirmDialog({
   onConfirm: () => void;
   children?: ReactNode;
 }) {
+  // A second click (or tap) while the first is still being handled is ignored,
+  // even before `pending` has had time to turn the button off.
+  const { once, release } = useClickLatch();
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending) release();
+    wasPending.current = pending;
+  }, [pending, release]);
   return (
     <ResponsiveDialog
       open={open}
@@ -46,7 +55,7 @@ export function ConfirmDialog({
         <Button
           type="button"
           variant={destructive ? "destructive" : "default"}
-          onClick={onConfirm}
+          onClick={() => once(onConfirm)}
           disabled={pending}
         >
           {pending ? "Working..." : confirmLabel}

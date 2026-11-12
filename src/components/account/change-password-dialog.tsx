@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -24,7 +25,7 @@ export function ChangePasswordDialog({
   const router = useRouter();
   const [values, setValues] = useState<Record<Field, string>>({ current: "", next: "", confirm: "" });
   const [error, setError] = useState<{ field?: Field; message: string } | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving, isBusy] = usePending();
 
   const set = (field: Field) => (value: string) => setValues((current) => ({ ...current, [field]: value }));
 
@@ -39,6 +40,7 @@ export function ChangePasswordDialog({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (isBusy()) return;
     setSaving(true);
     setError(null);
     const result = await changeMyPassword(values);

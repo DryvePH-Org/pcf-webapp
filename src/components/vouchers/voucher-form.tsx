@@ -1,4 +1,5 @@
 "use client";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -55,7 +56,7 @@ export function VoucherForm({
   edit?: EditVoucher;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const { pending, run, hold } = useSingleFlight();
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState({ fund: "", value: "" });
   const [confirm, setConfirm] = useState(false);
@@ -109,6 +110,10 @@ export function VoucherForm({
   }, [fundId, mode]);
 
   async function save(advance: boolean) {
+    await run(() => saveNow(advance));
+  }
+
+  async function saveNow(advance: boolean) {
     setError("");
     const valid = await form.trigger();
     if (!valid) return;
@@ -117,7 +122,6 @@ export function VoucherForm({
       setConfirm(true);
       return;
     }
-    setPending(true);
     try {
       if (edit) {
         const result = await updateVoucher({ ...values, voucher_id: edit.id });
@@ -126,6 +130,7 @@ export function VoucherForm({
           return;
         }
         toast.success("Voucher updated");
+        hold();
         router.push(`/vouchers/${edit.id}`);
         router.refresh();
         return;
@@ -145,12 +150,12 @@ export function VoucherForm({
             needsApproval ? "Sent to approver" : "Cash release recorded",
           );
       } else toast.success("Voucher draft saved");
+      hold();
       router.push(`/vouchers/${created.id}`);
       router.refresh();
     } catch {
       setError("Could not save the voucher. Check its status before retrying.");
     } finally {
-      setPending(false);
       setConfirm(false);
     }
   }

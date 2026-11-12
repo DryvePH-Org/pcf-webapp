@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 export function SheetsRefresh({
@@ -10,12 +11,13 @@ export function SheetsRefresh({
   automatic?: boolean;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [message, setMessage] = useState("");
   const refresh = useCallback(
     async (background = false) => {
       if (document.visibilityState !== "visible") return;
-      setPending(true);
+      if (isBusy()) return;
+    setPending(true);
       try {
         const response = await fetch("/api/sheets/refresh", {
           method: "POST",
@@ -35,7 +37,7 @@ export function SheetsRefresh({
         setPending(false);
       }
     },
-    [book, router],
+    [book, router, isBusy, setPending],
   );
   useEffect(() => {
     const poll =

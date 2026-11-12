@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { safeDbMessage } from "@/lib/db-error";
+import { isRepeat, REPEAT_MESSAGE } from "@/lib/rate-limit";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser, getCurrentUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
@@ -30,6 +31,7 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   if (!parsed.success) return validationError(parsed.error);
 
   const { id, confirmAmountChange, custodian_ids, ...values } = parsed.data;
+  if (!id && (await isRepeat(admin.id, "fund:create", parsed.data))) return actionError(REPEAT_MESSAGE);
   const wanted = [...new Set(custodian_ids)];
   const payload = {
     name: values.name,

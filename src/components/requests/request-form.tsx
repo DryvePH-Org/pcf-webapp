@@ -2,6 +2,7 @@
 
 import { BudgetVoiceInput } from "./voice-input";
 import { useState } from "react";
+import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +42,7 @@ export function RequestForm({
   name: string;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [pending, setPending, isBusy] = usePending();
   const [error, setError] = useState<string | null>(null);
   const [fundId, setFundId] = useState(funds.length === 1 ? funds[0].id : "");
   const [amount, setAmount] = useState("");
@@ -57,8 +58,10 @@ export function RequestForm({
       setError(parsed.error.issues[0]?.message ?? "Check the form.");
       return;
     }
+    if (isBusy()) return;
     setPending(true);
     setError(null);
+    let leaving = false;
     try {
       const result = await createBudgetRequest(parsed.data);
       if (!result.ok) {
@@ -66,12 +69,15 @@ export function RequestForm({
         return;
       }
       toast.success("Budget request submitted");
+      // The form stays disabled while the next page opens, so a late second
+      // click cannot send the same request again.
+      leaving = true;
       router.push(`/requests/${result.id}`);
       router.refresh();
     } catch {
       setError("Could not submit the request. Try again.");
     } finally {
-      setPending(false);
+      if (!leaving) setPending(false);
     }
   }
 

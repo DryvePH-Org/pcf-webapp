@@ -14,7 +14,7 @@ import {
   notifyUserWelcome,
 } from "@/lib/notifications/events";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { withinLimit } from "@/lib/rate-limit";
+import { isRepeat, REPEAT_MESSAGE, withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { resetPasswordSchema } from "@/lib/validators/auth";
 import {
@@ -61,6 +61,7 @@ export async function createUser(input: CreateUserValues): Promise<ActionResult>
   const parsed = createUserSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
   const { full_name, email, password, role } = parsed.data;
+  if (await isRepeat(admin.id, "user:create", { email, role })) return actionError(REPEAT_MESSAGE);
 
   const adminClient = createAdminClient();
   const { data, error } = await adminClient.auth.admin.createUser({

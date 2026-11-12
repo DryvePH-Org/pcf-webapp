@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { safeDbMessage } from "@/lib/db-error";
 import { toMoneyNumber } from "@/lib/money";
 import { canPerform } from "@/lib/permissions";
-import { withinLimit } from "@/lib/rate-limit";
+import { REPEAT_MESSAGE, isRepeat, withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createBudgetRequestSchema, reviewBudgetRequestSchema, type CreateBudgetRequestValues } from "@/lib/validators/budget-request";
 import type { ActionResult } from "@/lib/action-result";
@@ -25,6 +25,8 @@ export async function createBudgetRequest(input: CreateBudgetRequestValues): Pro
   const parsed = createBudgetRequestSchema.safeParse({ ...input, requester_name: user.full_name });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
   if (!(await withinLimit(`request:create:${user.id}`, 20, 60))) return { ok: false, error: "Too many requests. Wait a minute and try again." };
+  // A double-click or a slow connection must not create the same request twice.
+  if (await isRepeat(user.id, "request:create", parsed.data)) return { ok: false, error: REPEAT_MESSAGE };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_budget_request", {
     p_fund_id: parsed.data.fund_id, p_name: user.full_name,
