@@ -27,8 +27,10 @@ async function authorize(request: Request, id: string) {
     .eq("id", id)
     .maybeSingle();
   if (error || !data || Date.parse(data.expires_at) < Date.now()) return null;
-  const hash = createHash("sha256").update(token).digest("hex");
-  if (!timingSafeEqual(Buffer.from(hash), Buffer.from(data.callback_hash)))
+  const hash = Buffer.from(createHash("sha256").update(token).digest("hex"));
+  const expected = Buffer.from(data.callback_hash ?? "");
+  // timingSafeEqual throws on different lengths; a missing hash is a refusal.
+  if (expected.length !== hash.length || !timingSafeEqual(hash, expected))
     return null;
   return { db, operation: data };
 }

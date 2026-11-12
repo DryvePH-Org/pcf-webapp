@@ -108,3 +108,20 @@ does not become a breach.
 - After changing the CSP or headers, run `pnpm test:e2e` against a production
   build (`next build && next start`) and check the browser console for
   "Refused to ..." messages.
+
+## Takeover review fixes (November 2026, migration phase 38)
+
+- Voucher lines are visible only to people who can see their voucher (they were
+  readable by every signed-in user, including requesters).
+- The legacy `create_voucher` RPC is no longer callable; vouchers are created
+  through `save_workflow_voucher` only.
+- Reporting views carry no write grants.
+- Voucher photo paths must stay inside `<fund_id>/<voucher_id>/` (a database
+  trigger), because the server reads them with its own key for Drive copies.
+- Rate limits use the visitor's real address from the proxy
+  (`X-PCF-Client-IP`, see `deploy/hostinger/Caddyfile.fragment`) instead of the
+  shared Cloudflare edge address.
+- `supabase/tests/security-fixes.sql` runs in CI and fails if any of the
+  database changes above are undone.
+- New migrations must revoke the platform's default grants on new views and
+  tables explicitly (Supabase grants them to `anon`/`authenticated` by default).

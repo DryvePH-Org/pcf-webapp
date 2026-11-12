@@ -57,3 +57,14 @@ an SSH key restricted to `/opt/pcf/ci/deploy.py`. Only `main` can deploy.
 See [CI/CD instructions](../../docs/CI_CD.md) for the installed gate, migration
 fingerprint, automatic rollback, and configuration. The original unrestricted
 administrator key is not shared with GitHub.
+
+### Updating the PCF proxy block
+
+`update-proxy.sh` replaces only the `# BEGIN pcf` ... `# END pcf` block of the
+shared Caddy configuration with the current `Caddyfile.fragment`, validates it,
+reloads Caddy and checks PCF's health. Any failure restores the previous file
+(a timestamped backup is kept in `/opt/pcf`). Copy the new fragment and script
+to `/opt/pcf` first. The fragment passes the visitor's real address to PCF in
+`X-PCF-Client-IP`, trusting Cloudflare's `CF-Connecting-IP` only for connections
+from Cloudflare's published ranges (https://www.cloudflare.com/ips); update the
+list there if Cloudflare changes it.

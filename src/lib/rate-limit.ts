@@ -2,15 +2,27 @@ import { headers } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// The deployment proxy must overwrite forwarded IP headers and block direct
-// access to the Node server. Configure this when preparing the shared VPS.
+// The proxy (deploy/hostinger/Caddyfile.fragment) always overwrites
+// X-PCF-Client-IP with the visitor's real address: Cloudflare's
+// CF-Connecting-IP when the connection comes from Cloudflare, otherwise the
+// connecting address. Before that proxy change is live, X-Forwarded-For holds
+// the connecting address (a Cloudflare edge), which is shared by many people.
+const IP_PATTERN = /^[0-9a-fA-F:.]{2,45}$/;
+
+export function pickClientIp(list: Pick<Headers, "get">) {
+  const candidates = [
+    list.get("x-pcf-client-ip"),
+    list.get("x-forwarded-for")?.split(",")[0],
+  ];
+  for (const value of candidates) {
+    const trimmed = value?.trim();
+    if (trimmed && IP_PATTERN.test(trimmed)) return trimmed;
+  }
+  return "unknown";
+}
+
 export async function clientIp() {
-  const list = await headers();
-  return (
-    list.get("cf-connecting-ip") ??
-    list.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
+  return pickClientIp(await headers());
 }
 
 // True while `key` is within `limit` hits per `windowSeconds`. If the limiter
