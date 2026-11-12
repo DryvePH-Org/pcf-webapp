@@ -2,7 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { sendDailyDigest } from "@/lib/notifications/digest";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +27,13 @@ async function handle(request: Request) {
   }
   if (!authorized(request)) {
     return NextResponse.json({ ok: false }, { status: 401 });
+  }
+
+  // Old notifications are cleared here every morning, whether or not email is on.
+  try {
+    await (createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>).rpc("prune_notifications");
+  } catch (error) {
+    console.error("notification cleanup failed", error);
   }
 
   if (process.env.NOTIFICATIONS_ENABLED !== "true") return NextResponse.json({ ok: true, skipped: "notifications_disabled" });

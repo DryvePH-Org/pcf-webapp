@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Wallet } from "lucide-react";
 
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -34,7 +35,10 @@ export function AppShell({
             </span>
             Petty Cash
           </Link>
-          <UserMenu user={user} compact />
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <UserMenu user={user} compact />
+          </div>
         </header>
 
         <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-10 lg:pb-10 print:max-w-none print:p-0">

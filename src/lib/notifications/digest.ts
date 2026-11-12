@@ -2,7 +2,11 @@ import { formatPHP } from "@/lib/money";
 import type { Role } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
+
 import { notify, recipientsByRole } from "./deliver";
+import { decideReviewers } from "./routing";
 
 export type DigestStats = {
   awaitingApproval: number;
@@ -186,29 +190,85 @@ async function loadStats(): Promise<DigestStats> {
   };
 }
 
-const ROLES: Role[] = ["approver", "custodian", "accounting", "admin"];
+const ROLES: Role[] = ["approver", "custodian", "accounting", "admin", "requester"];
+
+type Personal = {
+  fund: Map<string, { custodians: string[]; approvers: string[]; selfApproval: boolean }>;
+  requests: { fund_id: string; requester_id: string }[];
+  liquidations: { fund_id: string; owner_id: string; status: string }[];
+  due: { owner_id: string; pcv_number: string; overdue: boolean; due_at: string }[];
+};
+
+async function loadPersonal(): Promise<Personal> {
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const [funds, custodians, approvers, requests, liquidations, due] = await Promise.all([
+    admin.from("funds").select("id, custodian_self_approval"),
+    admin.from("fund_custodians").select("fund_id, custodian_id"),
+    admin.from("fund_approvers").select("fund_id, approver_id"),
+    admin.from("budget_requests").select("fund_id, requester_id").eq("status", "submitted"),
+    admin.from("liquidations").select("fund_id, owner_id, status").in("status", ["submitted", "flagged"]),
+    admin.from("outstanding_liquidations_v").select("owner_id, pcv_number, overdue, due_at"),
+  ]);
+  const fund: Personal["fund"] = new Map();
+  for (const row of funds.data ?? []) fund.set(row.id, { custodians: [], approvers: [], selfApproval: Boolean(row.custodian_self_approval) });
+  for (const row of custodians.data ?? []) fund.get(row.fund_id)?.custodians.push(row.custodian_id);
+  for (const row of approvers.data ?? []) fund.get(row.fund_id)?.approvers.push(row.approver_id);
+  return {
+    fund,
+    requests: requests.data ?? [],
+    liquidations: liquidations.data ?? [],
+    due: (due.data ?? []).filter((row): row is Personal["due"][number] => Boolean(row.owner_id && row.pcv_number && row.due_at)),
+  };
+}
+
+// What is waiting on this one person, using the same review rules as the app.
+export function personalItems(userId: string, role: Role, data: Personal): Item[] {
+  const items: Item[] = [];
+  const mine = (fundId: string, ownerId: string) => {
+    const info = data.fund.get(fundId);
+    if (!info) return false;
+    const reviewers = decideReviewers({ ownerId, custodianIds: info.custodians, approverIds: info.approvers, selfApproval: info.selfApproval });
+    return reviewers.ids.includes(userId) || (reviewers.fallbackToAdmin && role === "admin");
+  };
+  const requests = data.requests.filter((row) => mine(row.fund_id, row.requester_id)).length;
+  if (requests > 0) items.push({ text: `${plural(requests, "budget request")} waiting for your review`, path: "/requests?status=submitted" });
+  const liquidations = data.liquidations.filter((row) => row.status === "submitted" && mine(row.fund_id, row.owner_id)).length;
+  if (liquidations > 0) items.push({ text: `${plural(liquidations, "liquidation")} waiting for your review`, path: "/liquidations?status=submitted" });
+  const flagged = data.liquidations.filter((row) => row.status === "flagged" && row.owner_id === userId).length;
+  if (flagged > 0) items.push({ text: `${plural(flagged, "liquidation")} sent back for your corrections`, path: "/liquidations?status=flagged" });
+  for (const row of data.due.filter((entry) => entry.owner_id === userId)) {
+    items.push({
+      text: row.overdue ? `Your liquidation for ${row.pcv_number} is overdue` : `Your liquidation for ${row.pcv_number} is due ${new Date(row.due_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+      path: "/requests",
+    });
+  }
+  return items;
+}
 
 export async function sendDailyDigest() {
-  const stats = await loadStats();
+  const [stats, personal] = await Promise.all([loadStats(), loadPersonal()]);
   let recipients = 0;
 
   for (const role of ROLES) {
-    const items = digestItemsFor(role, stats);
-    if (items.length === 0) continue;
-
     const people = await recipientsByRole([role]);
-    recipients += people.length;
-    await notify({
-      event: "digest.daily",
-      recipients: people,
-      subject: `Daily summary: ${items.length === 1 ? items[0].text : `${items.length} things need attention`}`,
-      content: () => ({
-        tone: "action",
-        heading: "What needs your attention today",
-        paragraphs: items.map((item) => `• ${item.text}`),
-        cta: { label: "Open the app", path: items[0].path },
-      }),
-    });
+    for (const person of people) {
+      const items = [...(role === "requester" ? [] : digestItemsFor(role, stats)), ...(person.id ? personalItems(person.id, role, personal) : [])];
+      if (items.length === 0) continue;
+      recipients += 1;
+      await notify({
+        event: "digest.daily",
+        recipients: [person],
+        inApp: false,
+        subject: `Daily summary: ${items.length === 1 ? items[0].text : `${items.length} things need attention`}`,
+        content: () => ({
+          tone: "action",
+          heading: "What needs your attention today",
+          paragraphs: items.map((item) => `• ${item.text}`),
+          cta: { label: "Open the app", path: items[0].path },
+        }),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
   }
 
   return { recipients, stats };

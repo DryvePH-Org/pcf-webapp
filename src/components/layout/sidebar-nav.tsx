@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wallet } from "lucide-react";
 
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
 import {
   isNavActive,
@@ -35,6 +36,10 @@ export function SidebarNav({
           <span className="text-xs text-muted-foreground">Fund ledger</span>
         </span>
       </Link>
+      <div className="flex shrink-0 items-center justify-between border-b border-sidebar-border px-3 py-1.5">
+        <span className="px-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Notifications</span>
+        <NotificationBell />
+      </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
         {groups.map((group) => (

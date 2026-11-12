@@ -53,23 +53,29 @@ Vouchers **at or above** it follow a stricter path:
 3. Only after approval can the custodian **Release cash**. Until then the money is
    not counted as released.
 
-## Email notifications (everyone)
+## Notifications: the bell and email (everyone)
 
-Email delivery is disabled for this launch. The workflow remains available in
-the app; the event/template infrastructure is retained for later activation.
-The descriptions below apply when notification delivery is enabled.
+The **bell** at the top of every page shows what needs you or changed on your
+work, with a red number for unread items. Tap one to open it (it is then marked
+read), or choose **See all notifications**. You can also turn emails on or off
+there. The bell is always on; it keeps your notifications for 30 days after you
+read them.
 
+**Email** is only for things that need you or that you must know, for example:
+a budget request or liquidation to review, a voucher to approve, corrections to
+make, your cash being ready (your liquidation is then due within 48 hours), a
+replenishment to review, and your account. Everything else (a voucher approved
+or voided, a cash settlement recorded, and so on) is bell-only. Each morning at
+8:00 you get one short summary, only if something is waiting on you.
 
-You get an email when something needs you or something important happens to
-your work — for example an approver gets one when a voucher is released, a
-custodian when a voucher is flagged, accounting when a replenishment is
-submitted, and admins when the fund runs low.
-You are never emailed about something you did yourself. Each morning at 8:00 you
-also get one short summary of what is still waiting on you, but only if there is
-something.
+Who is told follows the fund's rules: a custodian's own request goes to the
+fund's assigned approver, or to nobody when the fund lets custodians approve
+their own (administrators and accounting see that in their bell). You are never
+notified about something you did yourself.
 
-Admins can see every email the app sent, and any that failed, under
-**Admin → Notifications**.
+Under **Notifications** you can turn off the action emails and the morning
+summary. Account emails are always sent. Admins can see every email the app
+sent, and any that failed or were skipped, under **Admin → Notifications**.
 
 ---
 

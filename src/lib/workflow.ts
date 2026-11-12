@@ -21,6 +21,10 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined };
+      mark_all_notifications_read: { Args: Record<string, never>; Returns: undefined };
+      prune_notifications: { Args: Record<string, never>; Returns: number };
+      set_notification_preferences: { Args: { p_email_actions: boolean; p_email_digest: boolean }; Returns: undefined };
       set_fund_self_approval: { Args: { p_fund_id: string; p_allowed: boolean }; Returns: undefined };
       fund_self_approval_flags: { Args: Record<string, never>; Returns: { fund_id: string; allowed: boolean }[] };
       self_approval_allowed: { Args: { p_fund: string; p_user: string }; Returns: boolean };
@@ -56,9 +60,33 @@ type WorkflowFunctions = {
       };
     };
 
+export type NotificationRecord = {
+  id: string;
+  user_id: string;
+  event: string;
+  title: string;
+  body: string | null;
+  link_path: string | null;
+  tone: "info" | "action" | "alert" | "success";
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+export type NotificationPreferenceRecord = {
+  user_id: string;
+  email_actions: boolean;
+  email_digest: boolean;
+  updated_at: string;
+};
+type FundRow = Database["public"]["Tables"]["funds"]["Row"] & { custodian_self_approval: boolean };
+
 export type WorkflowDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables" | "Functions"> & {
-    Tables: Omit<Database["public"]["Tables"], "liquidation_receipt_lines"> & {
+    Tables: Omit<Database["public"]["Tables"], "liquidation_receipt_lines" | "funds"> & {
+      funds: Table<FundRow>;
+      notifications: Table<NotificationRecord>;
+      notification_preferences: Table<NotificationPreferenceRecord>;
       liquidation_receipt_lines: Table<ReceiptRecord>;
       fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
     };

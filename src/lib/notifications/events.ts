@@ -1,3 +1,4 @@
+import { shortRef } from "@/lib/refs";
 import { formatPHP } from "@/lib/money";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,14 +27,13 @@ async function loadVoucher(id: string) {
   const { data: voucher, error } = await admin
     .from("vouchers")
     .select(
-      "id, pcv_number, payee, particulars, amount, receipt_path, no_receipt_reason, reject_reason, void_reason, prepared_by, fund_id, category_id",
+      "id, pcv_number, payee, particulars, amount, receipt_path, no_receipt_reason, reject_reason, void_reason, prepared_by, fund_id, category_id, budget_request_id",
     )
     .eq("id", id)
     .single();
   if (error) throw error;
 
-  const [{ data: categories }, { data: fund }, { data: items }] = await Promise.all([
-    admin.from("categories").select("id, name"),
+  const [{ data: fund }, { data: items }] = await Promise.all([
     admin.from("funds").select("name").eq("id", voucher.fund_id).maybeSingle(),
     admin
       .from("voucher_items")
@@ -41,38 +41,22 @@ async function loadVoucher(id: string) {
       .eq("voucher_id", id)
       .order("position", { ascending: true }),
   ]);
-  const categoryName = (categoryId: string) =>
-    categories?.find((category) => category.id === categoryId)?.name ?? "—";
   const lines = items ?? [];
   const multiple = lines.length > 1;
-  const distinctCategories = new Set(lines.map((line) => line.category_id));
 
   const rows: Row[] = [
     { label: "Voucher", value: voucher.pcv_number },
     { label: "Payee", value: voucher.payee },
     { label: "Amount", value: formatPHP(voucher.amount) },
-    {
-      label: "Category",
-      value:
-        multiple && distinctCategories.size > 1
-          ? "Multiple categories"
-          : categoryName(voucher.category_id),
-    },
     { label: "Fund", value: fund?.name ?? "—" },
     ...(multiple
       ? lines.map((line, index) => ({
           label: `Line ${index + 1}`,
-          value: `${line.particulars} — ${formatPHP(line.amount)}${
-            distinctCategories.size > 1 ? ` (${categoryName(line.category_id)})` : ""
-          }`,
+          value: `${line.particulars} — ${formatPHP(line.amount)}`,
         }))
       : [{ label: "Particulars", value: voucher.particulars }]),
-    {
-      label: "Receipt",
-      value: voucher.receipt_path
-        ? "Attached"
-        : `None — ${voucher.no_receipt_reason ?? "no reason given"}`,
-    },
+    // Vouchers do not need a receipt (it belongs to the liquidation), so this shows only when there is one.
+    ...(voucher.receipt_path ? [{ label: "Receipt", value: "Attached" }] : []),
   ];
 
   return { voucher, rows };
@@ -185,6 +169,35 @@ export async function notifyVoucherReturned(voucherId: string, actorId: string) 
 export async function notifyVoucherReleased(voucherId: string, actorId: string) {
   const { voucher, rows } = await loadVoucher(voucherId);
   const actor = await nameOf(actorId);
+
+  // The person who asked for the budget needs to know the cash is ready and that
+  // their liquidation clock has started.
+  if (voucher.budget_request_id) {
+    const admin = createAdminClient();
+    const { data: request } = await admin
+      .from("budget_requests")
+      .select("id, request_no, requester_id")
+      .eq("id", voucher.budget_request_id)
+      .maybeSingle();
+    if (request) {
+      await notify({
+        event: "voucher.released_to_requester",
+        entityType: "vouchers",
+        entityId: voucherId,
+        recipients: await recipientsByRole([], { include: [request.requester_id], exclude: exclude(actorId) }),
+        subject: `${voucher.pcv_number}: your cash is ready`,
+        content: () => ({
+          tone: "action",
+          heading: "Your cash is ready",
+          paragraphs: [
+            `${actor} released ${formatPHP(voucher.amount)} for your budget request ${shortRef(request.request_no)}. Please file your liquidation within 48 hours.`,
+          ],
+          rows,
+          cta: { label: "File your liquidation", path: `/requests/${request.id}` },
+        }),
+      });
+    }
+  }
   await notify({
     event: "voucher.released",
     entityType: "vouchers",
@@ -197,7 +210,7 @@ export async function notifyVoucherReleased(voucherId: string, actorId: string) 
       tone: "action",
       heading: `${voucher.pcv_number} is waiting for review`,
       paragraphs: [
-        `${actor} released ${formatPHP(voucher.amount)} in cash for this voucher. The cash is already out of the fund, so please check the receipt and details, then approve it or flag a problem.`,
+        `${actor} released ${formatPHP(voucher.amount)} in cash for this voucher. The cash is already out of the fund, so please check the details, then approve it or flag a problem.`,
       ],
       rows,
       cta: { label: "Review vouchers", path: "/approvals" },

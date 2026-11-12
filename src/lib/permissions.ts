@@ -28,6 +28,7 @@ const ROUTE_RULES: readonly { prefix: string; roles: readonly Role[] }[] = [
   { prefix: "/replenishments", roles: ["admin", "custodian", "accounting", "approver"] },
   { prefix: "/audit", roles: ["admin", "accounting"] },
   { prefix: "/dashboard", roles: ALL_ROLES },
+  { prefix: "/notifications", roles: ALL_ROLES },
 ];
 
 export function canAccessRoute(role: Role, pathname: string): boolean {

@@ -1,8 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
 import { sendEmail } from "@/lib/email";
 import type { Role } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 import { renderEmail, type EmailContent } from "./layout";
 
@@ -17,6 +19,12 @@ export type NotificationEvent =
   | "liquidation.reviewed"
   | "liquidation.settled"
   | "liquidation.reimbursement_approved"
+  | "liquidation.flagged"
+  | "liquidation.needs_approver"
+  | "liquidation.due"
+  | "voucher.released_to_requester"
+  | "audit.self_approval"
+  | "fund.approver_changed"
   | "budget.submitted"
   | "budget.reviewed"
   | "budget.cancelled"
@@ -81,6 +89,40 @@ function dedupe(recipients: Recipient[]) {
   });
 }
 
+// Emails go out only for things that need someone to act (or that someone must
+// know about). Everything else is in-app only, so a team of 20 to 30 stays well
+// inside the provider's daily limit.
+const ACTION_EMAIL_EVENTS = new Set<NotificationEvent>([
+  "budget.submitted",
+  "budget.reviewed",
+  "voucher.submitted",
+  "voucher.pre_approved",
+  "voucher.returned",
+  "voucher.flagged",
+  "voucher.released_to_requester",
+  "liquidation.submitted",
+  "liquidation.flagged",
+  "liquidation.needs_approver",
+  "liquidation.due",
+  "replenishment.submitted",
+  "replenishment.approved",
+  "replenishment.rejected",
+  "fund.low_balance",
+  "user.welcome",
+  "user.role_changed",
+  "user.access_changed",
+  "digest.daily",
+]);
+// Account emails are not optional.
+const ALWAYS_EMAIL = new Set<NotificationEvent>(["user.welcome", "user.role_changed", "user.access_changed"]);
+
+const IN_APP_TONE = { info: "info", action: "action", alert: "alert" } as const;
+
+function manilaDayStart() {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  return new Date(`${day}T00:00:00+08:00`).toISOString();
+}
+
 export async function notify(options: {
   event: NotificationEvent;
   entityType?: string;
@@ -88,34 +130,86 @@ export async function notify(options: {
   recipients: Recipient[];
   subject: string;
   content: (recipient: Recipient) => Omit<EmailContent, "greeting">;
+  // Override whether this send may email (default: only action events).
+  email?: boolean;
+  // The daily summary is email-only.
+  inApp?: boolean;
 }) {
-  if (process.env.NOTIFICATIONS_ENABLED !== "true") return;
-  const admin = createAdminClient();
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const recipients = dedupe(options.recipients);
+  if (recipients.length === 0) return;
+
+  // In-app first: it is free, instant and never blocked by email settings.
+  if (options.inApp !== false) {
+    const rows = recipients
+      .filter((recipient) => recipient.id)
+      .map((recipient) => {
+        const content = options.content(recipient);
+        const link = content.cta?.path;
+        return {
+          user_id: recipient.id as string,
+          event: options.event,
+          title: content.heading.slice(0, 200),
+          body: content.paragraphs[0]?.slice(0, 480) ?? null,
+          link_path: link && /^\/[A-Za-z0-9/_?=&.%-]*$/.test(link) ? link : null,
+          tone: IN_APP_TONE[content.tone],
+          entity_type: options.entityType ?? null,
+          entity_id: options.entityId ?? null,
+        };
+      });
+    if (rows.length > 0) {
+      const { error } = await admin.from("notifications").insert(rows);
+      if (error) console.error("in-app notification failed", options.event, error.message);
+    }
+  }
+
+  const emailAllowed = options.email ?? ACTION_EMAIL_EVENTS.has(options.event);
+  if (!emailAllowed || process.env.NOTIFICATIONS_ENABLED !== "true") return;
+
   // In development set NOTIFY_REDIRECT_TO so test accounts never email anyone.
   const redirectTo = process.env.NOTIFY_REDIRECT_TO;
-  const recipients = dedupe(options.recipients);
+  const ids = recipients.map((recipient) => recipient.id).filter((id): id is string => Boolean(id));
+  const { data: prefRows } = ids.length
+    ? await admin.from("notification_preferences").select("user_id, email_actions, email_digest").in("user_id", ids)
+    : { data: [] };
+  const prefs = new Map((prefRows ?? []).map((row) => [row.user_id, row]));
+  const cap = Number(process.env.EMAIL_DAILY_LIMIT ?? 90);
+  const { count: sentToday } = await admin
+    .from("notification_log")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "sent")
+    .gte("created_at", manilaDayStart());
+  let sent = sentToday ?? 0;
+  let emailedNow = false;
 
-  for (const [index, recipient] of recipients.entries()) {
-    if (index > 0) await wait(SPACING_MS);
+  for (const recipient of recipients) {
+    const preference = recipient.id ? prefs.get(recipient.id) : undefined;
+    const optedOut = !ALWAYS_EMAIL.has(options.event) &&
+      (options.event === "digest.daily" ? preference?.email_digest === false : preference?.email_actions === false);
 
-    const greeting = `Hi ${recipient.full_name.split(/\s+/)[0] || "there"},`;
-    const { html, text } = renderEmail({
-      ...options.content(recipient),
-      greeting,
-    });
-    const to = redirectTo ?? recipient.email;
-    const subject = redirectTo
-      ? `[to: ${recipient.email}] ${options.subject}`
-      : options.subject;
-
-    let status: "sent" | "failed" = "sent";
+    let status: "sent" | "failed" | "skipped" = "sent";
     let error: string | null = null;
-    try {
-      await sendEmail({ to, subject, html, text });
-    } catch (caught) {
-      status = "failed";
-      error = caught instanceof Error ? caught.message.slice(0, 500) : String(caught);
-      console.error("notification failed", options.event, recipient.email, error);
+    if (optedOut) {
+      status = "skipped";
+      error = "Turned off by the recipient";
+    } else if (Number.isFinite(cap) && sent >= cap && !ALWAYS_EMAIL.has(options.event)) {
+      status = "skipped";
+      error = "Daily email limit reached; the in-app notification was still delivered";
+    } else {
+      if (emailedNow) await wait(SPACING_MS);
+      const greeting = `Hi ${recipient.full_name.split(/\s+/)[0] || "there"},`;
+      const { html, text } = renderEmail({ ...options.content(recipient), greeting });
+      const to = redirectTo ?? recipient.email;
+      const subject = redirectTo ? `[to: ${recipient.email}] ${options.subject}` : options.subject;
+      try {
+        await sendEmail({ to, subject, html, text });
+        sent += 1;
+        emailedNow = true;
+      } catch (caught) {
+        status = "failed";
+        error = caught instanceof Error ? caught.message.slice(0, 500) : String(caught);
+        console.error("notification failed", options.event, recipient.email, error);
+      }
     }
 
     await admin.from("notification_log").insert({
