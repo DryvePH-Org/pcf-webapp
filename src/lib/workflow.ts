@@ -21,6 +21,13 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      request_needs_fund_approver: { Args: { p_fund: string; p_requester: string }; Returns: boolean };
+      is_fund_approver: { Args: { p_fund: string }; Returns: boolean };
+      set_fund_approvers: { Args: { p_fund_id: string; p_approver_ids: string[] }; Returns: undefined };
+      list_fund_review_routes: {
+        Args: Record<string, never>;
+        Returns: { fund_id: string; approver_names: string[]; i_am_custodian: boolean }[];
+      };
       save_custodian_receipts: {
         Args: { p_id: string; p_revision: number; p_lines: Json };
         Returns: undefined;
@@ -50,6 +57,7 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables" | "Functions"> & {
     Tables: Omit<Database["public"]["Tables"], "liquidation_receipt_lines"> & {
       liquidation_receipt_lines: Table<ReceiptRecord>;
+      fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
     };
     // PostgreSQL does not expose RPC argument nullability to generated clients.
     Functions: Omit<Database["public"]["Functions"], keyof WorkflowFunctions> & WorkflowFunctions;

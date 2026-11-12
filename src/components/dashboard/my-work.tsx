@@ -21,7 +21,7 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
     db.from("liquidations").select("id, pcv_number, status, total_spent, amount_received").eq("owner_id", userId).in("status", ["flagged", "draft", "submitted"]).order("updated_at", { ascending: false }).limit(5),
     db.from("budget_requests").select("id, request_no, status, amount, purpose").eq("requester_id", userId).in("status", ["submitted", "approved"]).order("created_at", { ascending: false }).limit(5),
     reviewer ? db.from("budget_requests").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("requester_id", userId) : null,
-    reviewer ? db.from("liquidations").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("owner_id", userId) : null,
+    reviewer && role !== "approver" ? db.from("liquidations").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("owner_id", userId) : null,
   ]);
 
   const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations].some(result => result?.error);

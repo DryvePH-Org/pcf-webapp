@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { VoucherForm } from "@/components/vouchers/voucher-form";
 import type { FundOption } from "@/components/vouchers/types";
 import type { Database } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,7 +23,12 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
     const { data, error } = await supabase.from("budget_requests").select("*").eq("id", requestId).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) notFound();
-    if (data.status !== "approved" || data.requester_id === user.id || !["custodian", "admin"].includes(user.role)) redirect(`/requests/${requestId}`);
+    const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+    const gated = await wf.rpc("request_needs_fund_approver", { p_fund: data.fund_id, p_requester: data.requester_id });
+    if (gated.error) throw new Error(gated.error.message);
+    // A custodian's own request is prepared by the fund's assigned approver; anyone else's by a custodian.
+    const mayPrepare = user.role === "admin" || (user.role === "approver" ? gated.data === true : user.role === "custodian" && !gated.data);
+    if (data.status !== "approved" || data.requester_id === user.id || !mayPrepare) redirect(`/requests/${requestId}`);
     request = data;
   }
 

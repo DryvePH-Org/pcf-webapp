@@ -17,6 +17,8 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { LIQUIDATION_LABELS } from "@/lib/liquidation";
 import { shortRef } from "@/lib/refs";
 import { formatPHP } from "@/lib/money";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { canAccessRoute, canPerform } from "@/lib/permissions";
 import { requestStatusLabel } from "@/lib/request-status";
 
@@ -41,7 +43,24 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     ? await supabase.from("fund_custodians").select("fund_id").eq("fund_id", request.fund_id).eq("custodian_id", user.id)
     : { data: [], error: null };
   if (assignmentError) throw new Error(assignmentError.message);
-  const canManage = canPerform(user.role, "request.review") && (user.role === "admin" || Boolean(assignments?.length)) && request.requester_id !== user.id;
+  // A custodian's own request goes to the fund's assigned approver, not to another custodian.
+  const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const [gatedResult, approverResult, routesResult] = await Promise.all([
+    wf.rpc("request_needs_fund_approver", { p_fund: request.fund_id, p_requester: request.requester_id }),
+    user.role === "approver" ? wf.rpc("is_fund_approver", { p_fund: request.fund_id }) : { data: false, error: null },
+    wf.rpc("list_fund_review_routes"),
+  ]);
+  if (gatedResult.error) throw new Error(gatedResult.error.message);
+  if (approverResult.error) throw new Error(approverResult.error.message);
+  const gated = Boolean(gatedResult.data);
+  const approverNames = (routesResult.data ?? []).find(route => route.fund_id === request.fund_id)?.approver_names ?? [];
+  const reviewerNames = gated ? approverNames : fund?.custodian_names ?? [];
+  const canManage =
+    canPerform(user.role, "request.review") &&
+    request.requester_id !== user.id &&
+    (user.role === "admin" ||
+      (user.role === "custodian" && Boolean(assignments?.length) && !gated) ||
+      (user.role === "approver" && gated && Boolean(approverResult.data)));
   const voucher = vouchers[0];
   const { data: liquidation } = voucher
     ? await supabase.from("liquidations").select("id, status").eq("voucher_id", voucher.id).maybeSingle()
@@ -52,7 +71,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   const steps: FlowStep[] = [
     { label: "Requested", state: "done", hint: formatDate(request.created_at) },
     {
-      label: "Custodian review",
+      label: gated ? "Approver review" : "Custodian review",
       state: request.status === "submitted" ? "current" : request.status === "rejected" || request.status === "cancelled" ? "stopped" : "done",
       hint: request.status === "rejected" ? "Rejected" : request.status === "cancelled" ? "Cancelled" : request.status === "submitted" ? "Waiting" : "Approved",
     },
@@ -87,7 +106,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         />
       </div>
 
-      {nextStep(request.status, { canManage, isOwner, released, reviewNote: request.review_note, liquidation: liquidation?.status ?? null })}
+      {nextStep(request.status, { canManage, isOwner, gated, approverNames, released, reviewNote: request.review_note, liquidation: liquidation?.status ?? null })}
 
       {voucher ? <VoucherLiquidationPanel top voucherId={voucher.id} userId={user.id} /> : null}
 
@@ -108,7 +127,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={request.requester_name} />
           <Field label="Fund" value={request.fund_name} />
-          <Field label="Custodians who can review" value={fund?.custodian_names.join(", ") ?? "No active custodian available"} />
+          <Field label={gated ? "Reviewed by the fund approver" : "Custodians who can review"} value={reviewerNames.join(", ") || "No active reviewer available"} />
           <Field label="Submitted" value={formatDateTime(request.created_at)} />
         </dl>
         <Field label="Purpose of the budget" value={request.purpose} />
@@ -151,7 +170,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
 function nextStep(
   status: string,
-  ctx: { canManage: boolean; isOwner: boolean; released: boolean; reviewNote: string | null; liquidation: string | null },
+  ctx: { canManage: boolean; isOwner: boolean; gated: boolean; approverNames: string[]; released: boolean; reviewNote: string | null; liquidation: string | null },
 ) {
   switch (status) {
     case "submitted":
@@ -160,8 +179,8 @@ function nextStep(
           Approve it so a voucher can be prepared, or reject it with a reason. No cash moves yet.
         </Callout>
       ) : (
-        <Callout tone="info" title={ctx.isOwner ? "Waiting for a custodian to review your request" : "Waiting for custodian review"}>
-          {ctx.isOwner ? "You will get an email when it is approved or rejected." : "A custodian of this fund reviews it first."}
+        <Callout tone="info" title={ctx.gated ? (ctx.isOwner ? "Waiting for the fund approver to review your request" : "Waiting for the fund approver") : ctx.isOwner ? "Waiting for a custodian to review your request" : "Waiting for custodian review"}>
+          {ctx.gated ? `A custodian's own request is reviewed by the fund approver${ctx.approverNames.length ? `: ${ctx.approverNames.join(", ")}` : ""}.` : ctx.isOwner ? "You will get an email when it is approved or rejected." : "A custodian of this fund reviews it first."}
         </Callout>
       );
     case "approved":
@@ -170,7 +189,7 @@ function nextStep(
           Choose Create linked voucher below to prepare the voucher and release the cash.
         </Callout>
       ) : (
-        <Callout tone="info" title="Approved. The custodian will prepare your voucher">
+        <Callout tone="info" title={ctx.gated ? "Approved. The fund approver will prepare your voucher" : "Approved. The custodian will prepare your voucher"}>
           Cash is handed over only after the voucher is released.
         </Callout>
       );

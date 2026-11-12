@@ -40,7 +40,7 @@ export async function createBudgetRequest(input: CreateBudgetRequestValues): Pro
 
 export async function reviewBudgetRequest(input: z.input<typeof reviewBudgetRequestSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
-  if (!user || !canPerform(user.role, "request.review")) return { ok: false, error: "Only a custodian or administrator can review requests." };
+  if (!user || !canPerform(user.role, "request.review")) return { ok: false, error: "Only a custodian, the fund approver or an administrator can review requests." };
   const parsed = reviewBudgetRequestSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the review." };
   const supabase = await createClient();

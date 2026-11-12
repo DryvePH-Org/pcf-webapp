@@ -22,7 +22,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   const user = await requireUser("/requests");
   const params = await searchParams;
   const status = REQUEST_STATUSES.find(value => value === params.status);
-  const mine = params.mine === "1" || user.role === "requester" || user.role === "approver";
+  const mine = params.mine === "1" || user.role === "requester";
   const parsedPage = Number(params.page);
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? Math.min(parsedPage, 100000) : 1;
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
     if (mine) q.set("mine", "1");
     return `/requests?${q}`;
   }
-  const hasFilters = Boolean(status) || (mine && user.role !== "requester" && user.role !== "approver");
+  const hasFilters = Boolean(status) || (mine && user.role !== "requester");
   return (
     <div className="space-y-6">
       <OutstandingLiquidationNotice />

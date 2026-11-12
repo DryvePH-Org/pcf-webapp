@@ -38,9 +38,12 @@ function Required() {
 export function RequestForm({
   funds,
   name,
+  approverRoutes = {},
 }: {
   funds: RequestFund[];
   name: string;
+  // fund id -> approvers who review the request, for funds where the requester is a custodian
+  approverRoutes?: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [pending, setPending, isBusy] = usePending();
@@ -120,18 +123,20 @@ export function RequestForm({
                   { value: "", label: "Choose a fund" },
                   ...funds.map((item) => ({
                     value: item.id,
-                    label: item.custodian_names.length
-                      ? `${item.name} · Custodian: ${item.custodian_names.join(", ")}`
-                      : `${item.name} · no active custodian yet`,
+                    label: approverRoutes[item.id]
+                      ? `${item.name} · Approver: ${approverRoutes[item.id].join(", ")}`
+                      : item.custodian_names.length
+                        ? `${item.name} · Custodian: ${item.custodian_names.join(", ")}`
+                        : `${item.name} · no active custodian yet`,
                   })),
                 ]}
               />
               <p className="min-h-5 text-sm text-muted-foreground">
                 {fund ? (
                   <>
-                    Reviewed by{" "}
+                    {approverRoutes[fund.id] ? "You are a custodian of this fund, so the fund approver reviews it: " : "Reviewed by "}
                     <span className="font-medium text-foreground">
-                      {fund.custodian_names.join(", ") ||
+                      {(approverRoutes[fund.id] ?? fund.custodian_names).join(", ") ||
                         "no active custodian yet"}
                     </span>
                     .

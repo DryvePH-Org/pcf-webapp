@@ -1,5 +1,6 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -11,6 +12,7 @@ import { parseMoney, toMoneyNumber } from "@/lib/money";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { notifyFundAssignment } from "@/lib/notifications/events";
 import { createClient } from "@/lib/supabase/server";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { saveFundSchema, type SaveFundInput } from "@/lib/validators/fund";
 
 function validationError(error: z.ZodError): ActionResult {
@@ -103,6 +105,19 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   }
 
   revalidatePath("/admin/funds");
+  return { ok: true };
+}
+
+const assignApproversSchema = z.object({ fundId: z.uuid(), approverIds: z.array(z.uuid()).max(20) });
+export async function assignFundApprovers(input: z.input<typeof assignApproversSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") return actionError("Only administrators can assign approvers.");
+  const parsed = assignApproversSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("set_fund_approvers", { p_fund_id: parsed.data.fundId, p_approver_ids: [...new Set(parsed.data.approverIds)] });
+  if (error) return actionError(safeDbMessage(error));
+  for (const path of ["/funds", "/admin/funds", "/dashboard", "/requests"]) revalidatePath(path);
   return { ok: true };
 }
 

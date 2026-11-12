@@ -17,8 +17,9 @@ describe("requester access", () => {
     for (const path of ["/vouchers", "/vouchers/new", "/approvals", "/replenishments", "/admin/users", "/audit"]) expect(canAccessRoute("requester", path)).toBe(false);
     for (const action of ["request.review", "voucher.create", "voucher.approve", "replenishment.close", "admin.manage"] as const) expect(canPerform("requester", action)).toBe(false);
   });
-  it("limits request review to custodians and administrators", () => {
-    expect(ALL_ROLES.filter(role => canPerform(role, "request.review"))).toEqual(["admin", "custodian"]);
+  it("limits request review to custodians, fund approvers and administrators", () => {
+    // Approvers only review a custodian's own request in their assigned fund; the database enforces that.
+    expect(ALL_ROLES.filter(role => canPerform(role, "request.review"))).toEqual(["admin", "custodian", "approver"]);
   });
 });
 describe("budget request validation", () => {

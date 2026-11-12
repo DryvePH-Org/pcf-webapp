@@ -56,7 +56,7 @@ export type Action =
 
 export const ACTION_ROLES: Record<Action, readonly Role[]> = {
   "request.create": ALL_ROLES,
-  "request.review": ["custodian", "admin"],
+  "request.review": ["custodian", "approver", "admin"],
   "voucher.create": ["custodian", "approver", "admin"],
   "voucher.submit": ["custodian", "approver", "admin"],
   "voucher.approve": ["approver", "admin"],
