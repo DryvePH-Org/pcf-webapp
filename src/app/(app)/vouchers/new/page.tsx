@@ -27,8 +27,12 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
     const gated = await wf.rpc("request_needs_fund_approver", { p_fund: data.fund_id, p_requester: data.requester_id });
     if (gated.error) throw new Error(gated.error.message);
     // A custodian's own request is prepared by the fund's assigned approver; anyone else's by a custodian.
-    const mayPrepare = user.role === "admin" || (user.role === "approver" ? gated.data === true : user.role === "custodian" && !gated.data);
-    if (data.status !== "approved" || data.requester_id === user.id || !mayPrepare) redirect(`/requests/${requestId}`);
+    const self = data.requester_id === user.id && user.role === "custodian"
+      ? await wf.rpc("self_approval_allowed", { p_fund: data.fund_id, p_user: user.id })
+      : { data: false, error: null };
+    if (self.error) throw new Error(self.error.message);
+    const mayPrepare = Boolean(self.data) || user.role === "admin" || (user.role === "approver" ? gated.data === true : user.role === "custodian" && !gated.data);
+    if (data.status !== "approved" || (data.requester_id === user.id && !self.data) || !mayPrepare) redirect(`/requests/${requestId}`);
     request = data;
   }
 

@@ -39,7 +39,7 @@ export function isAuditEntityType(
   );
 }
 
-export const AUDIT_ACTIONS = ["insert", "update", "status_change"] as const;
+export const AUDIT_ACTIONS = ["insert", "update", "status_change", "self_approval"] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -47,6 +47,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   insert: "Created",
   update: "Updated",
   status_change: "Status changed",
+  self_approval: "Self-approved by custodian",
 };
 
 export function isAuditAction(

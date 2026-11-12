@@ -39,11 +39,14 @@ export function RequestForm({
   funds,
   name,
   approverRoutes = {},
+  selfApprovalFunds = [],
 }: {
   funds: RequestFund[];
   name: string;
   // fund id -> approvers who review the request, for funds where the requester is a custodian
   approverRoutes?: Record<string, string[]>;
+  // funds where the requester is a custodian and the fund lets her approve her own request
+  selfApprovalFunds?: string[];
 }) {
   const router = useRouter();
   const [pending, setPending, isBusy] = usePending();
@@ -123,7 +126,9 @@ export function RequestForm({
                   { value: "", label: "Choose a fund" },
                   ...funds.map((item) => ({
                     value: item.id,
-                    label: approverRoutes[item.id]
+                    label: selfApprovalFunds.includes(item.id)
+                      ? `${item.name} · You approve your own (audited)`
+                      : approverRoutes[item.id]
                       ? `${item.name} · Approver: ${approverRoutes[item.id].join(", ")}`
                       : item.custodian_names.length
                         ? `${item.name} · Custodian: ${item.custodian_names.join(", ")}`
@@ -133,14 +138,18 @@ export function RequestForm({
               />
               <p className="min-h-5 text-sm text-muted-foreground">
                 {fund ? (
-                  <>
-                    {approverRoutes[fund.id] ? "You are a custodian of this fund, so the fund approver reviews it: " : "Reviewed by "}
-                    <span className="font-medium text-foreground">
-                      {(approverRoutes[fund.id] ?? fund.custodian_names).join(", ") ||
-                        "no active custodian yet"}
-                    </span>
-                    .
-                  </>
+                  selfApprovalFunds.includes(fund.id) ? (
+                    "You are a custodian of this fund and it lets you approve your own request. The approval is recorded in the audit log."
+                  ) : (
+                    <>
+                      {approverRoutes[fund.id] ? "You are a custodian of this fund, so the fund approver reviews it: " : "Reviewed by "}
+                      <span className="font-medium text-foreground">
+                        {(approverRoutes[fund.id] ?? fund.custodian_names).join(", ") ||
+                          "no active custodian yet"}
+                      </span>
+                      .
+                    </>
+                  )
                 ) : (
                   "Pick the fund the cash should come from."
                 )}

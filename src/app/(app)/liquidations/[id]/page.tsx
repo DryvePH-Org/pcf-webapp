@@ -58,7 +58,11 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   if (!voucher) notFound();
   const difference = liquidationDifference(String(l.amount_received), String(l.total_spent));
   const settlement = settlements.data;
-  const canReview = l.status === "submitted" && user.id !== l.owner_id && ["admin", "custodian"].includes(user.role);
+  // A custodian may review her own liquidation only where the fund allows it (every such step is audited).
+  const selfApproval = user.id === l.owner_id && user.role === "custodian"
+    ? Boolean((await workflow.rpc("self_approval_allowed", { p_fund: l.fund_id, p_user: l.owner_id })).data)
+    : false;
+  const canReview = l.status === "submitted" && (user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role);
   const tagOptions = canReview && flow.flow_version === 2
     ? await workflow.rpc("list_custodian_tags", { p_fund: l.fund_id })
     : { data: [] };
@@ -66,7 +70,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const needsApproval = difference.kind === "reimbursement" && l.total_spent >= voucher.approval_threshold;
   const waitingApproval = needsApproval && !l.reimbursement_approved_by;
   const exceedsLimit = difference.kind === "reimbursement" && l.total_spent > voucher.per_txn_limit;
-  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && user.id !== l.owner_id && ["admin", "custodian"].includes(user.role) && !waitingApproval && !exceedsLimit && (difference.kind === "return" || voucher.voucher_status !== "rejected");
+  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && (user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role) && !waitingApproval && !exceedsLimit && (difference.kind === "return" || voucher.voucher_status !== "rejected");
   const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && ![l.owner_id, l.reviewed_by, voucher.prepared_by].includes(user.id) && ["admin", "approver"].includes(user.role) && !exceedsLimit;
   const paths = new Set([...rows, ...(receiptRows.data ?? [])].map(item => item.receipt_path).filter((path): path is string => Boolean(path)));
   for (const r of revisions.data ?? []) for (const line of snapshotItems(r.payload)) if (line.receipt_path) paths.add(line.receipt_path);
@@ -137,7 +141,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
         ))}
       </div>
       {l.unspent_reason ? <Field label="Why the advance was not spent" value={l.unspent_reason} /> : null}
-      {l.reviewed_at ? <div className="space-y-2 border-t pt-3"><Field label="Custodian review" value={`${l.reviewer_name} · ${formatDateTime(l.reviewed_at)}`} />{l.review_note ? <Field label="Review note" value={l.review_note} /> : null}</div> : null}
+      {l.reviewed_at ? <div className="space-y-2 border-t pt-3"><Field label="Custodian review" value={`${l.reviewer_name} · ${formatDateTime(l.reviewed_at)}${l.reviewed_by === l.owner_id ? " · self-approved (recorded in the audit log)" : ""}`} />{l.review_note ? <Field label="Review note" value={l.review_note} /> : null}</div> : null}
       {l.status === "approved" ? (
         <div className="space-y-2 border-t pt-3">
           <h3 className="font-semibold">Cash settlement</h3>

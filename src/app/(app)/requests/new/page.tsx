@@ -16,10 +16,15 @@ export default async function NewRequestPage() {
   if (error) throw new Error(error.message);
   const routesResult = await (supabase as unknown as SupabaseClient<WorkflowDatabase>).rpc("list_fund_review_routes");
   if (routesResult.error) throw new Error(routesResult.error.message);
+  const flags = await (supabase as unknown as SupabaseClient<WorkflowDatabase>).rpc("fund_self_approval_flags");
+  const selfAllowedFunds = new Set((flags.data ?? []).filter((flag) => flag.allowed).map((flag) => flag.fund_id));
+  const selfApprovalFunds = (routesResult.data ?? [])
+    .filter((route) => route.i_am_custodian && selfAllowedFunds.has(route.fund_id))
+    .map((route) => route.fund_id);
   // Funds where the requester is a custodian and an approver is assigned: the approver reviews.
   const approverRoutes = Object.fromEntries(
     (routesResult.data ?? [])
-      .filter((route) => route.i_am_custodian && route.approver_names.length)
+      .filter((route) => route.i_am_custodian && route.approver_names.length && !selfApprovalFunds.includes(route.fund_id))
       .map((route) => [route.fund_id, route.approver_names]),
   );
   return (
@@ -31,7 +36,7 @@ export default async function NewRequestPage() {
       {outstanding.data.length ? (
         <OutstandingLiquidationNotice />
       ) : data.length ? (
-        <RequestForm funds={data} name={user.full_name} approverRoutes={approverRoutes} />
+        <RequestForm funds={data} name={user.full_name} approverRoutes={approverRoutes} selfApprovalFunds={selfApprovalFunds} />
       ) : (
         <p className="rounded-xl border p-6 text-muted-foreground">
           No funds are available for requests. A fund must be active and have an

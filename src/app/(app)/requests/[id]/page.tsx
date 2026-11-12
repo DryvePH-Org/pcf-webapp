@@ -45,7 +45,10 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   if (assignmentError) throw new Error(assignmentError.message);
   // A custodian's own request goes to the fund's assigned approver, not to another custodian.
   const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
-  const [gatedResult, approverResult, routesResult] = await Promise.all([
+  const [selfResult, gatedResult, approverResult, routesResult] = await Promise.all([
+    request.requester_id === user.id && user.role === "custodian"
+      ? wf.rpc("self_approval_allowed", { p_fund: request.fund_id, p_user: user.id })
+      : { data: false, error: null },
     wf.rpc("request_needs_fund_approver", { p_fund: request.fund_id, p_requester: request.requester_id }),
     user.role === "approver" ? wf.rpc("is_fund_approver", { p_fund: request.fund_id }) : { data: false, error: null },
     wf.rpc("list_fund_review_routes"),
@@ -53,11 +56,13 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   if (gatedResult.error) throw new Error(gatedResult.error.message);
   if (approverResult.error) throw new Error(approverResult.error.message);
   const gated = Boolean(gatedResult.data);
+  // Where the fund allows it, a custodian approves her own request (and every step is audited).
+  const selfApproval = Boolean(selfResult.data);
   const approverNames = (routesResult.data ?? []).find(route => route.fund_id === request.fund_id)?.approver_names ?? [];
   const reviewerNames = gated ? approverNames : fund?.custodian_names ?? [];
   const canManage =
     canPerform(user.role, "request.review") &&
-    request.requester_id !== user.id &&
+    (request.requester_id !== user.id || selfApproval) &&
     (user.role === "admin" ||
       (user.role === "custodian" && Boolean(assignments?.length) && !gated) ||
       (user.role === "approver" && gated && Boolean(approverResult.data)));
@@ -133,7 +138,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <Field label="Purpose of the budget" value={request.purpose} />
         {request.reviewed_at ? (
           <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
-            <Field label="Reviewed by" value={request.reviewer_name ?? "—"} />
+            <Field label="Reviewed by" value={`${request.reviewer_name ?? "—"}${request.reviewed_by === request.requester_id ? " · self-approved (recorded in the audit log)" : ""}`} />
             <Field label="Reviewed on" value={formatDateTime(request.reviewed_at)} />
             {request.review_note ? <div className="sm:col-span-2"><Field label="Review note" value={request.review_note} /></div> : null}
           </div>

@@ -21,6 +21,9 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      set_fund_self_approval: { Args: { p_fund_id: string; p_allowed: boolean }; Returns: undefined };
+      fund_self_approval_flags: { Args: Record<string, never>; Returns: { fund_id: string; allowed: boolean }[] };
+      self_approval_allowed: { Args: { p_fund: string; p_user: string }; Returns: boolean };
       request_needs_fund_approver: { Args: { p_fund: string; p_requester: string }; Returns: boolean };
       is_fund_approver: { Args: { p_fund: string }; Returns: boolean };
       set_fund_approvers: { Args: { p_fund_id: string; p_approver_ids: string[] }; Returns: undefined };

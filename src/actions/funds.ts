@@ -108,6 +108,19 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   return { ok: true };
 }
 
+const selfApprovalSchema = z.object({ fundId: z.uuid(), allowed: z.boolean() });
+export async function setFundSelfApproval(input: z.input<typeof selfApprovalSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") return actionError("Only administrators can change this setting.");
+  const parsed = selfApprovalSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("set_fund_self_approval", { p_fund_id: parsed.data.fundId, p_allowed: parsed.data.allowed });
+  if (error) return actionError(safeDbMessage(error));
+  for (const path of ["/funds", "/requests", "/dashboard"]) revalidatePath(path);
+  return { ok: true };
+}
+
 const assignApproversSchema = z.object({ fundId: z.uuid(), approverIds: z.array(z.uuid()).max(20) });
 export async function assignFundApprovers(input: z.input<typeof assignApproversSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
