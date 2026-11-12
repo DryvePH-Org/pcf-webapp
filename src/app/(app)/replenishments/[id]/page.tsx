@@ -25,6 +25,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Callout } from "@/components/shared/callout";
+import { EncodingReport } from "@/components/sheets/encoding-report";
+import { replenishmentEncoding, unencodedLiquidations } from "@/lib/sheets/encoding";
 import { requireUser } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
@@ -162,6 +165,10 @@ export default async function ReplenishmentDetailPage({
   const reviewedByName = replenishment.reviewed_by
     ? (profileNames.get(replenishment.reviewed_by) ?? "—")
     : null;
+  const markerEncoding = await replenishmentEncoding(id);
+  const unencoded = ["submitted", "accounting_approved"].includes(replenishment.status)
+    ? await unencodedLiquidations(id)
+    : [];
   const status = isReplenishmentStatus(replenishment.status)
     ? replenishment.status
     : "draft";
@@ -230,6 +237,12 @@ export default async function ReplenishmentDetailPage({
             </>
           }
         />
+
+        {unencoded.length > 0 ? (
+          <Callout tone="warning" title="Waiting for Grokbot to write these liquidations to Google Sheets">
+            {unencoded.map(item => item.pcv_number).join(", ")}. The green replenishment marker has to come after these entries in the sheet, so approval is paused until Grokbot has written them. They are listed on each liquidation page, where the custodian can retry.
+          </Callout>
+        ) : null}
 
         {status === "rejected" ? (
           <Alert variant="destructive">
@@ -405,6 +418,19 @@ export default async function ReplenishmentDetailPage({
                 ) : null}
               </CardContent>
             </Card>
+
+            {markerEncoding ? (
+              <EncodingReport
+                title="Green marker in Google Sheets"
+                kind="marker"
+                info={markerEncoding}
+                workbook="MAD Buying"
+              />
+            ) : status === "approved" || status === "closed" ? (
+              <Callout tone="info" title="The green marker has not been queued yet">
+                Grokbot adds the marker after Accounting and the Approver have both approved.
+              </Callout>
+            ) : null}
 
             <ReplenishmentActions
               replenishment={{

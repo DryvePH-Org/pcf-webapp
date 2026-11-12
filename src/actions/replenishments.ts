@@ -121,6 +121,12 @@ export async function reviewReplenishment(
   const parsed = replenishmentReviewSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
 
+  if (parsed.data.approve) {
+    const { unencodedLiquidations, waitingMessage } = await import("@/lib/sheets/encoding");
+    const waiting = await unencodedLiquidations(parsed.data.replenishment_id);
+    if (waiting.length) return actionError(waitingMessage(waiting));
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("review_replenishment", {
     p_id: parsed.data.replenishment_id,
@@ -173,6 +179,11 @@ export async function approveReplenishment(id:string, approve:boolean, note:stri
   if(!user||!["admin","approver"].includes(user.role))return actionError("Approver access required.");
   const parsed=replenishmentReviewSchema.safeParse({replenishment_id:id,approve,note});
   if(!parsed.success)return validationError(parsed.error);
+  if (approve) {
+    const { unencodedLiquidations, waitingMessage } = await import("@/lib/sheets/encoding");
+    const waiting = await unencodedLiquidations(id);
+    if (waiting.length) return actionError(waitingMessage(waiting));
+  }
   const db=await createClient() as unknown as SupabaseClient<WorkflowDatabase>;
   const {error}=await db.rpc("approve_replenishment",{p_id:id,p_approve:approve,p_note:note||null});
   if(error)return actionError(safeDbMessage(error));

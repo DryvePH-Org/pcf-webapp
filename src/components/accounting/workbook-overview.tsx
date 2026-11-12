@@ -1,3 +1,4 @@
+import { isBookOpen } from "@/lib/sheets/open-books";
 import Link from "next/link";
 import { MoneyText } from "@/components/shared/money-text";
 import { ResponsiveList } from "@/components/shared/responsive-list";
@@ -33,6 +34,7 @@ export function WorkbookOverview({
       <MoneyText value={value} className="whitespace-nowrap" />
     );
   const state = (row: (typeof rows)[number]) => {
+    if (!isBookOpen(row.book.id)) return <Badge variant="outline">Not open yet</Badge>;
     if (row.book.refresh_until)
       return <Badge variant="secondary">Refresh requested</Badge>;
     if (row.book.sync_error)
@@ -46,7 +48,10 @@ export function WorkbookOverview({
     if (!row.ledger) return <Badge variant="outline">Refresh needed</Badge>;
     return <Badge variant="secondary">Snapshot available</Badge>;
   };
-  const source = (row: (typeof rows)[number]) => (
+  const source = (row: (typeof rows)[number]) =>
+    !isBookOpen(row.book.id) ? (
+      <span className="text-sm text-muted-foreground">Opens later</span>
+    ) : (
     <a
       className="text-sm underline underline-offset-4"
       target="_blank"
@@ -55,7 +60,7 @@ export function WorkbookOverview({
     >
       Open workbook
     </a>
-  );
+    );
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">

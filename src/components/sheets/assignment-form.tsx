@@ -19,7 +19,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { OptionSelect } from "@/components/shared/option-select";
+import { CLOSED_BOOK_MESSAGE, isBookOpen } from "@/lib/sheets/open-books";
 import type { Workbook, SheetTab } from "@/lib/sheets/types";
+import { Lock } from "lucide-react";
 
 export function WorkbookAssignment({
   book,
@@ -55,6 +57,22 @@ export function WorkbookAssignment({
       tabs.some((tab) => String(tab.sheetId) === sheet),
   );
   const prefix = `workbook-${book.id}`;
+  if (!isBookOpen(book.id)) {
+    return (
+      <Card className="opacity-80">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>{book.name}</CardTitle>
+            <Badge variant="outline" className="gap-1">
+              <Lock className="size-3" aria-hidden />
+              Not open yet
+            </Badge>
+          </div>
+          <CardDescription>{CLOSED_BOOK_MESSAGE}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
   return (
     <form
       onSubmit={async (event) => {
