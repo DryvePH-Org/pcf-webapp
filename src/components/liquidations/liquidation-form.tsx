@@ -68,7 +68,10 @@ export function LiquidationForm({
     try {
       const result = await saveLiquidation(parsed.data, submit);
       if (!result.ok) {
+        // Close the confirmation so the reason is not hidden behind it.
+        setConfirm(false);
         setError(result.error);
+        toast.error(result.error);
         return;
       }
       toast.success(
@@ -77,6 +80,7 @@ export function LiquidationForm({
       setConfirm(false);
       router.refresh();
     } catch {
+      setConfirm(false);
       setError("Could not save the liquidation. Try again.");
     } finally {
       setPending(false);
