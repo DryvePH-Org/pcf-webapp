@@ -135,37 +135,52 @@ export async function notify(options: {
   // The daily summary is email-only.
   inApp?: boolean;
 }) {
-  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
   const recipients = dedupe(options.recipients);
   if (recipients.length === 0) return;
 
   // In-app first: it is free, instant and never blocked by email settings.
-  if (options.inApp !== false) {
-    const rows = recipients
-      .filter((recipient) => recipient.id)
-      .map((recipient) => {
-        const content = options.content(recipient);
-        const link = content.cta?.path;
-        return {
-          user_id: recipient.id as string,
-          event: options.event,
-          title: content.heading.slice(0, 200),
-          body: content.paragraphs[0]?.slice(0, 480) ?? null,
-          link_path: link && /^\/[A-Za-z0-9/_?=&.%-]*$/.test(link) ? link : null,
-          tone: IN_APP_TONE[content.tone],
-          entity_type: options.entityType ?? null,
-          entity_id: options.entityId ?? null,
-        };
-      });
-    if (rows.length > 0) {
-      const { error } = await admin.from("notifications").insert(rows);
-      if (error) console.error("in-app notification failed", options.event, error.message);
+  // A problem here must never stop the email or break the action that triggered this.
+  if (options.inApp !== false && recipients.some((recipient) => recipient.id)) {
+    try {
+      await storeInApp(options, recipients);
+    } catch (error) {
+      console.error("in-app notification failed", options.event, error);
     }
   }
 
   const emailAllowed = options.email ?? ACTION_EMAIL_EVENTS.has(options.event);
   if (!emailAllowed || process.env.NOTIFICATIONS_ENABLED !== "true") return;
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  await sendEmails(admin, options, recipients);
+}
 
+type NotifyOptions = Parameters<typeof notify>[0];
+
+async function storeInApp(options: NotifyOptions, recipients: Recipient[]) {
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const rows = recipients
+    .filter((recipient) => recipient.id)
+    .map((recipient) => {
+      const content = options.content(recipient);
+      const link = content.cta?.path;
+      return {
+        user_id: recipient.id as string,
+        event: options.event,
+        title: content.heading.slice(0, 200),
+        body: content.paragraphs[0]?.slice(0, 480) ?? null,
+        link_path: link && /^\/[A-Za-z0-9/_?=&.%-]*$/.test(link) ? link : null,
+        tone: IN_APP_TONE[content.tone],
+        entity_type: options.entityType ?? null,
+        entity_id: options.entityId ?? null,
+      };
+    });
+  if (rows.length > 0) {
+    const { error } = await admin.from("notifications").insert(rows);
+    if (error) console.error("in-app notification failed", options.event, error.message);
+  }
+}
+
+async function sendEmails(admin: SupabaseClient<WorkflowDatabase>, options: NotifyOptions, recipients: Recipient[]) {
   // In development set NOTIFY_REDIRECT_TO so test accounts never email anyone.
   const redirectTo = process.env.NOTIFY_REDIRECT_TO;
   const ids = recipients.map((recipient) => recipient.id).filter((id): id is string => Boolean(id));
