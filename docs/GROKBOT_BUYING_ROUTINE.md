@@ -2,6 +2,12 @@
 
 Paste this document into the Grokbot automation's instructions. The webhook delivers the operation data and a scoped completion callback. Protocol version is `pcf.grokbot.v1`.
 
+**Routine version: 2026-11-12.1 (staff-friendly placement).**
+
+The copy downloaded from `routine_url` on each run is the only authoritative routine. Ignore any locally saved copy, earlier version, or temporary bypass. If a saved copy differs from the downloaded one, follow the downloaded one and add the warning `routine updated to 2026-11-12.1` to the report.
+
+**Working with staff edits.** Office staff edit this sheet by hand: they type entries, fix typos, delete rows, and sometimes tidy the audit tab. Adapt to the sheet as it is now instead of expecting it to match earlier runs. Block only for the real problems listed in section 7.4. Everything else that looks unusual is handled by the rules below and reported as a warning.
+
 ## 1. Authorized destination
 
 Every financial write must resolve to this exact destination.
@@ -28,7 +34,7 @@ The MAD Bank reference is read-only. Its green funding rows and sequential reple
 
 The reviewed Buying template has its headers at B5:O5, beginning balance at O6, ledger beginning at row 7, and sign-off area beginning at row 82. O6 was ₱40,000 when inspected. Always reread the live value.
 
-B7:B78 contains prefilled line numbers. The live audit confirmed balance formulas in O7:O79. Those cells alone represent unused template rows. Determine transaction occupancy from dates, descriptions, people, document references, and IN/OUT values.
+B7:B78 may contain prefilled line numbers. The live audit confirmed balance formulas in O7:O79. Those cells alone represent unused template rows. Classify every ledger row using section 7.1.
 
 Q5:S6 is the cash summary. Q10:T46 contains expense-tag summaries. The template has several formula endpoints, including row 76, row 79, and row 109. Validate each affected formula against the actual ledger boundary.
 
@@ -68,11 +74,11 @@ Write descriptive text as literal strings using typed Sheets `stringValue` updat
 2. A completed operation returns its stored result. End the run after acknowledging that existing result.
    Download the full payload and current routine through `payload_url` and `routine_url`. Validate HTTP success and complete JSON parsing. Generate one runner UUID and persist it in a private state file scoped to this operation and this run before claiming. Read the runner UUID from that file for every callback, including repeated running reports, failed, blocked and completed results. POST `status: "running"` with top-level `runner_id` before inspecting or changing financial cells. Proceed only after HTTP 200. HTTP 409 means another runner owns this operation. End that duplicate run immediately. Every new run has a new runner UUID, while a retry of a callback within the same run retains its runner UUID. Reconcile the downloaded `previous_report` and the operation's stored report before retrying an earlier partial write. If the private runner state is lost, stop before any further sheet changes and report the ownership problem in chat for reconciliation. A new UUID cannot take over the existing claim.
 3. Resolve the allowlisted destination and read the current ledger, formulas, colors, merges, and relevant validation rules.
-4. Identify headers, beginning balance, last real transaction, available ledger rows, sign-offs, summary cells, expense sequence, and replenishment sequence.
-5. Verify both the current state and the expected sequence from the payload.
+4. Identify headers, beginning balance, sign-offs, summary cells, and the replenishment sequence. Classify every ledger row (section 7.1), choose the target rows (section 7.2), and work out the expense numbers (section 7.3).
+5. Verify the payload against the current state. Unusual staff edits become warnings, not blocks, unless section 7.4 says otherwise.
 6. Capture the exact before-values, formulas, and formatting for cells the operation will change. Keep the snapshot until verification and callback delivery finish.
 7. Send `running` with the planned ranges and before-state in the callback report. Wait for a successful response.
-8. Read the planned target cells again immediately before writing. A staff edit or another operation changing those cells produces `blocked`.
+8. Read the planned target rows again immediately before writing. If a staff member typed into them since you planned, re-plan once from the fresh read (section 7.2) and continue. Block only if the second plan is also overtaken by edits.
 9. Process one financial operation at a time for this destination. An uncertain previous operation requires reconciliation before another append.
 
 An operation with an ambiguous destination, stale sequence, inconsistent amount, unsupported formatting capability, or unreadable formulas produces a `blocked` report with the specific reason.
@@ -117,7 +123,7 @@ The event contains the saved custodian-approved entries. Each entry becomes one 
 
 | Column | Header | Input or rule |
 | --- | --- | --- |
-| B | # | Next actual expense sequence number |
+| B | # | Expense sequence number from section 7.3 |
 | C | TAG | `lines[].tag`, preserving the exact CE/NCE spelling or custom tag |
 | D | PCF# | `voucher_number`, including an explicitly empty number |
 | E | DATE | `lines[].expense_date` as a real Sheets date |
@@ -195,11 +201,50 @@ The next expense goes on the next available ledger row beneath the marker. Expen
 
 ## 7. Row placement and formulas
 
-Identify the last real transaction or replenishment marker inside the ledger. Use the next unused ledger row after it. Prefilled B numbers and O balances alone count as template placeholders.
+### 7.1 Classify every ledger row
 
-A row with partial manual transaction details is occupied and requires review. Preserve the opening-balance row and the sign-off area.
+Ledger rows run from the first row under the beginning balance (row 7 in the template) to the last row before the sign-off area. Read columns B:O of each row and give it exactly one class.
 
-For row r, the base balance is `previous balance + IN - OUT`. The target's existing formulas also reference Input VAT. Preserve that established formula convention when carrying formulas forward, while excluding Input VAT from all value writes.
+| Class | How to recognise it | What to do with it |
+| --- | --- | --- |
+| **Transaction** | A number in IN (M) or OUT (N), or a replenishment marker label in F | Never change it |
+| **Staff entry in progress** | No IN/OUT amount, but a DATE (E) or a PARTICULAR (F) | Never change it; write around it |
+| **Leftover** | No IN/OUT, no DATE, no PARTICULAR, but stray values in C, D, G, H, I, J or K (for example a TIN or receipt number left after someone deleted an entry) | Available. Overwrite or clear its B:K and M:N cells as part of the write |
+| **Empty** | Only template content: prefilled B numbers, O balance formulas, formatting | Available |
+
+Input VAT (column L) never decides a row's class and is never written.
+
+### 7.2 Choose the target rows (no gaps)
+
+1. Find the **last Transaction row** in the ledger. If there is none, start at the first ledger row.
+2. Walk down from the row right after it. Each Leftover or Empty row is the next target row. Skip Staff-entry-in-progress rows and keep going.
+3. Use as many target rows as the operation needs: one per liquidation line, one per replenishment marker.
+4. Never leave an Empty or Leftover row unused **between** the last Transaction row and the rows you write. New entries always continue directly under the latest transaction.
+5. When writing a Leftover row, clear every stray value in its B:K and M:N cells that your entry does not replace (for example an old TIN in K when the new entry has no TIN). Record the cleared before-values in the audit CHANGES column and in the report, and add a warning naming the cells.
+6. If you skipped a Staff-entry-in-progress row, add a warning naming that row so the custodian can check it.
+7. When the remaining ledger rows run out, insert rows before the sign-offs (see below).
+
+### 7.3 Expense numbers (column B)
+
+- For each expense row, write B = (the B number of the nearest expense row above it) + 1. If there is no expense row above, write 1.
+- Replenishment marker rows leave B empty and do not use up a number.
+- Prefilled template numbers in target rows are placeholders. Overwrite them with the number from this rule.
+- Do not renumber existing rows. If existing numbers skip or repeat, keep them as staff left them and add a warning.
+
+### 7.4 When to block
+
+Block (`blocked`, with the exact reason) only for these:
+
+- The destination spreadsheet, sheet ID or editor account cannot be verified (section 1).
+- The payload is invalid or its amounts do not add up (sections 3, 5, 6).
+- The replenishment number does not follow the greatest marker on the tab (section 6).
+- Staff edits overtook your target rows twice in a row (section 4, step 8).
+- Formulas needed for the balance or summaries are unreadable or already show errors in the rows you would depend on.
+- This operation's entries already appear on the sheet but do not match the payload (possible duplicate or partial earlier run).
+
+Everything else, including Leftover rows, skipped staff entries, odd numbering, an edited or partly deleted audit tab, and balances that changed since an earlier run, is handled by these rules and reported in `warnings`.
+
+### 7.5 Formulas and formatting
 
 Fill the balance formula on every new transaction and marker row. Propagate the roll-forward through following unused ledger balance placeholders so the displayed ending balance remains accurate. Existing populated historical transaction values require explicit reconciliation before any repair.
 
@@ -231,7 +276,7 @@ If the same operation is delivered again, reconcile its recorded ranges and curr
 
 Appending a second copy is outside the retry procedure. An identical-looking description or receipt number alone is insufficient proof of operation identity.
 
-A staff edit in a recorded range creates a conflict. Return the exact conflicting range and stop for review.
+After this operation has written its rows, a later staff edit inside those exact rows is a conflict for retries of this same operation: return the exact range and stop. Staff edits anywhere else are normal and are not conflicts.
 
 ## 9. Completion feedback
 
@@ -287,7 +332,14 @@ Retry a failed callback using the same operation ID and result. Keep the callbac
 
 ### Google editor audit worksheet
 
-Maintain a visible append-only tab named `GROKBOT EDIT AUDIT` in the same Buying spreadsheet. During explicitly authorized setup, create it if absent and record its numeric sheet ID in the callback. If it exists, verify its headers and identity before reusing it. An incompatible existing tab requires review before changing it.
+Maintain a visible tab named `GROKBOT EDIT AUDIT` in the same Buying spreadsheet. Grokbot only ever appends to it; it never edits or deletes existing rows.
+
+Staff may still edit or clear it. Adapt instead of blocking:
+
+- Append each new audit row directly under the **last non-empty row** of the tab, whatever its numbering or completeness. Never leave blank rows between audit records.
+- If row 1 no longer holds the headers below, write the headers into row 1 only when row 1 is empty; otherwise leave it and add a warning.
+- Rows that staff blanked or partly deleted stay as they are. Add one warning such as `audit rows 2-3 were edited by hand` and continue.
+- If the tab is missing, create it with the headers below, use its new numeric sheet ID, and add a warning. Report the actual `audit_tab_id`.
 
 Use these columns in A1:V1 in this exact order.
 

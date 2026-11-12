@@ -41,11 +41,17 @@ it("requires reconciled amounts, audit evidence, correct editor and every verifi
     { editor_account: "another@example.com" },
     { sheet_id: 1 },
     { audit_rows: "" },
+    { audit_tab_id: "2133354940" },
+    { audit_tab_id: 0 },
+    { audit_tab_id: GROKBOT_BUYING_TARGET.sheet_id },
     { checks: { ...checks, input_vat_preserved: false } },
   ])
     expect(validateFinancialResult(liquidation, { ...report, ...change })).toBe(
       false,
     );
+});
+it("accepts a recreated audit tab with a new numeric ID", () => {
+  expect(validateFinancialResult(liquidation, { ...report, audit_tab_id: 987654321 })).toBe(true);
 });
 it("requires the approved replenishment number and green marker read-back", () => {
   const payload = {

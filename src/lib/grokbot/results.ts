@@ -47,7 +47,11 @@ export function validateFinancialResult(
     report.editor_account !== "admin.manilaautodisplay@gmail.com" ||
     report.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
     report.sheet_id !== GROKBOT_BUYING_TARGET.sheet_id ||
-    report.audit_tab_id !== 2133354940 ||
+    // Staff may delete the audit tab; the routine then recreates it with a new ID.
+    typeof report.audit_tab_id !== "number" ||
+    !Number.isSafeInteger(report.audit_tab_id) ||
+    report.audit_tab_id <= 0 ||
+    report.audit_tab_id === GROKBOT_BUYING_TARGET.sheet_id ||
     typeof report.audit_rows !== "string" ||
     !/^A\d+:V\d+$/.test(report.audit_rows) ||
     required.some((key) => checks?.[key] !== true)
