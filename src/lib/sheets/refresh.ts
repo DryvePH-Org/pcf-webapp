@@ -1,11 +1,12 @@
 import "server-only";
 import { sheetsAdmin } from "./database";
 import { queueGrokbotOperation, dispatchGrokbot } from "@/lib/grokbot/delivery";
-import { GROKBOT_BUYING_TARGET } from "@/lib/grokbot/contract";
+import { isGrokbotBook, targetEnvelope, targetForBook } from "@/lib/grokbot/targets";
 
 export async function refreshWorkbook(book: string) {
-  if (book !== "buying")
-    throw new Error("Grokbot refresh is currently configured for MAD Buying.");
+  if (!isGrokbotBook(book))
+    throw new Error("Grokbot refresh is not configured for this workbook.");
+  const target = targetForBook(book);
   const db = sheetsAdmin();
   const claim = await db.rpc("claim_sheet_refresh", { p_id: book });
   if (claim.error) throw new Error("Could not claim workbook refresh.");
@@ -13,13 +14,14 @@ export async function refreshWorkbook(book: string) {
   try {
     await queueGrokbotOperation({
       kind: "workbook_refresh",
+      book: target.book,
       payload: {
         event: "pcf.workbook.refresh",
         book_id: book,
         refresh_token: claim.data,
-        target: GROKBOT_BUYING_TARGET,
+        target: targetEnvelope(target),
         sheet_mutations_allowed: false,
-        task: "Read the complete Buying tab into the A1-based snapshot.grid schema supplied in the webhook instructions. Include all ledger and signoff rows and tag summary formulas. Return spreadsheet_id, sheet_id, verified:true, checks.write_scope:true and snapshot. No sheet mutations, including audit rows.",
+        task: "Read the complete ledger tab into the A1-based snapshot.grid schema supplied in the webhook instructions. Include all ledger and signoff rows and the expense-type summary formulas. Return spreadsheet_id, sheet_id, verified:true, checks.write_scope:true and snapshot. No sheet mutations, including audit rows.",
       },
     });
     await dispatchGrokbot();

@@ -2,14 +2,17 @@ import "server-only";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
-import { GROKBOT_BUYING_TARGET, grokbotFinancialEvent } from "./contract";
+import { grokbotFinancialEvent } from "./contract";
+import { targetForBook, targetForSpreadsheet, type GrokbotBook } from "./targets";
 
 export const GROKBOT_EDITOR = "admin.manilaautodisplay@gmail.com";
 export const GROKBOT_AUDIT_SHEET_ID = 2133354940;
 
-function configuration() {
-  const url = process.env.GROKBOT_WEBHOOK_URL;
-  const secret = process.env.GROKBOT_WEBHOOK_SECRET;
+// Each sheet has its own bot, with its own webhook URL and secret.
+function configuration(book: GrokbotBook = "buying") {
+  const { env } = targetForBook(book);
+  const url = process.env[env.url];
+  const secret = process.env[env.secret];
   if (!url || !secret) throw new Error("Grokbot webhook is not configured.");
   const parsed = new URL(url);
   if (parsed.protocol !== "https:" || parsed.hostname !== "api2.cursor.sh")
@@ -17,8 +20,16 @@ function configuration() {
   return { url, secret };
 }
 
-export function grokbotCallbackToken(id: string) {
-  return createHmac("sha256", configuration().secret)
+// The book an operation belongs to, from the sheet it targets.
+function bookOf(operation: { spreadsheet_id?: string | null; sheet_id?: number | null }): GrokbotBook {
+  if (!operation.spreadsheet_id) return "buying";
+  const target = targetForSpreadsheet(operation.spreadsheet_id, operation.sheet_id ?? undefined);
+  if (!target) throw new Error("Grokbot is not configured for this destination.");
+  return target.book;
+}
+
+export function grokbotCallbackToken(id: string, book: GrokbotBook = "buying") {
+  return createHmac("sha256", configuration(book).secret)
     .update(`pcf.grokbot.v1:${id}`)
     .digest("hex");
 }
@@ -30,14 +41,17 @@ export async function queueGrokbotOperation(input: {
     | "workbook_refresh"
     | "integration_test";
   id?: string;
+  book?: GrokbotBook;
   payload: Record<string, unknown>;
   liquidationId?: string;
   replenishmentId?: string;
 }) {
-  configuration();
+  const book = input.book ?? "buying";
+  const target = targetForBook(book);
+  configuration(book);
   const db = createAdminClient();
   const id = input.id ?? randomUUID();
-  const token = grokbotCallbackToken(id);
+  const token = grokbotCallbackToken(id, book);
   const payload =
     input.kind === "liquidation_approved" ||
     input.kind === "replenishment_approved"
@@ -46,8 +60,8 @@ export async function queueGrokbotOperation(input: {
   const saved = await db.from("grokbot_operations").insert({
     id,
     kind: input.kind,
-    spreadsheet_id: GROKBOT_BUYING_TARGET.spreadsheet_id,
-    sheet_id: GROKBOT_BUYING_TARGET.sheet_id,
+    spreadsheet_id: target.spreadsheet_id,
+    sheet_id: target.sheet_id,
     callback_hash: createHash("sha256").update(token).digest("hex"),
     payload: payload as Json,
     liquidation_id: input.liquidationId,
@@ -71,27 +85,33 @@ export async function queueGrokbotOperation(input: {
   return id;
 }
 
-// Claim under a database lock so concurrent requests dispatch one destination at a time.
+// Claim under a database lock: a sheet takes one operation at a time, and different
+// sheets (each with its own bot) can run side by side.
 export async function dispatchGrokbot() {
-  configuration();
   const db = createAdminClient();
-  const claim = await db.rpc("claim_grokbot_dispatch");
-  if (claim.error) throw new Error("Could not claim Grokbot delivery.");
-  const operation = claim.data?.[0];
-  if (operation) await deliverOperation(operation);
+  const seen = new Set<string>();
+  for (let round = 0; round < 4; round++) {
+    const claim = await db.rpc("claim_grokbot_dispatch");
+    if (claim.error) throw new Error("Could not claim Grokbot delivery.");
+    const operation = claim.data?.[0];
+    if (!operation || seen.has(operation.id)) return;
+    seen.add(operation.id);
+    await deliverOperation(operation);
+  }
 }
 
 async function deliverOperation(
   operation: Database["public"]["Tables"]["grokbot_operations"]["Row"],
 ) {
-  const { url, secret } = configuration();
+  const book = bookOf(operation);
+  const { url, secret } = configuration(book);
   const db = createAdminClient();
   const expiry = await db
     .from("grokbot_operations")
     .update({
       expires_at: new Date(Date.now() + 2 * 3600000).toISOString(),
       callback_hash: createHash("sha256")
-        .update(grokbotCallbackToken(operation.id))
+        .update(grokbotCallbackToken(operation.id, book))
         .digest("hex"),
     })
     .eq("id", operation.id);
@@ -107,7 +127,7 @@ async function deliverOperation(
         operation_id: operation.id,
         callback: {
           url: `https://pcf.dryveph.io/api/grokbot/operations/${operation.id}`,
-          token: grokbotCallbackToken(operation.id),
+          token: grokbotCallbackToken(operation.id, book),
         },
         message:
           "GET callback.url with Authorization: Bearer callback.token. running alone means dispatched. When runner_claimed=false, claim a runner. Fetch payload_url and routine_url with the same header. Download both completely. Persist a fresh runner UUID in a private per-run file before POST status running with that runner_id. Continue only after HTTP 200, stop on 409. Reuse the saved UUID in every callback. Follow the downloaded routine and payload.",

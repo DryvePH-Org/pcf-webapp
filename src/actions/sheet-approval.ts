@@ -7,10 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/lib/database.types";
 import { sheetsAdmin } from "@/lib/sheets/database";
-import {
-  GROKBOT_BUYING_TARGET,
-  grokbotFinancialEvent,
-} from "@/lib/grokbot/contract";
+import { grokbotFinancialEvent } from "@/lib/grokbot/contract";
+import { isGrokbotBook, targetEnvelope, targetForBook } from "@/lib/grokbot/targets";
 import {
   dispatchGrokbot,
   queueGrokbotOperation,
@@ -75,13 +73,18 @@ export async function previewSheetApproval(id: string) {
       throw new Error(
         "Ask Accounting to enable a workbook for your custodian, fund, and active worksheet.",
       );
+    if (!isGrokbotBook(w.data.id))
+      throw new Error(
+        "This workbook is not connected to a Grokbot yet. Configure it before approving this sheet update.",
+      );
+    // Each sheet has its own bot and its own allowed destination.
+    const target = targetForBook(w.data.id);
     if (
-      w.data.id !== "buying" ||
-      w.data.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
-      w.data.active_sheet_id !== GROKBOT_BUYING_TARGET.sheet_id
+      w.data.spreadsheet_id !== target.spreadsheet_id ||
+      w.data.active_sheet_id !== target.sheet_id
     )
       throw new Error(
-        "Grokbot currently supports the configured MAD Buying worksheet. Configure the workbook before approving this sheet update.",
+        `Grokbot is set up for the ${target.sheet_title} worksheet. Configure the workbook before approving this sheet update.`,
       );
     if (existing.data?.status === "synced")
       throw new Error(
@@ -182,7 +185,7 @@ export async function previewSheetApproval(id: string) {
           tin: receipt.tin,
           address: "",
           voucher: voucherNumber,
-          company: w.data.id === "dryve" ? "DRYVE" : "MAD",
+          company: receipt.company || (w.data.id === "dryve" ? "DRYVE" : "MAD"),
         }))
       : legacyExpenses;
     if (
@@ -200,6 +203,18 @@ export async function previewSheetApproval(id: string) {
       (expense) =>
         formulaTags.length && !formulaTags.includes(expense.category),
     );
+    // A sheet whose expense type is a fixed dropdown (DRYVE) takes only types from its own list.
+    if (target.layout.extraChecks.includes("expense_types_valid") && formulaTags.length) {
+      const byName = new Map(formulaTags.map((tag) => [tag.trim().toUpperCase(), tag]));
+      expenses.forEach((expense, index) => {
+        const listed = byName.get(expense.category.trim().toUpperCase());
+        if (!listed)
+          throw new Error(
+            `Choose an expense type from the sheet's list for receipt entry ${index + 1}. Save the review again.`,
+          );
+        expense.category = listed;
+      });
+    }
     const operation = existing.data?.operation_id ?? randomUUID();
     const received = Math.round(Number(l.data.amount_received) * 100);
     const spent = Math.round(Number(l.data.total_spent) * 100);
@@ -207,7 +222,7 @@ export async function previewSheetApproval(id: string) {
       protocol_version: "pcf.grokbot.v1",
       operation_id: operation,
       event: "pcf.liquidation.approved",
-      target: GROKBOT_BUYING_TARGET,
+      target: targetEnvelope(target),
       liquidation_id: id,
       voucher_id: l.data.voucher_id,
       voucher_number: voucherNumber,
@@ -230,6 +245,7 @@ export async function previewSheetApproval(id: string) {
         tin: expense.tin,
         receipt_number: expense.receipt_number,
         plate: expense.plate,
+        ...(target.layout.companies.length ? { company: expense.company } : {}),
       })),
     });
     const tab = (w.data.catalog as unknown as SheetTab[]).find(

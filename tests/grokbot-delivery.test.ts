@@ -75,3 +75,32 @@ it("redelivers an unclaimed operation with its stable ID and preserves an owned 
   await retryGrokbotOperation(String(state.operation.id));
   expect(fetch).not.toHaveBeenCalled();
 });
+it("delivers each sheet's operation to its own bot with its own secret", async () => {
+  vi.stubEnv("GROKBOT_DRYVE_WEBHOOK_URL", "https://api2.cursor.sh/automations/webhook/dryve");
+  vi.stubEnv("GROKBOT_DRYVE_WEBHOOK_SECRET", "dryve-webhook-secret");
+  const buyingNotice = async () => {
+    await dispatchGrokbot();
+    const call = vi.mocked(fetch).mock.calls.at(-1)!;
+    return { url: String(call[0]), headers: call[1]!.headers as Record<string, string>, notice: JSON.parse(String(call[1]!.body)) };
+  };
+  const buying = await buyingNotice();
+  expect(buying.url).toBe("https://api2.cursor.sh/automations/webhook/test");
+  expect(buying.headers.Authorization).toBe("Bearer private-webhook-secret");
+
+  vi.mocked(fetch).mockClear();
+  state.operation.spreadsheet_id = "1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ";
+  state.operation.sheet_id = 1251133408;
+  const dryve = await buyingNotice();
+  expect(dryve.url).toBe("https://api2.cursor.sh/automations/webhook/dryve");
+  expect(dryve.headers.Authorization).toBe("Bearer dryve-webhook-secret");
+  // The callback token comes from that bot's own secret, so one bot's token is useless for the other's jobs.
+  expect(dryve.notice.callback.token).toHaveLength(64);
+  expect(dryve.notice.callback.token).not.toBe(buying.notice.callback.token);
+  expect(JSON.stringify(dryve.notice)).not.toContain("dryve-webhook-secret");
+});
+it("does not deliver a DRYVE operation when its bot is not configured", async () => {
+  state.operation.spreadsheet_id = "1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ";
+  state.operation.sheet_id = 1251133408;
+  await expect(dispatchGrokbot()).rejects.toThrow("not configured");
+  expect(fetch).not.toHaveBeenCalled();
+});

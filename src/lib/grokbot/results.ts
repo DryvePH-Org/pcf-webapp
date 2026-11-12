@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GROKBOT_BUYING_TARGET } from "./contract";
+import { GROKBOT_TARGETS, targetForSpreadsheet, type GrokbotTarget } from "./targets";
 import { parseMoney } from "@/lib/money";
 
 const value = z.object({
@@ -7,10 +7,10 @@ const value = z.object({
   numberValue: z.number().finite().optional(),
   formulaValue: z.string().max(10000).optional(),
 });
-export const buyingSnapshotSchema = z.object({
-  spreadsheet_id: z.literal(GROKBOT_BUYING_TARGET.spreadsheet_id),
-  sheet_id: z.literal(GROKBOT_BUYING_TARGET.sheet_id),
-  sheet_title: z.literal(GROKBOT_BUYING_TARGET.sheet_title),
+export const snapshotSchemaFor = (target: GrokbotTarget) => z.object({
+  spreadsheet_id: z.literal(target.spreadsheet_id),
+  sheet_id: z.literal(target.sheet_id),
+  sheet_title: z.literal(target.sheet_title),
   grid: z
     .array(
       z
@@ -26,11 +26,16 @@ export const buyingSnapshotSchema = z.object({
     .min(89)
     .max(1000),
 });
+export const buyingSnapshotSchema = snapshotSchemaFor(GROKBOT_TARGETS.buying);
 
 export function validateFinancialResult(
   payload: Record<string, unknown>,
   report: Record<string, unknown>,
 ) {
+  // The operation's own target decides which sheet and which checks apply (Buying when none is named).
+  const named = (payload.target as { spreadsheet_id?: string; sheet_id?: number } | undefined) ?? undefined;
+  const target = named ? targetForSpreadsheet(String(named.spreadsheet_id), Number(named.sheet_id)) : GROKBOT_TARGETS.buying;
+  if (!target) return false;
   const checks = report.checks as Record<string, unknown> | undefined;
   const required = [
     "amounts",
@@ -38,20 +43,20 @@ export function validateFinancialResult(
     "numbering",
     "running_balance",
     "summary_formulas",
-    "input_vat_preserved",
+    ...target.layout.extraChecks,
     "write_scope",
     "duplicate_free",
   ];
   if (
     report.verified !== true ||
     report.editor_account !== "admin.manilaautodisplay@gmail.com" ||
-    report.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
-    report.sheet_id !== GROKBOT_BUYING_TARGET.sheet_id ||
+    report.spreadsheet_id !== target.spreadsheet_id ||
+    report.sheet_id !== target.sheet_id ||
     // Staff may delete the audit tab; the routine then recreates it with a new ID.
     typeof report.audit_tab_id !== "number" ||
     !Number.isSafeInteger(report.audit_tab_id) ||
     report.audit_tab_id <= 0 ||
-    report.audit_tab_id === GROKBOT_BUYING_TARGET.sheet_id ||
+    report.audit_tab_id === target.sheet_id ||
     typeof report.audit_rows !== "string" ||
     !/^A\d+:V\d+$/.test(report.audit_rows) ||
     required.some((key) => checks?.[key] !== true)

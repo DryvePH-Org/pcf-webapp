@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { sheetsAdmin } from "@/lib/sheets/database";
 import { refreshWorkbook } from "@/lib/sheets/refresh";
 import { withinLimit } from "@/lib/rate-limit";
+import { GROKBOT_BOOKS, isGrokbotBook } from "@/lib/grokbot/targets";
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || !["admin", "accounting"].includes(user.role))
@@ -18,12 +19,12 @@ export async function POST(request: Request) {
       { status: 429 },
     );
   const body = await request.json().catch(() => ({}));
-  if (body.book && body.book !== "buying")
-    return NextResponse.json({ error: "Grokbot refresh is currently configured for MAD Buying." }, { status: 400 });
+  if (body.book && !isGrokbotBook(body.book))
+    return NextResponse.json({ error: "Grokbot refresh is not configured for this workbook." }, { status: 400 });
   const db = sheetsAdmin();
   let query = db
     .from("sheet_workbooks")
-    .select("id").eq("id", "buying")
+    .select("id").in("id", GROKBOT_BOOKS)
     .order("last_synced_at", { ascending: true, nullsFirst: true });
   if (typeof body.book === "string" && body.book)
     query = query.eq("id", body.book);

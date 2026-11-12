@@ -42,6 +42,7 @@ export function CustodianReceiptReview({
   urls,
   aiReady,
   reviewSaved,
+  companies = [],
 }: {
   id: string;
   revision: number;
@@ -53,6 +54,8 @@ export function CustodianReceiptReview({
   urls: Record<string, string>;
   aiReady: boolean;
   reviewSaved: boolean;
+  // Companies an expense can be charged to; empty when the sheet has no COMPANY column.
+  companies?: readonly string[];
 }) {
   const router = useRouter();
   const [lines, setLines] = useState(initial);
@@ -319,8 +322,19 @@ export function CustodianReceiptReview({
                     />
                   </div>
                 ))}
+                {companies.length > 0 ? (
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor={`company-${line.id}`}>Company charged</Label>
+                    <OptionSelect
+                      id={`company-${line.id}`}
+                      value={line.company}
+                      onValueChange={(company) => update(index, { company })}
+                      options={companies.map((company) => ({ value: company, label: company }))}
+                    />
+                  </div>
+                ) : null}
                 <div className="min-w-0 space-y-2">
-                  <Label htmlFor={`tag-${line.id}`}>Workbook tag</Label>
+                  <Label htmlFor={`tag-${line.id}`}>{companies.length > 0 ? "Expense type" : "Workbook tag"}</Label>
                   {(customTags[line.id] ??
                   (!tags.length ||
                     Boolean(line.tag && !tags.includes(line.tag)))) ? (
@@ -398,6 +412,7 @@ export function CustodianReceiptReview({
                   expense_date: filingDate,
                   plate: "",
                   receipt_number: "",
+                  company: companies[0] ?? "",
                   receipt_path: "",
                   physical_checked: false,
                 },

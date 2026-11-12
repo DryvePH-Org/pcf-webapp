@@ -1,6 +1,15 @@
 # Google Sheets automation
 
-The webapp uses the Grokbot webhook for Google Sheets operations. Server-only settings are `GROKBOT_WEBHOOK_URL` and `GROKBOT_WEBHOOK_SECRET`.
+The webapp uses one Grokbot per spreadsheet for Google Sheets operations, each with its own webhook URL and secret (server-only settings):
+
+| Sheet | Webhook URL | Secret | Routine |
+| --- | --- | --- | --- |
+| MAD Buying | `GROKBOT_WEBHOOK_URL` | `GROKBOT_WEBHOOK_SECRET` | [GROKBOT_BUYING_ROUTINE.md](GROKBOT_BUYING_ROUTINE.md) |
+| DRYVE PCF | `GROKBOT_DRYVE_WEBHOOK_URL` | `GROKBOT_DRYVE_WEBHOOK_SECRET` | [GROKBOT_DRYVE_ROUTINE.md](GROKBOT_DRYVE_ROUTINE.md) |
+
+The allowed sheets are listed in `src/lib/grokbot/targets.ts` and, for the database, in the `grokbot_targets()` SQL function. Adding a sheet means adding it in both places, giving it its own bot and routine, and opening it in `src/lib/sheets/open-books.ts`.
+
+DRYVE PCF: spreadsheet `1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ`, tab `DRYVE PCF - NOV TO DEC 2026` (gid `1251133408`). The sheet has a COMPANY column that the custodian fills per expense line in receipt review, and an EXPENSE TYPE dropdown taken from its summary of accounts. TIN and receipt number are kept in the app and not written to this sheet. Replenishments are inline marker rows (`REPLENISHMENT #14`, and so on) in the same tab.
 
 The current rollout edits MAD Buying, spreadsheet `1LJCbzcYSUQ0qiB5s_XA4-QkuecXSB-1P45nISZxsrEk`, ledger tab ID `1042918180`. Use the verified Google connection `admin.manilaautodisplay@gmail.com`. The audit tab ID is `2133354940`.
 

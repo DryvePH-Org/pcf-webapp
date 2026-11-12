@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
 import { SheetsRefresh } from "@/components/sheets/refresh-control";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -49,8 +50,10 @@ export function WorkbookAssignment({
       (link) => link.custodian_id === custodian && link.fund_id === item.id,
     ),
   );
+  // A workbook with its own Grokbot can only use that bot's worksheet.
+  const allowedSheet = isGrokbotBook(book.id) ? targetForBook(book.id).sheet_id : null;
   const tabs = (book.catalog as unknown as SheetTab[]).filter(
-    (tab) => book.id !== "buying" || tab.sheetId === 1042918180,
+    (tab) => allowedSheet === null || tab.sheetId === allowedSheet,
   );
   const ready = Boolean(
     custodian &&

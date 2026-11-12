@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
   outputFileTracingIncludes: {
-    "/*": ["./docs/GROKBOT_BUYING_ROUTINE.md"],
+    "/*": ["./docs/GROKBOT_BUYING_ROUTINE.md", "./docs/GROKBOT_DRYVE_ROUTINE.md"],
   },
   poweredByHeader: false,
   async headers() {

@@ -1,3 +1,4 @@
+import { GROKBOT_BUYING_TARGET } from "@/lib/grokbot/contract";
 import { createHash } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/grokbot/operations/[id]/route";
@@ -31,6 +32,8 @@ beforeEach(() => {
     status: "queued",
     callback_hash: createHash("sha256").update(token).digest("hex"),
     expires_at: new Date(Date.now() + 60000).toISOString(),
+    spreadsheet_id: GROKBOT_BUYING_TARGET.spreadsheet_id,
+    sheet_id: GROKBOT_BUYING_TARGET.sheet_id,
     report: null,
     payload: {},
   };

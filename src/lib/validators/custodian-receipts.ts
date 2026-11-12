@@ -22,6 +22,8 @@ export const custodianReceiptSchema = z
     expense_date: z.iso.date("Enter the transaction or liquidation date."),
     plate: text({ max: 300 }),
     receipt_number: text({ max: 100 }),
+    // The company the expense is charged to, for sheets that have a COMPANY column (DRYVE).
+    company: text({ max: 50 }).default(""),
     receipt_path: z.string().max(300),
     physical_checked: z
       .boolean()

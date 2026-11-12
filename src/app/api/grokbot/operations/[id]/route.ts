@@ -7,13 +7,22 @@ import type { Json } from "@/lib/database.types";
 import { after } from "next/server";
 import { dispatchGrokbot } from "@/lib/grokbot/delivery";
 import {
-  buyingSnapshotSchema,
+  snapshotSchemaFor,
   validateFinancialResult,
 } from "@/lib/grokbot/results";
+import { targetEnvelope, targetForSpreadsheet } from "@/lib/grokbot/targets";
+import type { WorkflowDatabase } from "@/lib/workflow";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseExpenseRows } from "@/lib/sheets/parser";
 import { summarizeLedger } from "@/lib/sheets/ledger-summary";
-import { sheetExpenseTags } from "@/lib/sheets/grid";
-import { GROKBOT_BUYING_TARGET } from "@/lib/grokbot/contract";
+import { latestReplenishmentNumber, sheetExpenseTags } from "@/lib/sheets/grid";
+
+// Each operation belongs to one sheet (and one bot); everything below follows from that sheet.
+function targetOf(operation: { spreadsheet_id: string; sheet_id: number }) {
+  const target = targetForSpreadsheet(operation.spreadsheet_id, operation.sheet_id);
+  if (!target) throw new Error("Operation has no configured Grokbot destination");
+  return target;
+}
 
 async function authorize(request: Request, id: string) {
   if (!z.uuid().safeParse(id).success) return null;
@@ -44,7 +53,7 @@ export async function GET(
   const part = new URL(request.url).searchParams.get("part");
   if (part === "routine") {
     const routine = await readFile(
-      join(process.cwd(), "docs", "GROKBOT_BUYING_ROUTINE.md"),
+      join(process.cwd(), targetOf(auth.operation).routine),
       "utf8",
     );
     return new Response(routine, {
@@ -72,7 +81,7 @@ export async function GET(
             : auth.operation.kind === "workbook_refresh"
               ? "dry_run"
               : "production",
-        target: GROKBOT_BUYING_TARGET,
+        target: targetEnvelope(targetOf(auth.operation)),
         payload,
         previous_report: auth.operation.report,
       },
@@ -196,16 +205,17 @@ export async function POST(
           { status: 422 },
         );
       if (auth.operation.kind === "workbook_refresh") {
-        const snapshot = buyingSnapshotSchema.safeParse(report.snapshot);
+        const target = targetOf(auth.operation);
+        const snapshot = snapshotSchemaFor(target).safeParse(report.snapshot);
         if (
           !snapshot.success ||
           report.verified !== true ||
-          report.spreadsheet_id !== GROKBOT_BUYING_TARGET.spreadsheet_id ||
-          report.sheet_id !== GROKBOT_BUYING_TARGET.sheet_id ||
+          report.spreadsheet_id !== target.spreadsheet_id ||
+          report.sheet_id !== target.sheet_id ||
           (report.checks as Record<string, unknown>)?.write_scope !== true
         )
           return Response.json(
-            { error: "Complete verified Buying snapshot required" },
+            { error: "Complete verified snapshot of the configured sheet required" },
             { status: 422 },
           );
         const { grid } = snapshot.data;
@@ -220,31 +230,21 @@ export async function POST(
             { status: 422 },
           );
         const expenses = parseExpenseRows(
-          "buying",
-          GROKBOT_BUYING_TARGET.sheet_id,
-          GROKBOT_BUYING_TARGET.sheet_title,
+          target.book,
+          target.sheet_id,
+          target.sheet_title,
           grid,
         );
         const tab = {
-          sheetId: GROKBOT_BUYING_TARGET.sheet_id,
-          title: GROKBOT_BUYING_TARGET.sheet_title,
+          sheetId: target.sheet_id,
+          title: target.sheet_title,
           gridProperties: { rowCount: grid.length, columnCount: 30 },
           expenseTags: sheetExpenseTags(grid),
           ledger: summary,
-          replenishmentNumber: Math.max(
-            0,
-            ...grid.map((row) => {
-              const label =
-                row[5]?.userEnteredValue?.stringValue ??
-                row[5]?.formattedValue ??
-                "";
-              return Number(
-                label.match(/^PCF REPLENISHMENT #(\d+)(?:\s|$)/i)?.[1] ?? 0,
-              );
-            }),
-          ),
+          replenishmentNumber: latestReplenishmentNumber(grid),
         };
-        const saved = await auth.db.rpc("apply_grokbot_snapshot", {
+        const saved = await (auth.db as unknown as SupabaseClient<WorkflowDatabase>).rpc("apply_grokbot_book_snapshot", {
+          p_book: target.book,
           p_rows: expenses as unknown as Json,
           p_tab: tab as unknown as Json,
           p_token: String(payload.refresh_token),
@@ -281,14 +281,14 @@ export async function POST(
             refresh_until: null,
             sync_error: parsed.data.error ?? "Grokbot refresh needs review.",
           })
-          .eq("id", "buying")
+          .eq("id", targetOf(auth.operation).book)
           .eq("refresh_token", String(payload.refresh_token));
       }
       after(async () => {
         try {
           if (financial && parsed.data.status === "completed") {
             const { refreshWorkbook } = await import("@/lib/sheets/refresh");
-            await refreshWorkbook("buying");
+            await refreshWorkbook(targetOf(auth.operation).book);
           }
           await dispatchGrokbot();
         } catch {

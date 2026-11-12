@@ -54,3 +54,18 @@ export function sheetExpenseTags(grid: Cell[][]): string[] {
   }
   return [...tags].sort();
 }
+
+/** The greatest "REPLENISHMENT #NN" marker on the tab. Buying writes "PCF REPLENISHMENT #01" in
+ * column F; DRYVE writes "REPLENISHMENT #14" in column B (and its funding row already says #13),
+ * so every one of the leading label columns is checked. */
+export function latestReplenishmentNumber(grid: Cell[][]): number {
+  let latest = 0;
+  for (const row of grid) {
+    for (const cell of row.slice(0, 6)) {
+      const label = String(cell?.userEnteredValue?.stringValue ?? cell?.formattedValue ?? "").trim();
+      const match = label.match(/^(?:PCF )?REPLENISHMENT #(\d+)(?:\s|$)/i);
+      if (match) latest = Math.max(latest, Number(match[1]));
+    }
+  }
+  return latest;
+}

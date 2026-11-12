@@ -13,6 +13,7 @@ export type ReceiptRecord = {
   receipt_number: string;
   receipt_path: string | null;
   physical_checked: boolean;
+  company: string;
 };
 type Table<Row> = {
   Row: Row;
@@ -21,6 +22,8 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      apply_grokbot_book_snapshot: { Args: { p_book: string; p_rows: Json; p_tab: Json; p_token: string }; Returns: undefined };
+      queue_grokbot_replenishment: { Args: { p_id: string; p_operation: string; p_hash: string; p_book?: string }; Returns: string };
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined };
       mark_all_notifications_read: { Args: Record<string, never>; Returns: undefined };
       prune_notifications: { Args: Record<string, never>; Returns: number };

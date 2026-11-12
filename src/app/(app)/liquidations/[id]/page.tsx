@@ -18,6 +18,7 @@ import { PrintButton } from "@/components/layout/print-button";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { LiquidationForm } from "@/components/liquidations/liquidation-form";
 import { LiquidationActions } from "@/components/liquidations/liquidation-actions";
+import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/money";
@@ -63,6 +64,11 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     ? Boolean((await workflow.rpc("self_approval_allowed", { p_fund: l.fund_id, p_user: l.owner_id })).data)
     : false;
   const canReview = l.status === "submitted" && (user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role);
+  // Sheets with a COMPANY column (DRYVE) ask the custodian to pick it for each expense.
+  const fundBook = canReview && flow.flow_version === 2
+    ? await db.from("sheet_workbooks").select("id").eq("fund_id", l.fund_id).eq("enabled", true).limit(1).maybeSingle()
+    : { data: null };
+  const companies = fundBook.data && isGrokbotBook(fundBook.data.id) ? [...targetForBook(fundBook.data.id).layout.companies] : [];
   const tagOptions = canReview && flow.flow_version === 2
     ? await workflow.rpc("list_custodian_tags", { p_fund: l.fund_id })
     : { data: [] };
@@ -175,8 +181,8 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
         {sheetJob.status !== "synced" && ["custodian", "admin"].includes(user.role) ? <SheetApprovalControl id={id} retry /> : null}
       </EncodingReport>
     ) : null}
-    {canReview && flow.flow_version===2 ? <CustodianReceiptReview key={`${id}:${flow.receipt_review_revision}`} id={id} revision={flow.receipt_review_revision} total={Number(l.total_spent)} advance={Number(l.amount_received)} filingDate={l.filing_date} tags={tagOptions.data??[]} urls={Object.fromEntries(urls)} aiReady={Boolean(process.env.GROQ_API_KEY)} reviewSaved={flow.receipt_reviewed_by===user.id}
-      initial={receiptRows.data?.length ? receiptRows.data.map(row=>({...row,amount:String(row.amount),receipt_path:row.receipt_path??''})) : rows.map(item=>({id:item.id,particulars:item.particulars,amount:String(item.amount),supplier:'',tin:'',tag:'',expense_date:l.filing_date,plate:(item.sheet_details as Record<string,string>|null)?.plate??'',receipt_number:'',receipt_path:item.receipt_path??'',physical_checked:false}))} /> : null}
+    {canReview && flow.flow_version===2 ? <CustodianReceiptReview key={`${id}:${flow.receipt_review_revision}`} id={id} revision={flow.receipt_review_revision} total={Number(l.total_spent)} advance={Number(l.amount_received)} filingDate={l.filing_date} tags={tagOptions.data??[]} urls={Object.fromEntries(urls)} aiReady={Boolean(process.env.GROQ_API_KEY)} reviewSaved={flow.receipt_reviewed_by===user.id} companies={companies}
+      initial={receiptRows.data?.length ? receiptRows.data.map(row=>({...row,amount:String(row.amount),receipt_path:row.receipt_path??'',company:row.company||companies[0]||''})) : rows.map(item=>({id:item.id,particulars:item.particulars,amount:String(item.amount),supplier:'',tin:'',tag:'',expense_date:l.filing_date,plate:(item.sheet_details as Record<string,string>|null)?.plate??'',receipt_number:'',company:companies[0]??'',receipt_path:item.receipt_path??'',physical_checked:false}))} /> : null}
     {receiptRows.data?.length ? <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Custodian receipt entries</h2>{receiptRows.data.map(row=><div key={row.id} className="space-y-1 border-t pt-3 text-sm"><p>{row.supplier} · {row.tag} · {formatDate(row.expense_date)}</p><p>{row.particulars} · {formatPHP(row.amount)}</p><p>TIN {row.tin} · Plate {row.plate||'—'} · Receipt {row.receipt_number||'—'}</p><p className="text-muted-foreground">{row.receipt_path ? "Receipt verified" : "Reviewed without a receipt attachment"}</p></div>)}</section>:null}
     <section className="space-y-3 print:hidden"><h2 className="font-semibold">Submission history</h2><p className="text-sm text-muted-foreground">Every submitted version is retained, including its receipt references. Page {historyPage}.</p>{(revisions.data ?? []).map(r => <details key={r.id} className="rounded-lg border p-3"><summary className="cursor-pointer text-sm">Submission {r.revision} · {LIQUIDATION_LABELS[r.status]} · {formatDateTime(r.created_at)}</summary><div className="mt-3 space-y-3">{r.review_note ? <p>{r.review_note}</p> : null}{snapshotItems(r.payload).map((item, index) => <div key={index}><p>{item.particulars} · {formatPHP(item.amount)}</p>{item.receipt_path ? (urls.has(item.receipt_path) ? <a href={urls.get(item.receipt_path)} target="_blank" rel="noreferrer" className="text-sm underline">Submitted receipt</a> : <p className="text-sm text-destructive">Submitted receipt currently unavailable</p>) : <p className="text-sm">No receipt: {item.no_receipt_reason}</p>}</div>)}</div></details>)}<div className="flex justify-between">{historyPage > 1 ? <Link className="underline" href={`?history=${historyPage - 1}`}>Previous submissions</Link> : <span />}{historyPage * 10 < (revisions.count ?? 0) ? <Link className="underline" href={`?history=${historyPage + 1}`}>Older submissions</Link> : null}</div></section>
   </div>;
