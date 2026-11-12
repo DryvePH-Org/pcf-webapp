@@ -344,7 +344,7 @@ export default async function VoucherDetailPage({
               </CardContent>
             </Card>
 
-            {!budgetVoucher ? <Card>
+            {!budgetVoucher && (receiptUrl || voucher.no_receipt_reason) ? <Card>
               <CardHeader>
                 <CardTitle>Receipt</CardTitle>
                 <CardDescription>

@@ -381,13 +381,15 @@ function ApprovalSummary({ item }: { item: ApprovalItem }) {
         <p className="text-sm whitespace-pre-wrap">{item.particulars}</p>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Receipt</p>
-        <ReceiptViewer
-          url={item.receipt_url}
-          noReceiptReason={item.no_receipt_reason}
-        />
-      </div>
+      {item.receipt_url || item.no_receipt_reason ? (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Receipt</p>
+          <ReceiptViewer
+            url={item.receipt_url}
+            noReceiptReason={item.no_receipt_reason}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

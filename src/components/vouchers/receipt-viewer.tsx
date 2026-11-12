@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Expand, ImageOff, ZoomIn, ZoomOut } from "lucide-react";
+import { Expand, ZoomIn, ZoomOut } from "lucide-react";
 
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Button } from "@/components/ui/button";
@@ -17,22 +17,14 @@ export function ReceiptViewer({
   const [open, setOpen] = useState(false);
   const [zoomed, setZoomed] = useState(false);
 
+  // A voucher does not need a receipt, so nothing is shown when there is none.
+  // A reason, if the preparer wrote one, is still shown.
   if (!url) {
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
-        <ImageOff className="mx-auto size-6 text-muted-foreground" />
-        <p className="mt-2 text-sm font-medium">No receipt attached</p>
-        {noReceiptReason ? (
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            Reason: {noReceiptReason}
-          </p>
-        ) : (
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            A receipt or a no-receipt reason is needed before cash is released.
-          </p>
-        )}
-      </div>
-    );
+    return noReceiptReason ? (
+      <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+        Note from the preparer: {noReceiptReason}
+      </p>
+    ) : null;
   }
 
   return (
