@@ -10,9 +10,13 @@ import { CreateLiquidationButton } from "./create-liquidation-button";
 export async function VoucherLiquidationPanel({
   voucherId,
   userId,
+  top = false,
 }: {
   voucherId: string;
   userId: string;
+  // A short version for the top of a phone screen: shown only when the
+  // requester has something to do (file it, or fix a draft or flagged one).
+  top?: boolean;
 }) {
   const db = await createClient();
   const { data, error } = await db.rpc("liquidation_context", {
@@ -33,6 +37,41 @@ export async function VoucherLiquidationPanel({
     Boolean(context.released_at) &&
     !["void", "closed"].includes(context.voucher_status);
   const mine = context.owner_id === userId;
+
+  if (top) {
+    const needsAction =
+      mine &&
+      (l ? ["draft", "flagged"].includes(l.status) : eligible);
+    if (!needsAction) return null;
+    return (
+      <section className="space-y-3 rounded-xl border-2 border-primary bg-primary/5 p-4 lg:hidden print:hidden">
+        <h2 className="font-semibold">
+          {l?.status === "flagged"
+            ? "Your liquidation needs corrections"
+            : l
+              ? "Finish your liquidation"
+              : "Your liquidation is due"}
+        </h2>
+        <LiquidationDeadline
+          releasedAt={context.released_at}
+          status={l?.status}
+        />
+        {l ? (
+          <Button
+            size="lg"
+            className="w-full"
+            nativeButton={false}
+            render={<Link href={`/liquidations/${l.id}`} />}
+          >
+            Open liquidation
+            <ArrowRight />
+          </Button>
+        ) : (
+          <CreateLiquidationButton voucherId={voucherId} fullWidth />
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-6 print:hidden">

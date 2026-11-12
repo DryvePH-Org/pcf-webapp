@@ -16,7 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { uploadLiquidationReceipt } from "@/lib/liquidation-receipts";
+import { openLiquidationReceipt, uploadLiquidationReceipt } from "@/lib/liquidation-receipts";
+import { FormModeBanner } from "@/components/shared/form-mode-banner";
+import { NaButton } from "@/components/shared/na-button";
 import { parseMoney } from "@/lib/money";
 import {
   saveLiquidationSchema,
@@ -38,6 +40,14 @@ export function LiquidationForm({
   const [form, setForm] = useState(initial);
   const [pending, setPending, isBusy] = usePending();
   const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadFailed, setUploadFailed] = useState<Record<string, string>>({});
+  const clearFailed = (lineId: string) =>
+    setUploadFailed((current) => {
+      const next = { ...current };
+      delete next[lineId];
+      return next;
+    });
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
   const disabled = pending || uploading !== null;
@@ -101,6 +111,11 @@ export function LiquidationForm({
         <CardTitle>Requester liquidation</CardTitle>
       </CardHeader>
       <CardContent>
+        <FormModeBanner
+          title="Liquidation form"
+          hint="Enter what you actually spent. Nothing goes to your custodian until you press Submit for review."
+          className="mb-5"
+        />
         <form
           className="space-y-5"
           onSubmit={(event) => {
@@ -176,12 +191,13 @@ export function LiquidationForm({
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor={`amount-${item.id}`}>Amount (₱)</Label>
+                    <Label htmlFor={`amount-${item.id}`}>Amount actually spent (₱)</Label>
                     <Input
                       id={`amount-${item.id}`}
                       inputMode="decimal"
                       maxLength={13}
                       className="text-right tabular-nums"
+                      placeholder="0.00"
                       value={item.amount}
                       onChange={(event) =>
                         updateLine(index, { amount: event.target.value })
@@ -189,9 +205,17 @@ export function LiquidationForm({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`plate-${item.id}`}>
-                      Plate number (optional)
-                    </Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor={`plate-${item.id}`}>
+                        Plate number (optional)
+                      </Label>
+                      <NaButton
+                        value={item.sheet_details?.plate ?? ""}
+                        onChange={(plate) =>
+                          updateLine(index, { sheet_details: { plate } })
+                        }
+                      />
+                    </div>
                     <Input
                       id={`plate-${item.id}`}
                       maxLength={300}
@@ -208,10 +232,27 @@ export function LiquidationForm({
                   id={`receipt-${item.id}`}
                   attached={Boolean(item.receipt_path)}
                   uploading={uploading === item.id}
-                  onRemove={() => updateLine(index, { receipt_path: "" })}
+                  failed={uploadFailed[item.id] ?? null}
+                  onView={() =>
+                    void openLiquidationReceipt(
+                      item.receipt_path,
+                      previews[item.id],
+                    ).catch((problem) =>
+                      toast.error(
+                        problem instanceof Error
+                          ? problem.message
+                          : "Could not open the attachment.",
+                      ),
+                    )
+                  }
+                  onRemove={() => {
+                    clearFailed(item.id);
+                    updateLine(index, { receipt_path: "" });
+                  }}
                   onChoose={async (file) => {
                     setUploading(item.id);
                     setError("");
+                    clearFailed(item.id);
                     try {
                       const path = await uploadLiquidationReceipt(
                         file,
@@ -222,12 +263,20 @@ export function LiquidationForm({
                         receipt_path: path,
                         no_receipt_reason: "",
                       });
+                      setPreviews((current) => ({
+                        ...current,
+                        [item.id]: URL.createObjectURL(file),
+                      }));
                     } catch (problem) {
-                      setError(
+                      const message =
                         problem instanceof Error
                           ? problem.message
-                          : "Upload failed.",
-                      );
+                          : "Upload failed.";
+                      setUploadFailed((current) => ({
+                        ...current,
+                        [item.id]: message,
+                      }));
+                      setError(message);
                     } finally {
                       setUploading(null);
                     }
@@ -236,7 +285,7 @@ export function LiquidationForm({
                 {!item.receipt_path && (
                   <div className="space-y-2">
                     <Label htmlFor={`receipt-note-${item.id}`}>
-                      Missing receipt note (optional)
+                      Why is there no receipt? (optional)
                     </Label>
                     <Input
                       id={`receipt-note-${item.id}`}

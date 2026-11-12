@@ -8,6 +8,7 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { createBudgetRequest } from "@/actions/budget-requests";
+import { FormModeBanner } from "@/components/shared/form-mode-banner";
 import { Callout } from "@/components/shared/callout";
 import { OptionSelect } from "@/components/shared/option-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -83,6 +84,10 @@ export function RequestForm({
 
   return (
     <div className="space-y-4">
+      <FormModeBanner
+        title="Budget request form"
+        hint="Fill in the fund, the amount and the purpose. Nothing is sent until you press Submit budget request."
+      />
       <Callout tone="info" title="How this works">
         A custodian reviews your request first. If it is approved they prepare a
         voucher and hand over the cash. Afterwards you file a liquidation with
@@ -115,7 +120,9 @@ export function RequestForm({
                   { value: "", label: "Choose a fund" },
                   ...funds.map((item) => ({
                     value: item.id,
-                    label: item.name,
+                    label: item.custodian_names.length
+                      ? `${item.name} · Custodian: ${item.custodian_names.join(", ")}`
+                      : `${item.name} · no active custodian yet`,
                   })),
                 ]}
               />

@@ -89,6 +89,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
       {nextStep(request.status, { canManage, isOwner, released, reviewNote: request.review_note, liquidation: liquidation?.status ?? null })}
 
+      {voucher ? <VoucherLiquidationPanel top voucherId={voucher.id} userId={user.id} /> : null}
+
       <FlowSteps steps={steps} label="Request progress" />
 
       <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-6 print:rounded-none print:border-black print:bg-white print:text-black">

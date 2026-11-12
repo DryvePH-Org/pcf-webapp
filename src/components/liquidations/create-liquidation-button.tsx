@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createLiquidation } from "@/actions/liquidations";
 import { Button } from "@/components/ui/button";
-export function CreateLiquidationButton({ voucherId }: { voucherId: string }) {
+export function CreateLiquidationButton({ voucherId, fullWidth = false }: { voucherId: string; fullWidth?: boolean }) {
   const router = useRouter();
   const [pending, setPending, isBusy] = usePending();
-  return <Button disabled={pending} size="lg" className="print:hidden" onClick={async () => {
+  return <Button disabled={pending} size="lg" className={fullWidth ? "w-full print:hidden" : "print:hidden"} onClick={async () => {
     if (isBusy()) return;
     setPending(true);
     let leaving = false;

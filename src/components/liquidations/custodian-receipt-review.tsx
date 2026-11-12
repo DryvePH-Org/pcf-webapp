@@ -14,6 +14,7 @@ import {
 import { uploadLiquidationReceipt } from "@/lib/liquidation-receipts";
 import { parseMoney } from "@/lib/money";
 import type { CustodianReceipt } from "@/lib/validators/custodian-receipts";
+import { NaButton } from "@/components/shared/na-button";
 import { SheetApprovalControl } from "@/components/sheets/approval-control";
 import { MoneyText } from "@/components/shared/money-text";
 import { OptionSelect } from "@/components/shared/option-select";
@@ -126,7 +127,7 @@ export function CustodianReceiptReview({
     }
   }
   return (
-    <Card className="print:hidden">
+    <Card id="receipt-review" className="scroll-mt-24 print:hidden">
       <CardHeader>
         <CardTitle>Custodian receipt review</CardTitle>
         <CardDescription>
@@ -292,7 +293,18 @@ export function CustodianReceiptReview({
                   ] as const
                 ).map(([key, label, type]) => (
                   <div key={key} className="space-y-2">
-                    <Label htmlFor={`${key}-${line.id}`}>{label}</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor={`${key}-${line.id}`}>{label}</Label>
+                      {key === "supplier" ||
+                      key === "tin" ||
+                      key === "plate" ||
+                      key === "receipt_number" ? (
+                        <NaButton
+                          value={line[key]}
+                          onChange={(next) => update(index, { [key]: next })}
+                        />
+                      ) : null}
+                    </div>
                     <Input
                       id={`${key}-${line.id}`}
                       type={type}

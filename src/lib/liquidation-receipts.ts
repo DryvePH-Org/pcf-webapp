@@ -26,3 +26,24 @@ export async function uploadLiquidationReceipt(
   if (error) throw new Error("Could not upload the receipt. Try again.");
   return path;
 }
+
+// Opens an attached receipt in a new tab: the local copy while the file was
+// just chosen, otherwise a short-lived signed link.
+export async function openLiquidationReceipt(path: string, local?: string) {
+  if (local) {
+    window.open(local, "_blank", "noopener");
+    return;
+  }
+  const tab = window.open("", "_blank");
+  const { data, error } = await createClient()
+    .storage.from("liquidation-receipts")
+    .createSignedUrl(path, 600);
+  if (error || !data?.signedUrl) {
+    tab?.close();
+    throw new Error("Could not open the attachment.");
+  }
+  if (tab) {
+    tab.opener = null;
+    tab.location.href = data.signedUrl;
+  } else window.open(data.signedUrl, "_blank", "noopener");
+}

@@ -29,8 +29,17 @@ export function LiquidationActions({ id, canReview, canPrepareApproval = true, c
   }
   return <div className="space-y-3 print:hidden">
     {canSettle ? <div className="space-y-2"><Label htmlFor="settlement-note">Settlement note (optional)</Label><Textarea id="settlement-note" maxLength={300} value={note} onChange={e => setNote(e.target.value)} disabled={pending} /></div> : null}
+    {canReview ? <section aria-label="Custodian review actions" className="space-y-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/40">
+      <div>
+        <h2 className="text-base font-semibold">Your review: choose what to do</h2>
+        <p className="text-sm text-muted-foreground">{canPrepareApproval ? "Approve this liquidation, or send it back so the employee can fix it." : "Check the receipts, save your review, then approve. Or send it back so the employee can fix it."}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        {canPrepareApproval ? <SheetApprovalControl id={id}/> : <Button className="h-12 px-5 text-base" nativeButton={false} render={<a href="#receipt-review" />}>Review receipts and approve</Button>}
+        <Button disabled={pending} variant="destructive" className="h-12 px-5 text-base font-semibold" onClick={() => setDialog("flag")}>Flag for correction</Button>
+      </div>
+    </section> : null}
     <div className="flex flex-wrap gap-2">
-      {canReview ? <>{canPrepareApproval?<SheetApprovalControl id={id}/>:null}<Button disabled={pending} className="h-11" variant="outline" onClick={() => setDialog("flag")}>Flag for correction</Button></> : null}
       {canApproveReimbursement ? <Button disabled={pending} className="h-11" onClick={() => setDialog("reimburse")}>Approve additional reimbursement</Button> : null}
       {canSettle ? <Button disabled={pending} className="h-11" onClick={() => setDialog("settle")}>{kind === "return" ? "Record cash received back" : "Record reimbursement paid"}</Button> : null}
     </div>
