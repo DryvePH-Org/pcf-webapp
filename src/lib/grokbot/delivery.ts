@@ -46,17 +46,25 @@ export async function queueGrokbotOperation(input: {
   liquidationId?: string;
   replenishmentId?: string;
 }) {
-  const book = input.book ?? "buying";
-  const target = targetForBook(book);
-  configuration(book);
-  const db = createAdminClient();
-  const id = input.id ?? randomUUID();
-  const token = grokbotCallbackToken(id, book);
   const payload =
     input.kind === "liquidation_approved" ||
     input.kind === "replenishment_approved"
       ? grokbotFinancialEvent.parse(input.payload)
       : input.payload;
+  // An operation belongs to the sheet its own payload names (that is what the bot is
+  // told to write to); a caller that also names a book must agree with it.
+  const named = (payload as { target?: { spreadsheet_id?: string; sheet_id?: number } }).target;
+  const target = named?.spreadsheet_id
+    ? targetForSpreadsheet(named.spreadsheet_id, named.sheet_id)
+    : targetForBook(input.book ?? "buying");
+  if (!target) throw new Error("Grokbot is not configured for this destination.");
+  if (input.book && input.book !== target.book)
+    throw new Error("The operation names a different sheet than the one requested.");
+  const book = target.book;
+  configuration(book);
+  const db = createAdminClient();
+  const id = input.id ?? randomUUID();
+  const token = grokbotCallbackToken(id, book);
   const saved = await db.from("grokbot_operations").insert({
     id,
     kind: input.kind,
@@ -71,7 +79,7 @@ export async function queueGrokbotOperation(input: {
   if (saved.error) {
     if (saved.error.code !== "23505")
       throw new Error("Could not queue Grokbot delivery.");
-    let query = db.from("grokbot_operations").select("id,status");
+    let query = db.from("grokbot_operations").select("id,status,spreadsheet_id,sheet_id");
     if (input.liquidationId)
       query = query.eq("liquidation_id", input.liquidationId);
     else if (input.replenishmentId)
@@ -80,6 +88,18 @@ export async function queueGrokbotOperation(input: {
     const existing = await query.single();
     if (existing.error)
       throw new Error("Could not reconcile the queued operation.");
+    // An operation saved against the wrong sheet (before it was routed by its payload) is moved
+    // to the sheet its payload names, but only while it is waiting or has stopped.
+    if (
+      (existing.data.spreadsheet_id !== target.spreadsheet_id || existing.data.sheet_id !== target.sheet_id) &&
+      ["queued", "blocked", "failed"].includes(existing.data.status)
+    ) {
+      const moved = await db
+        .from("grokbot_operations")
+        .update({ spreadsheet_id: target.spreadsheet_id, sheet_id: target.sheet_id })
+        .eq("id", existing.data.id);
+      if (moved.error) throw new Error("Could not correct the saved destination.");
+    }
     return existing.data.id;
   }
   return id;
@@ -104,6 +124,10 @@ async function deliverOperation(
   operation: Database["public"]["Tables"]["grokbot_operations"]["Row"],
 ) {
   const book = bookOf(operation);
+  // Never hand a bot a job addressed to another sheet.
+  const declared = (operation.payload as { target?: { spreadsheet_id?: string } } | null)?.target?.spreadsheet_id;
+  if (declared && declared !== operation.spreadsheet_id)
+    throw new Error("This operation's payload names a different sheet than its destination.");
   const { url, secret } = configuration(book);
   const db = createAdminClient();
   const expiry = await db
