@@ -101,7 +101,15 @@ export function RequestForm({
       </Callout>
       <Card>
         <CardContent>
-          <form action={submit} className="space-y-6">
+          <form
+            // A plain submit handler (not a form action) so the "Submitting..." state
+            // shows the instant the button is clicked, not after the server answers.
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit(new FormData(event.currentTarget));
+            }}
+            className="space-y-6"
+          >
             <BudgetVoiceInput
               disabled={pending}
               onBusy={setVoiceBusy}
