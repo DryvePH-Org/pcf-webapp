@@ -1,5 +1,6 @@
 "use server";
 
+import { mayReviewOwner } from "@/lib/self-approval";
 import { extractPhilippineReceipt } from "@/lib/receipt-extraction";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -53,13 +54,13 @@ export async function extractCustodianReceipt(id: string, path: string) {
     .single();
   if (
     liquidation.error ||
-    liquidation.data.owner_id === user.id ||
-    liquidation.data.status !== "submitted"
+    liquidation.data.status !== "submitted" ||
+    !(await mayReviewOwner(db, user, liquidation.data.fund_id, liquidation.data.owner_id))
   )
     return {
       ok: false as const,
       error:
-        "Open another requester’s submitted liquidation to extract its receipts.",
+        "Open a submitted liquidation you may review to extract its receipts.",
     };
   const access = await db.rpc("can_access_fund", {
     p_fund_id: liquidation.data.fund_id,

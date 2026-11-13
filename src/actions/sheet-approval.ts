@@ -18,6 +18,7 @@ import { type ExpenseForSheet } from "@/lib/sheets/types";
 import type { SheetsDatabase, SheetTab } from "@/lib/sheets/types";
 import type { WorkflowDatabase } from "@/lib/workflow";
 import { safeDbMessage } from "@/lib/db-error";
+import { mayReviewOwner } from "@/lib/self-approval";
 export async function previewSheetApproval(id: string) {
   const user = await getCurrentUser();
   if (
@@ -28,7 +29,12 @@ export async function previewSheetApproval(id: string) {
     return { ok: false as const, error: "Custodian access required." };
   const db = await createClient();
   const l = await db.from("liquidations").select("*").eq("id", id).single();
-  if (l.error || !l.data || l.data.owner_id === user.id)
+  // The owner can review her own only where her fund lets custodians approve their own.
+  if (
+    l.error ||
+    !l.data ||
+    !(await mayReviewOwner(db as unknown as SupabaseClient<WorkflowDatabase>, user, l.data.fund_id, l.data.owner_id))
+  )
     return { ok: false as const, error: "Liquidation unavailable for review." };
   const access = await db.rpc("can_access_fund", { p_fund_id: l.data.fund_id });
   if (access.error || !access.data)

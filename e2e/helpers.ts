@@ -72,7 +72,7 @@ export async function cookiesFor(role: Role, baseURL: string) {
 export async function cleanTestData() {
   assertSafeTarget();
   const admin = adminClient();
-  for (const table of ["replenishment_items", "cash_settlements", "liquidation_revisions", "liquidation_items", "liquidations", "vouchers", "budget_requests", "replenishments", "cash_counts"]) {
+  for (const table of ["grokbot_operations", "sheet_jobs", "sheet_previews", "sheet_rollovers", "liquidation_receipt_lines", "replenishment_items", "cash_settlements", "liquidation_revisions", "liquidation_items", "liquidations", "vouchers", "budget_requests", "replenishments", "cash_counts"]) {
     const { error } = await admin.from(table).delete().neq("id", ANY_ID);
     if (error) throw new Error(`${table}: ${error.message}`);
   }
