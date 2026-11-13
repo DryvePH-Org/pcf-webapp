@@ -11,7 +11,6 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: 3000
-      NOTIFICATIONS_ENABLED: "false"
       RUN_DB_TESTS: "false"
     cpus: ${PCF_CPUS:-0.5}
     mem_limit: ${PCF_MEMORY_LIMIT:-512m}

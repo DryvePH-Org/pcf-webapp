@@ -47,7 +47,7 @@ access; an application deployment cannot replace the gate or proxy config.
 Supabase's server key and other runtime secrets remain in the VPS file
 `/opt/pcf/.env.runtime` (mode 600), outside Git and the Docker image. Do not copy
 `.secrets/`, `.env.local`, or database backups into the repository.
-Notification email and the daily digest remain disabled.
+Notification email is switched on in `/opt/pcf/.env.runtime` (`NOTIFICATIONS_ENABLED`, `RESEND_API_KEY`, `RESEND_FROM`); the installed `compose.yml` must not set `NOTIFICATIONS_ENABLED` itself, because that would override the file. The daily digest also needs the repository variable `NOTIFICATIONS_ENABLED=true`.
 
 ## Database changes
 

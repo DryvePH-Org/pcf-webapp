@@ -25,8 +25,10 @@ environment files and `.secrets/` from its build context.
 Copy `.env.runtime.example` to `.env.runtime` outside source control and set the
 real keys and HTTPS origin. Protect it with mode 600. Copy `.env.example` to
 `.env` and set a unique immutable `PCF_IMAGE` release tag and the inspected port
-and limits. Keep `NOTIFICATIONS_ENABLED=false` as requested. Password sign-in
-works without notification email delivery.
+and limits. Email is off unless `.env.runtime` sets `NOTIFICATIONS_ENABLED=true`
+(with `RESEND_API_KEY` and `RESEND_FROM`); the image defaults to off. Do not set it in
+`compose.yml`: an `environment:` entry there would override `.env.runtime`. Password
+sign-in works without notification email delivery.
 
 `compose.yml` publishes only on 127.0.0.1, creates its own Compose project/network
 and cache volume, drops capabilities, disallows new privileges, uses a read-only
