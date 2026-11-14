@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cashAfterSettlements } from "@/lib/fund-cash";
 import { cn } from "@/lib/utils";
 
 export type BalanceFund = {
@@ -33,6 +34,8 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
         )
       : 0;
 
+  const cash = cashAfterSettlements(fund);
+
   return (
     <Card>
       <CardHeader>
@@ -49,9 +52,29 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-sm text-muted-foreground">Expected cash on hand</p>
+          <p className="text-sm text-muted-foreground">Recorded cash on hand</p>
           <p className="font-heading text-3xl font-semibold tracking-tight">
             <MoneyText value={fund.expected_cash} />
+          </p>
+          <p className="text-xs text-muted-foreground">Counts a return or reimbursement only once the custodian has recorded it.</p>
+        </div>
+
+        <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-3">
+          <p className="text-sm font-medium">Actual cash after pending settlements</p>
+          <p className="font-heading text-2xl font-semibold tracking-tight">
+            <MoneyText value={cash.afterSettlements} />
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {cash.pending ? (
+              <>
+                <MoneyText value={cash.recorded} />
+                {cash.returnsDue > 0 ? <> + <MoneyText value={cash.returnsDue} /> cash returns due</> : null}
+                {cash.reimbursementsDue > 0 ? <> − <MoneyText value={cash.reimbursementsDue} /> reimbursements due</> : null}
+                . This is what you should be holding once those settlements are recorded; compare it with your count.
+              </>
+            ) : (
+              "No settlements are pending, so this matches the recorded cash."
+            )}
           </p>
         </div>
 
@@ -108,7 +131,7 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
         </div>
 
         <dl className="grid gap-2 text-xs sm:grid-cols-3">
-          <div><dt className="text-muted-foreground">Awaiting liquidation approval</dt><dd><MoneyText value={fund.advances_pending_liquidation ?? 0} /></dd></div>
+          <div><dt className="text-muted-foreground">Advances not yet liquidated</dt><dd><MoneyText value={fund.advances_pending_liquidation ?? 0} /></dd></div>
           <div><dt className="text-muted-foreground">Cash returns due</dt><dd><MoneyText value={fund.returns_due ?? 0} /></dd></div>
           <div><dt className="text-muted-foreground">Reimbursements due</dt><dd><MoneyText value={fund.reimbursements_due ?? 0} /></dd></div>
         </dl>
