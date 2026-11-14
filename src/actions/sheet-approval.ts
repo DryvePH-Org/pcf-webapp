@@ -23,7 +23,7 @@ export async function previewSheetApproval(id: string) {
   const user = await getCurrentUser();
   if (
     !user ||
-    !["custodian", "admin"].includes(user.role) ||
+    !["custodian", "approver", "admin"].includes(user.role) ||
     !z.uuid().safeParse(id).success
   )
     return { ok: false as const, error: "Custodian access required." };
@@ -64,14 +64,16 @@ export async function previewSheetApproval(id: string) {
     configs = existing.data
       ? configs.eq("id", existing.data.book_id)
       : configs
-          .eq("custodian_id", user.id)
+          // The workbook belongs to the custodian who owns the liquidation; an assigned approver
+          // reviewing it uses that custodian's workbook.
+          .eq("custodian_id", user.role === "approver" ? l.data.owner_id : user.id)
           .eq("fund_id", l.data.fund_id)
           .eq("enabled", true);
     const w = await configs.single();
     if (
       w.error ||
       !w.data ||
-      w.data.custodian_id !== user.id ||
+      w.data.custodian_id !== (user.role === "approver" ? l.data.owner_id : user.id) ||
       w.data.fund_id !== l.data.fund_id ||
       !w.data.enabled ||
       w.data.active_sheet_id === null
@@ -337,9 +339,11 @@ export async function confirmSheetApproval(previewId: string) {
       .select("*")
       .eq("id", p.data.book_id)
       .single();
+    const owner = await admin.from("liquidations").select("owner_id").eq("id", p.data.liquidation_id).single();
     if (
       w.error ||
-      w.data.custodian_id !== user.id ||
+      owner.error ||
+      w.data.custodian_id !== (user.role === "approver" ? owner.data.owner_id : user.id) ||
       w.data.config_version !== p.data.config_version ||
       job.data.book_id !== p.data.book_id
     )

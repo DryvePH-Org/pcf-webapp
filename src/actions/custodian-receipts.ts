@@ -15,7 +15,7 @@ import type { WorkflowDatabase } from "@/lib/workflow";
 
 export async function saveCustodianReceipts(input: unknown) {
   const user = await getCurrentUser();
-  if (!user || !["admin", "custodian"].includes(user.role))
+  if (!user || !["admin", "custodian", "approver"].includes(user.role))
     return { ok: false as const, error: "Custodian access required." };
   const parsed = custodianReviewSchema.safeParse(input);
   if (!parsed.success)
@@ -39,7 +39,7 @@ export async function extractCustodianReceipt(id: string, path: string) {
   const user = await getCurrentUser();
   if (
     !user ||
-    !["admin", "custodian"].includes(user.role) ||
+    !["admin", "custodian", "approver"].includes(user.role) ||
     !z.uuid().safeParse(id).success ||
     !path.startsWith(id + "/") ||
     path.length > 300

@@ -50,7 +50,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
       ? wf.rpc("self_approval_allowed", { p_fund: request.fund_id, p_user: user.id })
       : { data: false, error: null },
     wf.rpc("request_needs_fund_approver", { p_fund: request.fund_id, p_requester: request.requester_id }),
-    user.role === "approver" ? wf.rpc("is_fund_approver", { p_fund: request.fund_id }) : { data: false, error: null },
+    // The fund's assigned approver can review a custodian's own request whether or not the fund also allows self-approval.
+    user.role === "approver" ? wf.rpc("approver_reviews_owner", { p_fund: request.fund_id, p_owner: request.requester_id }) : { data: false, error: null },
     wf.rpc("list_fund_review_routes"),
   ]);
   if (gatedResult.error) throw new Error(gatedResult.error.message);
@@ -65,7 +66,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     (request.requester_id !== user.id || selfApproval) &&
     (user.role === "admin" ||
       (user.role === "custodian" && Boolean(assignments?.length) && !gated) ||
-      (user.role === "approver" && gated && Boolean(approverResult.data)));
+      (user.role === "approver" && Boolean(approverResult.data)));
   const voucher = vouchers[0];
   const { data: liquidation } = voucher
     ? await supabase.from("liquidations").select("id, status").eq("voucher_id", voucher.id).maybeSingle()

@@ -19,6 +19,7 @@ import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { LiquidationForm } from "@/components/liquidations/liquidation-form";
 import { LiquidationActions } from "@/components/liquidations/liquidation-actions";
 import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/money";
@@ -63,10 +64,14 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const selfApproval = user.id === l.owner_id && user.role === "custodian"
     ? Boolean((await workflow.rpc("self_approval_allowed", { p_fund: l.fund_id, p_user: l.owner_id })).data)
     : false;
-  const canReview = l.status === "submitted" && (user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role);
+  // The fund's assigned approver can review a custodian's own liquidation too (the database enforces it).
+  const approverGateway = user.role === "approver"
+    ? Boolean((await workflow.rpc("approver_reviews_owner", { p_fund: l.fund_id, p_owner: l.owner_id })).data)
+    : false;
+  const canReview = l.status === "submitted" && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway);
   // Sheets with a COMPANY column (DRYVE) ask the custodian to pick it for each expense.
   const fundBook = canReview && flow.flow_version === 2
-    ? await db.from("sheet_workbooks").select("id").eq("fund_id", l.fund_id).eq("enabled", true).limit(1).maybeSingle()
+    ? await createAdminClient().from("sheet_workbooks").select("id").eq("fund_id", l.fund_id).eq("enabled", true).limit(1).maybeSingle()
     : { data: null };
   const companies = fundBook.data && isGrokbotBook(fundBook.data.id) ? [...targetForBook(fundBook.data.id).layout.companies] : [];
   const tagOptions = canReview && flow.flow_version === 2
@@ -76,7 +81,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const needsApproval = difference.kind === "reimbursement" && l.total_spent >= voucher.approval_threshold;
   const waitingApproval = needsApproval && !l.reimbursement_approved_by;
   const exceedsLimit = difference.kind === "reimbursement" && l.total_spent > voucher.per_txn_limit;
-  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && (user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role) && !waitingApproval && !exceedsLimit && (difference.kind === "return" || voucher.voucher_status !== "rejected");
+  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway) && !waitingApproval && !exceedsLimit && (difference.kind === "return" || voucher.voucher_status !== "rejected");
   const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && ![l.owner_id, l.reviewed_by, voucher.prepared_by].includes(user.id) && ["admin", "approver"].includes(user.role) && !exceedsLimit;
   const paths = new Set([...rows, ...(receiptRows.data ?? [])].map(item => item.receipt_path).filter((path): path is string => Boolean(path)));
   for (const r of revisions.data ?? []) for (const line of snapshotItems(r.payload)) if (line.receipt_path) paths.add(line.receipt_path);

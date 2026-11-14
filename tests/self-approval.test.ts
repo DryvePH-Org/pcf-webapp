@@ -28,4 +28,12 @@ describe("who may review a liquidation", () => {
     expect(rpc).not.toHaveBeenCalled();
     expect(await mayReviewOwner(client({ data: null, error: { message: "boom" } }).db, { id: "a", role: "custodian" }, "fund", "a")).toBe(false);
   });
+
+  it("lets the fund's assigned approver review a custodian's liquidation, and no other approver", async () => {
+    const { db, rpc } = client({ data: true, error: null });
+    expect(await mayReviewOwner(db, { id: "approver", role: "approver" }, "fund", "custodian")).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("approver_reviews_owner", { p_fund: "fund", p_owner: "custodian" });
+    expect(await mayReviewOwner(client({ data: false, error: null }).db, { id: "approver", role: "approver" }, "fund", "custodian")).toBe(false);
+    expect(await mayReviewOwner(client({ data: null, error: { message: "boom" } }).db, { id: "approver", role: "approver" }, "fund", "custodian")).toBe(false);
+  });
 });

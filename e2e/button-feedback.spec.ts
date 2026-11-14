@@ -61,7 +61,7 @@ test.describe("buttons show they are working right after the click (desktop)", (
     await page.waitForURL(/\/vouchers\/[0-9a-f-]{36}$/, { timeout: 30000 });
   });
 
-  test("the sign-in button locks and says it is signing in while the server is slow", async ({ browser, baseURL }) => {
+  test("the sign-in button locks and says it is signing in while the server is slow", async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
     await page.route("**/login", async (route) => {

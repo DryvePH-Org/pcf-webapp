@@ -44,7 +44,7 @@ export async function saveLiquidation(input: LiquidationFormValues, submit: bool
 }
 export async function reviewLiquidation(input: z.input<typeof liquidationReviewSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
-  if (!user || !["custodian", "admin"].includes(user.role)) return { ok: false, error: "Only custodians and administrators can review liquidation." };
+  if (!user || !["custodian", "approver", "admin"].includes(user.role)) return { ok: false, error: "Only custodians, the fund approver and administrators can review liquidation." };
   const parsed = liquidationReviewSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check your review." };
   const db = await createClient();
@@ -65,7 +65,7 @@ export async function approveLiquidationReimbursement(id: string): Promise<Actio
 }
 export async function recordLiquidationSettlement(input: z.input<typeof settlementSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
-  if (!user || !["custodian", "admin"].includes(user.role)) return { ok: false, error: "Only custodians and administrators can record cash settlement." };
+  if (!user || !["custodian", "approver", "admin"].includes(user.role)) return { ok: false, error: "Only custodians, the fund approver and administrators can record cash settlement." };
   const parsed = settlementSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the settlement." };
   const db = await createClient();

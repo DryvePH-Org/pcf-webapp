@@ -6,7 +6,9 @@ import { MoneyText } from "@/components/shared/money-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { canPerform, type Role } from "@/lib/permissions";
 import { shortRef } from "@/lib/refs";
 
@@ -23,6 +25,21 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
     reviewer ? db.from("budget_requests").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("requester_id", userId) : null,
     reviewer && role !== "approver" ? db.from("liquidations").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("owner_id", userId) : null,
   ]);
+
+  // An approver reviews the liquidations of the custodians of the funds they are assigned to.
+  let approverLiquidations = 0;
+  if (role === "approver") {
+    const mine = await (db as unknown as SupabaseClient<WorkflowDatabase>).from("fund_approvers").select("fund_id").eq("approver_id", userId);
+    const fundIds = (mine.data ?? []).map(row => row.fund_id);
+    if (fundIds.length) {
+      const [custodians, waiting] = await Promise.all([
+        db.from("fund_custodians").select("fund_id, custodian_id").in("fund_id", fundIds),
+        db.from("liquidations").select("fund_id, owner_id").eq("status", "submitted").in("fund_id", fundIds).neq("owner_id", userId).limit(500),
+      ]);
+      const pairs = new Set((custodians.data ?? []).map(row => `${row.fund_id}:${row.custodian_id}`));
+      approverLiquidations = (waiting.data ?? []).filter(row => pairs.has(`${row.fund_id}:${row.owner_id}`)).length;
+    }
+  }
 
   const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations].some(result => result?.error);
   const items: Item[] = [];
@@ -48,7 +65,7 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
   }
 
   const reviewRequests = toReviewRequests?.count ?? 0;
-  const reviewLiquidations = toReviewLiquidations?.count ?? 0;
+  const reviewLiquidations = role === "approver" ? approverLiquidations : (toReviewLiquidations?.count ?? 0);
 
   const reviewQueues = [
     { count: reviewRequests, href: "/requests?status=submitted", label: "budget requests to review" },

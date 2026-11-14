@@ -22,6 +22,7 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       apply_grokbot_book_snapshot: { Args: { p_book: string; p_rows: Json; p_tab: Json; p_token: string }; Returns: undefined };
       queue_grokbot_replenishment: { Args: { p_id: string; p_operation: string; p_hash: string; p_book?: string }; Returns: string };
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined };
