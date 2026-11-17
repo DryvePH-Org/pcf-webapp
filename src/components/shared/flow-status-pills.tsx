@@ -4,6 +4,7 @@ import { requestStatusLabel } from "@/lib/request-status";
 
 const REQUEST_TONES: Record<string, Tone> = {
   submitted: "waiting",
+  awaiting_approver: "waiting",
   approved: "info",
   voucher_created: "success",
   rejected: "danger",

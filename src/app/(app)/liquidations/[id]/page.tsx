@@ -78,11 +78,11 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     ? await workflow.rpc("list_custodian_tags", { p_fund: l.fund_id })
     : { data: [] };
 
-  const needsApproval = difference.kind === "reimbursement" && l.total_spent >= voucher.approval_threshold;
+  // Spending at the approval limit, or above the per-transaction limit, needs an independent approver before the payment.
+  const needsApproval = difference.kind === "reimbursement" && (l.total_spent >= voucher.approval_threshold || l.total_spent > voucher.per_txn_limit);
   const waitingApproval = needsApproval && !l.reimbursement_approved_by;
-  const exceedsLimit = difference.kind === "reimbursement" && l.total_spent > voucher.per_txn_limit;
-  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway) && !waitingApproval && !exceedsLimit && (difference.kind === "return" || voucher.voucher_status !== "rejected");
-  const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && ![l.owner_id, l.reviewed_by, voucher.prepared_by].includes(user.id) && ["admin", "approver"].includes(user.role) && !exceedsLimit;
+  const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway) && !waitingApproval && (difference.kind === "return" || voucher.voucher_status !== "rejected");
+  const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && ![l.owner_id, l.reviewed_by, voucher.prepared_by].includes(user.id) && ["admin", "approver"].includes(user.role);
   const paths = new Set([...rows, ...(receiptRows.data ?? [])].map(item => item.receipt_path).filter((path): path is string => Boolean(path)));
   for (const r of revisions.data ?? []) for (const line of snapshotItems(r.payload)) if (line.receipt_path) paths.add(line.receipt_path);
   const urls = new Map<string, string>();
@@ -166,9 +166,8 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
             <p>{difference.kind === "none" ? "Fully reconciled. No cash transfer is needed." : `Pending ${difference.kind === "return" ? "cash return" : "reimbursement payment"}. Approval alone has not changed cash.`}</p>
           )}
           {voucher.voucher_status === "rejected" ? <p className="text-sm font-medium text-destructive">The voucher is flagged. Additional payment and replenishment wait until that flag is resolved.</p> : null}
-          {waitingApproval ? <p className="text-sm font-medium text-amber-800">An independent approver must approve before the additional payment.</p> : null}
+          {waitingApproval ? <p className="text-sm font-medium text-amber-800">An independent approver must approve before the additional payment{l.total_spent > voucher.per_txn_limit ? ` (the spending is above the fund's per-transaction limit of ${formatPHP(voucher.per_txn_limit)})` : ""}.</p> : null}
           {l.reimbursement_approved_at ? <p className="text-sm">Additional payment approved {formatDateTime(l.reimbursement_approved_at)}</p> : null}
-          {exceedsLimit ? <p className="text-sm font-medium text-destructive">Actual spending exceeds this fund&apos;s transaction limit. Ask an administrator to resolve the fund policy before payment.</p> : null}
         </div>
       ) : null}
     </section>

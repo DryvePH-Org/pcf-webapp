@@ -22,6 +22,8 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      approve_request_as_approver: { Args: { p_id: string; p_approve: boolean; p_note: string | null }; Returns: undefined };
+      voucher_needs_pre_approval: { Args: { p_voucher: string }; Returns: boolean };
       advance_cancellation_state: {
         Args: { p_voucher: string };
         Returns: {
@@ -96,12 +98,19 @@ export type NotificationPreferenceRecord = {
   email_digest: boolean;
   updated_at: string;
 };
+type RequestRow = Database["public"]["Tables"]["budget_requests"]["Row"] & {
+  approver_id: string | null;
+  approver_name: string | null;
+  approver_at: string | null;
+  approver_note: string | null;
+};
 type FundRow = Database["public"]["Tables"]["funds"]["Row"] & { custodian_self_approval: boolean };
 
 export type WorkflowDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables" | "Functions"> & {
-    Tables: Omit<Database["public"]["Tables"], "liquidation_receipt_lines" | "funds"> & {
+    Tables: Omit<Database["public"]["Tables"], "liquidation_receipt_lines" | "funds" | "budget_requests"> & {
       funds: Table<FundRow>;
+      budget_requests: Table<RequestRow>;
       notifications: Table<NotificationRecord>;
       notification_preferences: Table<NotificationPreferenceRecord>;
       liquidation_receipt_lines: Table<ReceiptRecord>;

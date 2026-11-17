@@ -27,6 +27,7 @@ export type NotificationEvent =
   | "fund.approver_changed"
   | "budget.submitted"
   | "budget.reviewed"
+  | "budget.needs_approver"
   | "budget.cancelled"
   | "budget.voucher_created"
   | "voucher.submitted"
@@ -95,6 +96,7 @@ function dedupe(recipients: Recipient[]) {
 const ACTION_EMAIL_EVENTS = new Set<NotificationEvent>([
   "budget.submitted",
   "budget.reviewed",
+  "budget.needs_approver",
   "voucher.submitted",
   "voucher.pre_approved",
   "voucher.returned",

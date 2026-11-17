@@ -17,10 +17,10 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
   const supabase = await createClient();
 
   const { request: requestId } = await searchParams;
-  let request: Database["public"]["Tables"]["budget_requests"]["Row"] | undefined;
+  let request: (Database["public"]["Tables"]["budget_requests"]["Row"] & { approver_id: string | null }) | undefined;
   if (requestId) {
     if (!z.uuid().safeParse(requestId).success) notFound();
-    const { data, error } = await supabase.from("budget_requests").select("*").eq("id", requestId).maybeSingle();
+    const { data, error } = await (supabase as unknown as SupabaseClient<WorkflowDatabase>).from("budget_requests").select("*").eq("id", requestId).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) notFound();
     const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
@@ -74,7 +74,7 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
       ) : (
         <VoucherForm
           funds={funds}
-          request={request ? { id: request.id, fund_id: request.fund_id, name: request.requester_name, purpose: request.purpose, amount: Number(request.amount).toFixed(2) } : undefined}
+          request={request ? { id: request.id, fund_id: request.fund_id, name: request.requester_name, purpose: request.purpose, amount: Number(request.amount).toFixed(2), approver_cleared: Boolean(request.approver_id) } : undefined}
         />
       )}
     </div>

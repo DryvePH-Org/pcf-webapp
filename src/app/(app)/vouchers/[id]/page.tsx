@@ -79,6 +79,8 @@ export default async function VoucherDetailPage({
     : null;
   const advance = advanceResult?.error ? null : (advanceResult?.data?.[0] ?? null);
 
+  // Whether an approver must still approve this voucher: not when an approver cleared its budget request.
+  const needsApprovalResult = await (supabase as unknown as SupabaseClient<WorkflowDatabase>).rpc("voucher_needs_pre_approval", { p_voucher: voucher.id });
   const profileIds = [
     voucher.prepared_by,
     ...(voucher.approved_by ? [voucher.approved_by] : []),
@@ -399,7 +401,7 @@ export default async function VoucherDetailPage({
                 status,
                 released_at: voucher.released_at,
                 approval_threshold: String(approvalThreshold),
-                needs_approval: Number(voucher.amount) >= Number(approvalThreshold),
+                needs_approval: needsApprovalResult.error ? Number(voucher.amount) >= Number(approvalThreshold) : Boolean(needsApprovalResult.data),
                 prepared_by: voucher.prepared_by,
                 receipt_path: voucher.receipt_path,
                 no_receipt_reason: voucher.no_receipt_reason,

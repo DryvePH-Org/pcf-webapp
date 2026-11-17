@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { notifyBudgetRequest } from "@/lib/notifications/requests";
 import { getCurrentUser } from "@/lib/auth";
@@ -45,6 +47,20 @@ export async function reviewBudgetRequest(input: z.input<typeof reviewBudgetRequ
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the review." };
   const supabase = await createClient();
   const { error } = await supabase.rpc("review_budget_request", { p_id: parsed.data.id, p_approve: parsed.data.approve, p_note: parsed.data.note });
+  if (error) return { ok: false, error: safeDbMessage(error) };
+  queueNotification("budget.reviewed", () => notifyBudgetRequest(parsed.data.id, "budget.reviewed", user.id));
+  refresh(parsed.data.id);
+  return { ok: true };
+}
+
+// The second step for a request that reaches the fund's approval limit: an independent approver.
+export async function approveRequestAsApprover(input: z.input<typeof reviewBudgetRequestSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || !["approver", "admin"].includes(user.role)) return { ok: false, error: "Only an approver or an administrator can approve a large request." };
+  const parsed = reviewBudgetRequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the review." };
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("approve_request_as_approver", { p_id: parsed.data.id, p_approve: parsed.data.approve, p_note: parsed.data.note || null });
   if (error) return { ok: false, error: safeDbMessage(error) };
   queueNotification("budget.reviewed", () => notifyBudgetRequest(parsed.data.id, "budget.reviewed", user.id));
   refresh(parsed.data.id);

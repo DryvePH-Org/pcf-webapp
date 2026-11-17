@@ -54,10 +54,10 @@ test.describe("a custodian is told about cash settlements to do", () => {
     await expect(page.getByText(/Take the change back from/).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Cash settlements/ }).first()).toContainText("1");
 
-    await page.getByRole("link", { name: "See all" }).click();
+    await page.locator("a", { hasText: "See all" }).first().click();
     await expect(page).toHaveURL(/\/settlements$/);
     await expect(page.getByRole("heading", { name: "To do now (1)" })).toBeVisible();
-    await page.getByRole("link", { name: /Record it/ }).click();
+    await page.locator("a", { hasText: "Record it" }).first().click();
     await expect(page).toHaveURL(new RegExp(`/liquidations/${liquidationId}$`));
     await expect(page.getByRole("button", { name: "Record cash received back" })).toBeVisible();
   });

@@ -29,7 +29,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
   const supabase = await createClient();
-  const { data: request, error } = await supabase.from("budget_requests").select("*").eq("id", id).maybeSingle();
+  const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const { data: request, error } = await wf.from("budget_requests").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!request) notFound();
   const [{ data: vouchers, error: voucherError }, { data: funds, error: fundError }] = await Promise.all([
@@ -44,7 +45,6 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     : { data: [], error: null };
   if (assignmentError) throw new Error(assignmentError.message);
   // A custodian's own request goes to the fund's assigned approver, not to another custodian.
-  const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
   const [selfResult, gatedResult, approverResult, routesResult] = await Promise.all([
     request.requester_id === user.id && user.role === "custodian"
       ? wf.rpc("self_approval_allowed", { p_fund: request.fund_id, p_user: user.id })
@@ -57,6 +57,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   if (gatedResult.error) throw new Error(gatedResult.error.message);
   if (approverResult.error) throw new Error(approverResult.error.message);
   const gated = Boolean(gatedResult.data);
+  // A request that reaches the fund's approval limit waits for an independent approver after the custodian.
+  const isFundApprover = user.role === "approver" ? Boolean((await wf.rpc("is_fund_approver", { p_fund: request.fund_id })).data) : false;
+  const canApproverReview = request.status === "awaiting_approver"
+    && (user.role === "admin" || (user.role === "approver" && isFundApprover))
+    && ![request.requester_id, request.reviewed_by].includes(user.id);
+  const hasApproverStep = request.status === "awaiting_approver" || Boolean(request.approver_id);
   // Where the fund allows it, a custodian approves her own request (and every step is audited).
   const selfApproval = Boolean(selfResult.data);
   const approverNames = (routesResult.data ?? []).find(route => route.fund_id === request.fund_id)?.approver_names ?? [];
@@ -78,9 +84,14 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     { label: "Requested", state: "done", hint: formatDate(request.created_at) },
     {
       label: gated ? "Approver review" : "Custodian review",
-      state: request.status === "submitted" ? "current" : request.status === "rejected" || request.status === "cancelled" ? "stopped" : "done",
-      hint: request.status === "rejected" ? "Rejected" : request.status === "cancelled" ? "Cancelled" : request.status === "submitted" ? "Waiting" : "Approved",
+      state: request.status === "submitted" ? "current" : (request.status === "rejected" && !request.approver_id) || request.status === "cancelled" ? "stopped" : "done",
+      hint: request.status === "rejected" && !request.approver_id ? "Rejected" : request.status === "cancelled" ? "Cancelled" : request.status === "submitted" ? "Waiting" : "Approved",
     },
+    ...(hasApproverStep ? [{
+      label: "Approver approval",
+      state: (request.status === "awaiting_approver" ? "current" : request.status === "rejected" ? "stopped" : request.status === "cancelled" ? "stopped" : "done") as FlowStep["state"],
+      hint: request.status === "awaiting_approver" ? "Waiting" : request.status === "rejected" ? "Rejected" : request.approver_name ?? undefined,
+    }] : []),
     {
       label: "Voucher",
       state: request.status === "voucher_created" ? "done" : request.status === "approved" ? "current" : "todo",
@@ -112,7 +123,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         />
       </div>
 
-      {nextStep(request.status, { canManage, isOwner, gated, approverNames, released, reviewNote: request.review_note, liquidation: liquidation?.status ?? null })}
+      {nextStep(request.status, { canManage, canApproverReview, reviewerName: request.reviewer_name, isOwner, gated, approverNames, released, reviewNote: request.review_note, liquidation: liquidation?.status ?? null })}
 
       {voucher ? <VoucherLiquidationPanel top voucherId={voucher.id} userId={user.id} /> : null}
 
@@ -144,7 +155,14 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
             {request.review_note ? <div className="sm:col-span-2"><Field label="Review note" value={request.review_note} /></div> : null}
           </div>
         ) : null}
-        <p className="text-sm text-muted-foreground print:text-black">Approving a request does not release cash. The linked voucher follows the fund&apos;s approval limit and release rules.</p>
+        {request.approver_at ? (
+          <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+            <Field label="Approved by the approver" value={request.approver_name ?? "—"} />
+            <Field label="Approver decided on" value={formatDateTime(request.approver_at)} />
+            {request.approver_note ? <div className="sm:col-span-2"><Field label="Approver note" value={request.approver_note} /></div> : null}
+          </div>
+        ) : null}
+        <p className="text-sm text-muted-foreground print:text-black">Approving a request does not release cash. A request that reaches the fund&apos;s approval limit also needs an approver before its voucher is prepared.</p>
       </section>
 
       {voucher ? (
@@ -169,14 +187,14 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
       {voucher ? <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} /> : null}
 
-      <RequestActions id={id} canReview={canManage && request.status === "submitted"} canCreateVoucher={canManage && request.status === "approved"} canCancel={(request.requester_id === user.id || user.role === "admin") && ["submitted", "approved"].includes(request.status)} />
+      <RequestActions id={id} canReview={canManage && request.status === "submitted"} canApproverReview={canApproverReview} canCreateVoucher={canManage && request.status === "approved"} canCancel={(request.requester_id === user.id || user.role === "admin") && ["submitted", "awaiting_approver", "approved"].includes(request.status)} />
     </div>
   );
 }
 
 function nextStep(
   status: string,
-  ctx: { canManage: boolean; isOwner: boolean; gated: boolean; approverNames: string[]; released: boolean; reviewNote: string | null; liquidation: string | null },
+  ctx: { canManage: boolean; canApproverReview: boolean; reviewerName: string | null; isOwner: boolean; gated: boolean; approverNames: string[]; released: boolean; reviewNote: string | null; liquidation: string | null },
 ) {
   switch (status) {
     case "submitted":
@@ -187,6 +205,16 @@ function nextStep(
       ) : (
         <Callout tone="info" title={ctx.gated ? (ctx.isOwner ? "Waiting for the fund approver to review your request" : "Waiting for the fund approver") : ctx.isOwner ? "Waiting for a custodian to review your request" : "Waiting for custodian review"}>
           {ctx.gated ? `A custodian's own request is reviewed by the fund approver${ctx.approverNames.length ? `: ${ctx.approverNames.join(", ")}` : ""}.` : ctx.isOwner ? "You will get an email when it is approved or rejected." : "A custodian of this fund reviews it first."}
+        </Callout>
+      );
+    case "awaiting_approver":
+      return ctx.canApproverReview ? (
+        <Callout tone="warning" title="This request needs your approval">
+          It reaches the fund&apos;s approval limit. {ctx.reviewerName ? `${ctx.reviewerName} (the custodian) already approved it. ` : ""}Approve it so its voucher can be prepared, or reject it with a reason. No cash moves yet.
+        </Callout>
+      ) : (
+        <Callout tone="info" title={ctx.isOwner ? "Approved by the custodian. Waiting for the approver" : "Waiting for the approver"}>
+          This request reaches the fund&apos;s approval limit, so an approver approves it after the custodian{ctx.approverNames.length ? `: ${ctx.approverNames.join(", ")}` : ""}. The voucher comes after that.
         </Callout>
       );
     case "approved":

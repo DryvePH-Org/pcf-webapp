@@ -10,14 +10,14 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
   const db = createAdminClient();
   const { data: l, error } = await db.from("liquidations").select("*").eq("id", id).single();
   if (error) throw error;
-  const { data: fund } = await db.from("funds").select("approval_threshold").eq("id", l.fund_id).single();
+  const { data: fund } = await db.from("funds").select("approval_threshold, per_txn_limit").eq("id", l.fund_id).single();
   const rows = [
     { label: "Employee", value: l.employee_name }, { label: "Advance", value: formatPHP(l.amount_received) },
     { label: "Spent", value: formatPHP(l.total_spent) },
   ];
   const cta = { label: "Open liquidation", path: `/liquidations/${id}` };
   const needsApprover = event === "liquidation.reviewed" && l.status === "approved"
-    && l.total_spent > l.amount_received && l.total_spent >= (fund?.approval_threshold ?? 0);
+    && l.total_spent > l.amount_received && (l.total_spent >= (fund?.approval_threshold ?? 0) || l.total_spent > (fund?.per_txn_limit ?? Infinity));
 
   if (event === "liquidation.submitted") {
     // Reviewers follow the fund's rules, the same ones the database enforces.

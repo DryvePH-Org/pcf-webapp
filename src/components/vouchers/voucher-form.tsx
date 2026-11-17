@@ -52,6 +52,8 @@ export function VoucherForm({
     name: string;
     purpose: string;
     amount: string;
+    // An approver already cleared this request at the approval limit, so its voucher needs no second approval.
+    approver_cleared?: boolean;
   };
   edit?: EditVoucher;
 }) {
@@ -85,6 +87,7 @@ export function VoucherForm({
   );
   const selectedFund = funds.find((fund) => fund.id === fundId);
   const needsApproval =
+    !request?.approver_cleared &&
     total >= (parseMoney(selectedFund?.approval_threshold ?? "") ?? Infinity);
   useEffect(() => {
     let active = true;

@@ -19,11 +19,13 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
   const db = await createClient();
   const reviewer = canPerform(role, "request.review");
 
-  const [liquidations, requests, toReviewRequests, toReviewLiquidations] = await Promise.all([
+  const [liquidations, requests, toReviewRequests, toReviewLiquidations, toApproveRequests] = await Promise.all([
     db.from("liquidations").select("id, pcv_number, status, total_spent, amount_received").eq("owner_id", userId).in("status", ["flagged", "draft", "submitted"]).order("updated_at", { ascending: false }).limit(5),
     db.from("budget_requests").select("id, request_no, status, amount, purpose").eq("requester_id", userId).in("status", ["submitted", "approved"]).order("created_at", { ascending: false }).limit(5),
     reviewer ? db.from("budget_requests").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("requester_id", userId) : null,
     reviewer && role !== "approver" ? db.from("liquidations").select("id", { count: "exact", head: true }).eq("status", "submitted").neq("owner_id", userId) : null,
+    // Large requests the custodian approved and an independent approver still has to approve.
+    role === "approver" || role === "admin" ? db.from("budget_requests").select("id", { count: "exact", head: true }).eq("status", "awaiting_approver").neq("requester_id", userId).neq("reviewed_by", userId) : null,
   ]);
 
   // An approver reviews the liquidations of the custodians of the funds they are assigned to.
@@ -41,7 +43,7 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
     }
   }
 
-  const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations].some(result => result?.error);
+  const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations, toApproveRequests].some(result => result?.error);
   const items: Item[] = [];
   // Corrections first: those are blocked until the person acts.
   for (const l of [...(liquidations.data ?? [])].sort((a, b) => Number(b.status === "flagged") - Number(a.status === "flagged"))) {
@@ -68,6 +70,7 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
   const reviewLiquidations = role === "approver" ? approverLiquidations : (toReviewLiquidations?.count ?? 0);
 
   const reviewQueues = [
+    { count: toApproveRequests?.count ?? 0, href: "/requests?status=awaiting_approver", label: "large budget requests to approve" },
     { count: reviewRequests, href: "/requests?status=submitted", label: "budget requests to review" },
     { count: reviewLiquidations, href: "/liquidations?status=submitted", label: "liquidations to review" },
     { count: approvalCount, href: "/approvals", label: "vouchers to approve or review" },

@@ -40,18 +40,31 @@ needed. You cannot review or prepare a voucher for your own request.
 Standalone requesters see their own requests and linked voucher summaries, not
 fund balances or other employees' requests. Staff retain their main-role access.
 
-## Large vouchers need approval first
+## Large requests need an approver first
 
 Each fund has an **approval limit** (default ₱3,000, set by the admin on the Funds
-page; separate from the per-transaction limit, which is the most a single voucher
-may be). Vouchers **below** the limit are released straight away and reviewed later.
-Vouchers **at or above** it follow a stricter path:
+page) and a **per-transaction limit** (the most one request or voucher may be; a
+request above it is refused when it is made).
 
-1. The custodian prepares the voucher and taps **Submit for approval**.
-2. An approver (never the preparer) approves it, or **returns** it with a reason.
-   A returned voucher goes back to draft so the custodian can fix and resubmit.
-3. Only after approval can the custodian **Release cash**. Until then the money is
-   not counted as released.
+Requests **below** the approval limit are approved by the custodian alone, and
+their vouchers are released straight away and reviewed later. A request **at or
+above** the approval limit takes one more step:
+
+1. The custodian approves the request. It now shows **Awaiting approver**.
+2. An independent approver (never the requester, and never the custodian who
+   reviewed it) approves it, or rejects it with a reason. An administrator can do
+   this step too. This holds even for a custodian's own request when the fund
+   lets custodians approve their own.
+3. Only then can the custodian create the voucher and **Release cash**. The voucher
+   needs no second approval, because the approver already cleared the budget.
+
+Requests that were approved before this rule keep the old path: the approver
+approves the voucher itself before release.
+
+**Reimbursements.** When an approved liquidation shows the employee spent more than
+the advance, the extra is a reimbursement. If the spending is at or above the
+approval limit, or above the fund's per-transaction limit, an independent approver
+approves the extra payment first. Then the custodian records it as paid.
 
 ## Notifications: the bell and email (everyone)
 
@@ -119,8 +132,8 @@ review your own request. Approve or reject with a reason. For an approved
 request, **Create linked voucher** opens the existing voucher form with its
 fund, requester, amount, and purpose prefilled. Choose categories and check
 all lines. One request can produce one voucher; its total cannot exceed the
-approved budget. Draft edits keep that ceiling too. Voucher approval limits
-and cash-release checks still apply.
+approved budget. Draft edits keep that ceiling too. A request at or above the
+fund's approval limit also needs an approver before its voucher is prepared.
 
 **Record an expense**
 1. **Vouchers → New voucher**. Fill in date and payee, then add a line for each
