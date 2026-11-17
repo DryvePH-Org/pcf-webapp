@@ -48,16 +48,22 @@ test.describe("the dashboard shows the cash after pending settlements (desktop)"
     await (await clientFor("admin")).rpc("set_fund_self_approval", { p_fund_id: fund!.id, p_allowed: false });
   });
 
-  test("it shows the recorded cash and, separately, the cash once the ₱300 return is recorded", async ({ browser, baseURL }) => {
+  test("the card shows the cash to hold; the details show the recorded cash and where the money is", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
     await context.addCookies(await cookiesFor("custodian", baseURL!));
     const page = await context.newPage();
     await page.goto("/dashboard");
     const recorded = fundAmount - 900;
-    await expect(page.getByText("Recorded cash on hand").first()).toBeVisible();
-    await expect(page.getByText(peso(recorded)).first()).toBeVisible();
-    await expect(page.getByText("Actual cash after pending settlements").first()).toBeVisible();
+    // The card is short: the cash to compare with the count, and one line on whether anything needs a look.
+    await expect(page.getByText("Cash you should be holding").first()).toBeVisible();
     await expect(page.getByText(peso(recorded + 300)).first()).toBeVisible();
-    await expect(page.getByText(/cash returns due/).first()).toBeVisible();
+    await expect(page.getByText("Cash recorded in the app")).toBeHidden();
+    // The full explanation opens on click.
+    await page.getByRole("button", { name: "See details" }).first().click();
+    const details = page.getByRole("dialog");
+    await expect(details.getByText("Cash recorded in the app")).toBeVisible();
+    await expect(details.getByText(peso(recorded)).first()).toBeVisible();
+    await expect(details.getByText("Where is the money?")).toBeVisible();
+    await expect(details.getByText("Cash returns due")).toBeVisible();
   });
 });

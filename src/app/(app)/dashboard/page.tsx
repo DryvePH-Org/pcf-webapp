@@ -35,6 +35,19 @@ import { canPerform, ROLE_LABELS } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { isVoucherStatus } from "@/lib/voucher-status";
 
+const SHOWN = 3;
+
+function MoreCount({ total, href }: { total: number; href: string }) {
+  if (total <= SHOWN) return null;
+  return (
+    <p className="mt-3 text-sm">
+      <Link href={href} className="font-medium text-primary hover:underline">
+        View all {total}
+      </Link>
+    </p>
+  );
+}
+
 export default async function DashboardPage() {
   const user = await requireUser("/dashboard");
   const firstName = user.full_name.split(" ")[0] || user.full_name;
@@ -254,7 +267,7 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Drafts to release</CardTitle>
               <CardDescription>
-                Prepared vouchers whose cash has not been handed out yet.
+                Cash not handed out yet.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -264,7 +277,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {drafts.map((voucher) => (
+                  {drafts.slice(0, SHOWN).map((voucher) => (
                     <li
                       key={voucher.id}
                       className="flex items-start justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0"
@@ -309,8 +322,7 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Pending approvals</CardTitle>
               <CardDescription>
-                Large vouchers to approve before release, then released
-                vouchers to review. Oldest first.
+                Oldest first.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -320,7 +332,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {pending.map((voucher) => (
+                  {pending.slice(0, SHOWN).map((voucher) => (
                     <li
                       key={voucher.id}
                       className="flex items-start justify-between gap-3 border-b border-border pb-3 last:border-0 last:pb-0"
@@ -366,7 +378,7 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Flagged vouchers</CardTitle>
               <CardDescription>
-                Cash stays counted. Resolve flags and settle actual expenses through liquidation.
+                Needs a fix or a liquidation.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -376,7 +388,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {flagged.map((voucher) => (
+                  {flagged.slice(0, SHOWN).map((voucher) => (
                     <li
                       key={voucher.id}
                       className="space-y-1 border-b border-border pb-3 last:border-0 last:pb-0"
@@ -405,6 +417,7 @@ export default async function DashboardPage() {
                   ))}
                 </ul>
               )}
+              <MoreCount total={flaggedCount} href="/vouchers?status=rejected" />
             </CardContent>
           </Card>
         ) : null}
@@ -414,7 +427,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Recent decisions</CardTitle>
               <CardDescription>
-                The latest approvals and flags across the queue.
+                Latest approvals and flags.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -424,7 +437,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {recent.map((voucher) => (
+                  {recent.slice(0, SHOWN).map((voucher) => (
                     <li
                       key={voucher.id}
                       className="space-y-1 border-b border-border pb-3 last:border-0 last:pb-0"
@@ -476,7 +489,7 @@ export default async function DashboardPage() {
               </CardAction>
               <CardTitle>Replenishments to review</CardTitle>
               <CardDescription>
-                Submitted requests waiting for accounting.
+                Waiting for accounting.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -486,7 +499,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {replenishments.map((repl) => (
+                  {replenishments.slice(0, SHOWN).map((repl) => (
                     <li
                       key={repl.id}
                       className="space-y-1 border-b border-border pb-3 last:border-0 last:pb-0"
@@ -511,6 +524,7 @@ export default async function DashboardPage() {
                   ))}
                 </ul>
               )}
+              <MoreCount total={replenishmentCount} href="/replenishments" />
             </CardContent>
           </Card>
         ) : null}
@@ -520,7 +534,7 @@ export default async function DashboardPage() {
             <CardHeader>
               <CardTitle>Voucher advances</CardTitle>
               <CardDescription>
-                Original advance amounts dated in {formatMonth(monthStart)}, before liquidation adjustments.
+                Cash out in {formatMonth(monthStart)}.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">

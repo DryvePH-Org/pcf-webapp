@@ -46,9 +46,9 @@ export function MoneyTrailPanel({ trail }: { trail: MoneyTrail }) {
   const compared = sheetNow ?? expectedSheet;
 
   return (
-    <details open className="rounded-lg border">
-      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Where is the money?</summary>
-      <div className="space-y-4 border-t p-3 text-sm">
+    <section aria-labelledby="money-trail-title" className="space-y-4 text-sm">
+      <h3 id="money-trail-title" className="font-heading text-base font-medium">Where is the money?</h3>
+      <div className="space-y-4">
         <div className="divide-y">
           <Step sign="" label="Fund amount" amount={trail.fundAmount} />
           <Step sign="−" label="Spent so far (approved liquidations)" amount={trail.spent} note="This is what the Google Sheet records." />
@@ -142,6 +142,6 @@ export function MoneyTrailPanel({ trail }: { trail: MoneyTrail }) {
           )}
         </div>
       </div>
-    </details>
+    </section>
   );
 }
