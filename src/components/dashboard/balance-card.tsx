@@ -10,7 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { MoneyTrailPanel } from "@/components/dashboard/money-trail-panel";
 import { cashAfterSettlements } from "@/lib/fund-cash";
+import type { MoneyTrail } from "@/lib/money-trail";
 import { cn } from "@/lib/utils";
 
 export type BalanceFund = {
@@ -25,7 +27,7 @@ export type BalanceFund = {
   reimbursements_due?: number;
 };
 
-export function BalanceCard({ fund }: { fund: BalanceFund }) {
+export function BalanceCard({ fund, trail }: { fund: BalanceFund; trail?: MoneyTrail }) {
   const releasedPct =
     fund.fund_amount > 0
       ? Math.min(
@@ -135,6 +137,8 @@ export function BalanceCard({ fund }: { fund: BalanceFund }) {
           <div><dt className="text-muted-foreground">Cash returns due</dt><dd><MoneyText value={fund.returns_due ?? 0} /></dd></div>
           <div><dt className="text-muted-foreground">Reimbursements due</dt><dd><MoneyText value={fund.reimbursements_due ?? 0} /></dd></div>
         </dl>
+
+        {trail ? <MoneyTrailPanel trail={trail} /> : null}
 
         {fund.is_low ? (
           <p className="flex items-start gap-2 text-sm text-destructive">

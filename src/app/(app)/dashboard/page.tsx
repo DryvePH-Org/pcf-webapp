@@ -22,6 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { loadMoneyTrails } from "@/lib/money-trail-load";
+import type { MoneyTrail } from "@/lib/money-trail";
 import { requireUser } from "@/lib/auth";
 import {
   formatDate,
@@ -184,6 +186,9 @@ export default async function DashboardPage() {
     },
   );
 
+  // Where each fund's money is and why the app and the sheet can differ. Never blocks the page.
+  const trails = await loadMoneyTrails(balanceFunds.map((fund) => ({ id: fund.fund_id, amount: fund.fund_amount }))).catch(() => new Map<string, MoneyTrail>());
+
   const drafts = draftsResult?.data ?? [];
   const draftCount = draftsResult?.count ?? drafts.length;
 
@@ -225,7 +230,7 @@ export default async function DashboardPage() {
       {balanceFunds.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2">
           {balanceFunds.map((fund) => (
-            <BalanceCard key={fund.fund_id} fund={fund} />
+            <BalanceCard key={fund.fund_id} fund={fund} trail={trails.get(fund.fund_id)} />
           ))}
         </div>
       ) : seesCash ? (
