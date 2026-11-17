@@ -1,3 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { sheetsAdmin } from "@/lib/sheets/database";
 import type { SheetTab } from "@/lib/sheets/types";
 
@@ -21,7 +24,16 @@ export async function loadMoneyTrails(funds: { id: string; amount: number }[]) {
     .in("status", ["released", "approved", "rejected"])
     .limit(1000);
   if (vouchers.error) throw new Error("Could not read the vouchers.");
-  const voucherIds = (vouchers.data ?? []).map((row) => row.id);
+  // Cancelled (unused) advances whose cash is not recorded back yet still count as out.
+  const pending = await (db as unknown as SupabaseClient<WorkflowDatabase>).from("advance_cancellations").select("voucher_id").in("fund_id", fundIds).is("returned_on", null);
+  if (pending.error) throw new Error("Could not read the cancelled advances.");
+  const pendingIds = (pending.data ?? []).map((row) => row.voucher_id);
+  const cancelled = pendingIds.length
+    ? await db.from("vouchers").select("id, fund_id, pcv_number, payee, amount").in("id", pendingIds)
+    : { data: [], error: null };
+  if (cancelled.error) throw new Error("Could not read the cancelled vouchers.");
+  const allVouchers = [...(vouchers.data ?? []), ...(cancelled.data ?? [])];
+  const voucherIds = allVouchers.map((row) => row.id);
 
   const [liquidations, settlements, workbooks] = await Promise.all([
     voucherIds.length
@@ -45,7 +57,7 @@ export async function loadMoneyTrails(funds: { id: string; amount: number }[]) {
   const notInSheetVoucherIds = [...unwritten].flatMap((id) => (voucherOfLiquidation.has(id) ? [voucherOfLiquidation.get(id) as string] : []));
 
   for (const fund of funds) {
-    const mine = (vouchers.data ?? []).filter((row) => row.fund_id === fund.id);
+    const mine = allVouchers.filter((row) => row.fund_id === fund.id);
     const ids = new Set(mine.map((row) => row.id));
     const workbook = (workbooks.data ?? []).find((row) => row.fund_id === fund.id);
     const tab = workbook ? (workbook.catalog as unknown as SheetTab[]).find((entry) => entry.sheetId === workbook.active_sheet_id) : undefined;
@@ -54,9 +66,13 @@ export async function loadMoneyTrails(funds: { id: string; amount: number }[]) {
       buildMoneyTrail({
         fundAmount: fund.amount,
         vouchers: mine.map((row) => ({ id: row.id, pcv_number: row.pcv_number, payee: row.payee, amount: Number(row.amount) })),
-        liquidations: (liquidations.data ?? [])
-          .filter((row) => ids.has(row.voucher_id))
-          .map((row) => ({ voucher_id: row.voucher_id, status: row.status, total_spent: Number(row.total_spent) })),
+        // A cancelled advance is worked as "nothing spent, all of it still to come back".
+        liquidations: [
+          ...(liquidations.data ?? [])
+            .filter((row) => ids.has(row.voucher_id) && !pendingIds.includes(row.voucher_id))
+            .map((row) => ({ voucher_id: row.voucher_id, status: row.status, total_spent: Number(row.total_spent) })),
+          ...pendingIds.filter((id) => ids.has(id)).map((id) => ({ voucher_id: id, status: "approved", total_spent: 0 })),
+        ],
         settlements: (settlements.data ?? [])
           .filter((row) => ids.has(row.voucher_id))
           .map((row) => ({ voucher_id: row.voucher_id, kind: row.kind as "return" | "reimbursement", amount: Number(row.amount) })),

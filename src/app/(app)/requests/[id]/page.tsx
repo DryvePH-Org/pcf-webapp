@@ -206,7 +206,7 @@ function nextStep(
         </Callout>
       );
     case "cancelled":
-      return <Callout tone="neutral" title="This request was cancelled">It stays in the history; no voucher can be created from it.</Callout>;
+      return <Callout tone="neutral" title="This request was cancelled">It stays in the history and no new voucher can be created from it. If its cash was handed out and not used, open the voucher to see why it was cancelled and when the cash came back.</Callout>;
     case "voucher_created":
       if (ctx.released && ctx.liquidation === "flagged") {
         return <Callout tone="danger" title="The liquidation needs corrections">The custodian sent it back. Open the liquidation below, fix it and submit again.</Callout>;

@@ -25,6 +25,8 @@ import { queueNotification } from "@/lib/notifications/deliver";
 import { withinLimit, isRepeat, REPEAT_MESSAGE } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import {
+  cancelAdvanceSchema,
+  recordAdvanceReturnSchema,
   createVoucherSchema,
   noReceiptReasonSchema,
   receiptPathSchema,
@@ -408,6 +410,43 @@ export async function voidVoucher(
 
   const voidedId = parsed.data.voucher_id;
   queueNotification("voucher.voided", () => notifyVoucherVoided(voidedId, user.id));
+  revalidateVoucher(parsed.data.voucher_id);
+  return { ok: true };
+}
+
+export async function cancelUnusedAdvance(input: z.input<typeof cancelAdvanceSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to cancel an advance.");
+  const parsed = cancelAdvanceSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  if (await isRepeat(user.id, "voucher:cancel-advance", parsed.data)) return actionError(REPEAT_MESSAGE);
+
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("cancel_unused_advance", {
+    p_voucher: parsed.data.voucher_id,
+    p_reason: parsed.data.reason,
+    p_note: parsed.data.note || null,
+    p_cash_back: parsed.data.cash_back,
+    p_returned_on: parsed.data.cash_back ? (parsed.data.returned_on ?? null) : null,
+  });
+  if (error) return actionError(safeDbMessage(error));
+  revalidateVoucher(parsed.data.voucher_id);
+  return { ok: true };
+}
+
+export async function recordCancelledAdvanceReturn(input: z.input<typeof recordAdvanceReturnSchema>): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return actionError("Sign in to record the return.");
+  const parsed = recordAdvanceReturnSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+  if (await isRepeat(user.id, "voucher:cancel-advance-return", parsed.data)) return actionError(REPEAT_MESSAGE);
+
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("record_cancelled_advance_return", {
+    p_voucher: parsed.data.voucher_id,
+    p_returned_on: parsed.data.returned_on,
+  });
+  if (error) return actionError(safeDbMessage(error));
   revalidateVoucher(parsed.data.voucher_id);
   return { ok: true };
 }

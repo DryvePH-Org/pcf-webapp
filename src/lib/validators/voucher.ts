@@ -77,6 +77,29 @@ export const voucherReasonSchema = z.object({
   }),
 });
 
+export const ADVANCE_CANCEL_REASONS = {
+  plan_changed: "The plan changed",
+  not_needed: "It is no longer needed",
+  paid_another_way: "It was paid another way",
+  other: "Other (explain below)",
+} as const;
+export type AdvanceCancelReason = keyof typeof ADVANCE_CANCEL_REASONS;
+
+const returnDate = z.string().regex(datePattern, "Choose the date the cash came back.");
+
+export const cancelAdvanceSchema = z
+  .object({
+    voucher_id: z.uuid(),
+    reason: z.enum(["plan_changed", "not_needed", "paid_another_way", "other"], "Choose why the advance was not used."),
+    note: text({ max: 300, tooLongMessage: "Keep the note under 300 characters." }),
+    cash_back: z.boolean(),
+    returned_on: returnDate.optional(),
+  })
+  .refine((value) => value.reason !== "other" || value.note.length > 0, { path: ["note"], message: "Explain why in the note." })
+  .refine((value) => !value.cash_back || Boolean(value.returned_on), { path: ["returned_on"], message: "Choose the date the cash came back." });
+
+export const recordAdvanceReturnSchema = z.object({ voucher_id: z.uuid(), returned_on: returnDate });
+
 export type VoucherReasonValues = z.infer<typeof voucherReasonSchema>;
 
 export const noReceiptReasonSchema = z.object({

@@ -22,6 +22,19 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      advance_cancellation_state: {
+        Args: { p_voucher: string };
+        Returns: {
+          can_cancel: boolean; can_record_return: boolean; blocked: string | null; cancelled: boolean; returned: boolean;
+          amount: number | null; reason_code: string | null; note: string | null; cancelled_at: string | null;
+          canceller_name: string | null; returned_on: string | null; returner_name: string | null;
+        }[];
+      };
+      cancel_unused_advance: {
+        Args: { p_voucher: string; p_reason: string; p_note: string | null; p_cash_back: boolean; p_returned_on: string | null };
+        Returns: undefined;
+      };
+      record_cancelled_advance_return: { Args: { p_voucher: string; p_returned_on: string }; Returns: undefined };
       approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       apply_grokbot_book_snapshot: { Args: { p_book: string; p_rows: Json; p_tab: Json; p_token: string }; Returns: undefined };
       queue_grokbot_replenishment: { Args: { p_id: string; p_operation: string; p_hash: string; p_book?: string }; Returns: string };
@@ -92,6 +105,7 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       notifications: Table<NotificationRecord>;
       notification_preferences: Table<NotificationPreferenceRecord>;
       liquidation_receipt_lines: Table<ReceiptRecord>;
+      advance_cancellations: Table<{ id: string; voucher_id: string; fund_id: string; amount: number; returned_on: string | null }>;
       fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
     };
     // PostgreSQL does not expose RPC argument nullability to generated clients.

@@ -102,3 +102,29 @@ describe("other situations", () => {
     expect(trail.recordedCash).toBe(99.9);
   });
 });
+
+describe("a cancelled advance whose cash is not back yet", () => {
+  // Worked as "nothing spent, all of it still to come back", exactly as the loader feeds it.
+  const cancelled = { id: "vx", pcv_number: "PCV-2026-0099", payee: "Employee", amount: 1000 };
+  const trail = buildMoneyTrail({
+    fundAmount: 10000,
+    vouchers: [cancelled],
+    liquidations: [{ voucher_id: "vx", status: "approved", total_spent: 0 }],
+    settlements: [],
+    sheet: { balance: 10000, syncedAt: null },
+  });
+
+  it("keeps the cash as out in the app but never in the sheet", () => {
+    expect(trail.recordedCash).toBe(9000);
+    expect(trail.cashAfterSettlements).toBe(10000);
+    expect(trail.sheetShouldShow).toBe(10000);
+    expect(trail.sheetUnexplained).toBe(0);
+    expect(trail.spent).toBe(0);
+  });
+
+  it("names the person and the voucher as cash still to come back", () => {
+    expect(trail.changeToCollect).toEqual([{ who: "Employee", ref: "PCV-2026-0099", amount: 1000 }]);
+    expect(trail.notLiquidated).toEqual([]);
+    expect(trail.difference).toBe(-1000);
+  });
+});

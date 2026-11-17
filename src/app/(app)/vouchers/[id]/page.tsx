@@ -1,3 +1,6 @@
+import { CancelAdvancePanel } from "@/components/vouchers/cancel-advance-panel";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { VoucherLiquidationPanel } from "@/components/liquidations/voucher-liquidation-panel";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -68,6 +71,13 @@ export default async function VoucherDetailPage({
     ? await supabase.from("budget_requests").select("id").eq("id", voucher.budget_request_id).maybeSingle()
     : null;
   if (linkedRequest?.error) throw new Error(linkedRequest.error.message);
+
+  // Cancelling an advance that was never used (and recording its cash coming back).
+  const manilaDay = (value: string | Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(value));
+  const advanceResult = voucher.released_at
+    ? await (supabase as unknown as SupabaseClient<WorkflowDatabase>).rpc("advance_cancellation_state", { p_voucher: voucher.id })
+    : null;
+  const advance = advanceResult?.error ? null : (advanceResult?.data?.[0] ?? null);
 
   const profileIds = [
     voucher.prepared_by,
@@ -156,6 +166,7 @@ export default async function VoucherDetailPage({
     rejectReason: voucher.reject_reason,
     closed: status === "closed",
     voided: status === "void",
+    voidedLabel: advance?.cancelled ? "Advance cancelled (not used)" : "Voided",
     voidReason: voucher.void_reason,
     preparedByName,
   });
@@ -272,7 +283,7 @@ export default async function VoucherDetailPage({
                   </Alert>
                 ) : null}
 
-                {status === "void" ? (
+                {status === "void" && !advance?.cancelled ? (
                   <Alert variant="destructive">
                     <Ban />
                     <AlertTitle>Voided</AlertTitle>
@@ -397,7 +408,16 @@ export default async function VoucherDetailPage({
               }}
               viewer={{ id: user.id, role: user.role }}
             />
-            <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} />
+            {advance && voucher.released_at && (advance.cancelled || advance.can_cancel) ? (
+              <CancelAdvancePanel
+                voucherId={voucher.id}
+                amount={Number(voucher.amount)}
+                state={advance}
+                today={manilaDay(new Date())}
+                releasedOn={manilaDay(voucher.released_at)}
+              />
+            ) : null}
+            {advance?.cancelled ? null : <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} />}
 
             {canSeeHistory ? (
               <Card>
@@ -558,6 +578,7 @@ function buildTimeline({
   rejectReason,
   closed,
   voided,
+  voidedLabel,
   voidReason,
   preparedByName,
 }: {
@@ -571,6 +592,7 @@ function buildTimeline({
   rejectReason: string | null;
   closed: boolean;
   voided: boolean;
+  voidedLabel: string;
   voidReason: string | null;
   preparedByName: string;
 }) {
@@ -666,7 +688,7 @@ function buildTimeline({
   if (voided) {
     events.push({
       key: "voided",
-      label: "Voided",
+      label: voidedLabel,
       detail: voidReason ?? undefined,
       icon: Ban,
     });

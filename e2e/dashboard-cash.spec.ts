@@ -61,7 +61,7 @@ test.describe("the dashboard shows the cash after pending settlements (desktop)"
     // The full explanation opens on click.
     await page.getByRole("button", { name: "See details" }).first().click();
     const details = page.getByRole("dialog");
-    await expect(details.getByText("Cash recorded in the app")).toBeVisible();
+    await expect(details.getByText("Cash recorded in the app").first()).toBeVisible();
     await expect(details.getByText(peso(recorded)).first()).toBeVisible();
     await expect(details.getByText("Where is the money?")).toBeVisible();
     await expect(details.getByText("Cash returns due")).toBeVisible();
