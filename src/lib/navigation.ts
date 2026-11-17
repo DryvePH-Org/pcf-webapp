@@ -1,5 +1,6 @@
 import {
   Bell,
+  HandCoins,
   ClipboardCheck,
   ClipboardList,
   Landmark,
@@ -36,6 +37,7 @@ const OPERATIONS: NavItem[] = [
   { href: "/requests", label: "Budget requests", shortLabel: "Requests", icon: ClipboardList },
   { href: "/vouchers", label: "Vouchers", icon: ReceiptText },
   { href: "/liquidations", label: "Liquidations", icon: Scale },
+  { href: "/settlements", label: "Cash settlements", shortLabel: "Settle", icon: HandCoins },
   { href: "/approvals", label: "Approvals", icon: ClipboardCheck },
   {
     href: "/replenishments",

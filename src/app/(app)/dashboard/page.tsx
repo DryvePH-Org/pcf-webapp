@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SettlementsBanner } from "@/components/settlements/settlements-banner";
 import { loadMoneyTrails } from "@/lib/money-trail-load";
 import type { MoneyTrail } from "@/lib/money-trail";
 import { requireUser } from "@/lib/auth";
@@ -231,6 +232,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <SettlementsBanner />
       <OutstandingLiquidationNotice />
       <PageHeader
         title={`Welcome, ${firstName}`}

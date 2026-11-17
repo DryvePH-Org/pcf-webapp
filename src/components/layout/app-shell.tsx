@@ -12,9 +12,11 @@ import type { Role } from "@/lib/permissions";
 
 export function AppShell({
   user,
+  badges = {},
   children,
 }: {
   user: { full_name: string; role: Role };
+  badges?: Record<string, number>;
   children: React.ReactNode;
 }) {
   const groups = navGroupsFor(user.role);
@@ -22,7 +24,7 @@ export function AppShell({
 
   return (
     <div className="min-h-svh bg-background">
-      <SidebarNav groups={groups} user={user} />
+      <SidebarNav groups={groups} user={user} badges={badges} />
 
       <div className="flex min-h-svh flex-col lg:pl-64 print:pl-0">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden print:hidden">
@@ -46,7 +48,7 @@ export function AppShell({
         </main>
       </div>
 
-      <BottomTabBar primary={primary} overflow={overflow} />
+      <BottomTabBar primary={primary} overflow={overflow} badges={badges} />
     </div>
   );
 }

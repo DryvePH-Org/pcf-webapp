@@ -16,9 +16,11 @@ import { cn } from "@/lib/utils";
 export function SidebarNav({
   groups,
   user,
+  badges = {},
 }: {
   groups: NavGroup[];
   user: { full_name: string; role: Role };
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
 
@@ -64,6 +66,11 @@ export function SidebarNav({
                     >
                       <item.icon className="size-4" />
                       {item.label}
+                      {badges[item.href] ? (
+                        <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-amber-950" aria-label={`${badges[item.href]} waiting`}>
+                          {badges[item.href]}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 );

@@ -105,7 +105,7 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       notifications: Table<NotificationRecord>;
       notification_preferences: Table<NotificationPreferenceRecord>;
       liquidation_receipt_lines: Table<ReceiptRecord>;
-      advance_cancellations: Table<{ id: string; voucher_id: string; fund_id: string; amount: number; returned_on: string | null }>;
+      advance_cancellations: Table<{ id: string; voucher_id: string; fund_id: string; amount: number; cancelled_at: string; returned_on: string | null }>;
       fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
     };
     // PostgreSQL does not expose RPC argument nullability to generated clients.

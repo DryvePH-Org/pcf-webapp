@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils";
 export function BottomTabBar({
   primary,
   overflow,
+  badges = {},
 }: {
   primary: NavItem[];
   overflow: NavItem[];
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -56,8 +58,9 @@ export function BottomTabBar({
                 <item.icon
                   className={cn("size-5", active && "stroke-[2.25]")}
                 />
-                <span className="max-w-full truncate px-1">
+                <span className="relative max-w-full truncate px-1">
                   {item.shortLabel ?? item.label}
+                  {badges[item.href] ? <span className="absolute -top-5 -right-1 size-2.5 rounded-full bg-amber-500" aria-label="waiting" /> : null}
                 </span>
               </Link>
             </li>
@@ -75,7 +78,10 @@ export function BottomTabBar({
                   />
                 }
               >
-                <MoreHorizontal className="size-5" />
+                <span className="relative">
+                  <MoreHorizontal className="size-5" />
+                  {overflow.some((item) => badges[item.href]) ? <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-500" aria-label="something is waiting" /> : null}
+                </span>
                 More
               </SheetTrigger>
               <SheetContent
@@ -103,6 +109,7 @@ export function BottomTabBar({
                     >
                       <item.icon className="size-4 text-muted-foreground" />
                       {item.label}
+                      {badges[item.href] ? <span className="ml-auto rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-amber-950">{badges[item.href]}</span> : null}
                     </Link>
                   ))}
                 </div>
