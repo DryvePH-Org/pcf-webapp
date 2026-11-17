@@ -78,11 +78,11 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     ? await workflow.rpc("list_custodian_tags", { p_fund: l.fund_id })
     : { data: [] };
 
-  // Spending at the approval limit, or above the per-transaction limit, needs an independent approver before the payment.
+  // Spending at the approval limit, or above the per-transaction limit, needs an approver (anyone but the employee being paid) before the payment.
   const needsApproval = difference.kind === "reimbursement" && (l.total_spent >= voucher.approval_threshold || l.total_spent > voucher.per_txn_limit);
   const waitingApproval = needsApproval && !l.reimbursement_approved_by;
   const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway) && !waitingApproval && (difference.kind === "return" || voucher.voucher_status !== "rejected");
-  const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && ![l.owner_id, l.reviewed_by, voucher.prepared_by].includes(user.id) && ["admin", "approver"].includes(user.role);
+  const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && user.id !== l.owner_id && ["admin", "approver"].includes(user.role);
   const paths = new Set([...rows, ...(receiptRows.data ?? [])].map(item => item.receipt_path).filter((path): path is string => Boolean(path)));
   for (const r of revisions.data ?? []) for (const line of snapshotItems(r.payload)) if (line.receipt_path) paths.add(line.receipt_path);
   const urls = new Map<string, string>();
@@ -101,9 +101,9 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     if (l.status === "draft") return <Callout tone="info" title={isOwner ? "Draft: not submitted yet" : "The employee has not submitted this yet"}>{isOwner ? "Check each expense, attach any available receipts, then choose Submit for review." : "It will appear for review after submission."}</Callout>;
     if (l.status === "submitted") return canReview ? <Callout tone="warning" title="This liquidation needs your review">Review the expenses and any available receipts, then save your review before preparing the Google Sheets approval preview.</Callout> : <Callout tone="info" title="Waiting for custodian review">Editing is locked until the custodian responds.</Callout>;
     if (settled) return <Callout tone="success" title={difference.kind === "none" ? "Fully reconciled" : "Settled"}>{difference.kind === "none" ? "The advance matched the expenses, so no cash needs to move." : "The cash movement has been recorded."}</Callout>;
-    if (canApproveReimbursement) return <Callout tone="warning" title="Additional reimbursement needs your approval">Spending was above the cash received. An independent approver must approve before the custodian pays it.</Callout>;
+    if (canApproveReimbursement) return <Callout tone="warning" title="Additional reimbursement needs your approval">Spending was above the cash received. An approver must approve before the custodian pays it.</Callout>;
     if (canSettle) return <Callout tone="warning" title={difference.kind === "return" ? "Next: record the cash returned" : "Next: record the reimbursement paid"}>Use the button below once the money has actually changed hands.</Callout>;
-    if (waitingApproval) return <Callout tone="warning" title="Waiting for an approver">The extra payment needs an independent approver before the custodian can pay it.</Callout>;
+    if (waitingApproval) return <Callout tone="warning" title="Waiting for an approver">The extra payment needs an approver (not the employee being paid) before the custodian can pay it.</Callout>;
     return <Callout tone="info" title={difference.kind === "return" ? "Waiting for the cash to be returned" : "Waiting for the reimbursement to be paid"}>The custodian records it once the cash has actually moved.</Callout>;
   };
   return <div className="space-y-6 print:space-y-4">
@@ -166,7 +166,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
             <p>{difference.kind === "none" ? "Fully reconciled. No cash transfer is needed." : `Pending ${difference.kind === "return" ? "cash return" : "reimbursement payment"}. Approval alone has not changed cash.`}</p>
           )}
           {voucher.voucher_status === "rejected" ? <p className="text-sm font-medium text-destructive">The voucher is flagged. Additional payment and replenishment wait until that flag is resolved.</p> : null}
-          {waitingApproval ? <p className="text-sm font-medium text-amber-800">An independent approver must approve before the additional payment{l.total_spent > voucher.per_txn_limit ? ` (the spending is above the fund's per-transaction limit of ${formatPHP(voucher.per_txn_limit)})` : ""}.</p> : null}
+          {waitingApproval ? <p className="text-sm font-medium text-amber-800">An approver must approve before the additional payment{l.total_spent > voucher.per_txn_limit ? ` (the spending is above the fund's per-transaction limit of ${formatPHP(voucher.per_txn_limit)})` : ""}.</p> : null}
           {l.reimbursement_approved_at ? <p className="text-sm">Additional payment approved {formatDateTime(l.reimbursement_approved_at)}</p> : null}
         </div>
       ) : null}

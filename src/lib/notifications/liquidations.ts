@@ -49,7 +49,7 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
         recipients: await recipientsByRole(["approver", "admin"], { exclude: [actor, l.owner_id] }),
         subject: `${l.pcv_number}: extra reimbursement needs approval`,
         content: () => ({ tone: "action", heading: `${l.pcv_number} needs an additional reimbursement approval`,
-          paragraphs: ["Spending was above the cash received. An independent approver must approve before the custodian pays it."], rows, cta }),
+          paragraphs: ["Spending was above the cash received. An approver must approve before the custodian pays it."], rows, cta }),
       });
     }
     if (actor === l.owner_id) {

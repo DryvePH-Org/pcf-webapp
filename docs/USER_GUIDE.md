@@ -63,8 +63,10 @@ approves the voucher itself before release.
 
 **Reimbursements.** When an approved liquidation shows the employee spent more than
 the advance, the extra is a reimbursement. If the spending is at or above the
-approval limit, or above the fund's per-transaction limit, an independent approver
-approves the extra payment first. Then the custodian records it as paid.
+approval limit, or above the fund's per-transaction limit, an approver approves
+the extra payment first. Any approver of the fund or an administrator can do it,
+even if they approved the liquidation. Only the employee being paid cannot approve
+their own reimbursement. Then the custodian records it as paid.
 
 ## Notifications: the bell and email (everyone)
 
@@ -112,10 +114,10 @@ For a voucher created directly, its preparer files liquidation from the PCV page
    is actually returned or paid. Partial settlements are not supported yet.
 
 If additional payment takes actual spending to the fund's approval threshold,
-an independent approver/admin must authorize it before payment. The employee,
-voucher preparer, and liquidation reviewer cannot authorize that extra payment.
-Reimbursement cannot exceed the fund's transaction limit or available cash, and
-cannot be paid while the voucher is flagged. A return can still be recorded.
+or above its per-transaction limit, an approver or admin must authorize it before
+payment. Only the employee being paid cannot authorize their own extra payment.
+Reimbursement cannot exceed the available cash, and cannot be paid while the
+voucher is flagged. A return can still be recorded.
 
 Print or export the saved form from its detail page. Submitted/approved forms
 are locked; only flagged forms can be corrected by their owner. A fully unused

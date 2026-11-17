@@ -68,6 +68,7 @@ jobs:
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/security-fixes.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/cancel-unused-advance.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/request-approver-stage.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/reimbursement-approver-rule.sql
 
   deploy:
     needs: [check, deletion-database]

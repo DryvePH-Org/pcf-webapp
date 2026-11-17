@@ -55,7 +55,7 @@ export async function reviewLiquidation(input: z.input<typeof liquidationReviewS
 }
 export async function approveLiquidationReimbursement(id: string): Promise<ActionResult> {
   const user = await getCurrentUser();
-  if (!user || !["approver", "admin"].includes(user.role)) return { ok: false, error: "An independent approver is required." };
+  if (!user || !["approver", "admin"].includes(user.role)) return { ok: false, error: "Only an approver or an administrator can approve this reimbursement." };
   if (!z.uuid().safeParse(id).success) return { ok: false, error: "Liquidation not found." };
   const db = await createClient();
   const { error } = await db.rpc("approve_liquidation_reimbursement", { p_id: id });
