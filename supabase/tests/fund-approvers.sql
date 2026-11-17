@@ -76,20 +76,16 @@ begin
  begin update vouchers set released_at=now() where id=voucher; exception when others then refused:=true; end;
  assert refused,'the requester cannot release the cash for her own request';
 
- -- A normal request is untouched: the custodian reviews it, the approver cannot.
+ -- An ordinary request: the fund's approver sees it and can review it too (phase 47); a custodian still can.
  perform set_config('request.jwt.claim.sub','94000000-0000-4000-8000-000000000005',true);
  other_req:=create_budget_request('94000000-0000-4000-8000-000000000010','Plain Requester',800,'Printing');
  perform set_config('request.jwt.claim.sub','94000000-0000-4000-8000-000000000003',true);
  set local role authenticated;
  select count(*) into seen from budget_requests where id=other_req;
  reset role;
- assert seen=0,'the approver does not see ordinary requests';
- refused:=false;
- begin perform review_budget_request(other_req,true,null); exception when others then refused:=true; end;
- assert refused,'the approver does not review ordinary requests';
- perform set_config('request.jwt.claim.sub','94000000-0000-4000-8000-000000000002',true);
+ assert seen=1,'the fund approver sees every request in the fund';
  perform review_budget_request(other_req,true,null);
- assert (select status from budget_requests where id=other_req)='approved','a custodian still reviews ordinary requests';
+ assert (select status from budget_requests where id=other_req)='approved','the fund approver reviews an ordinary request';
 
  -- Without an assigned approver, another custodian covers a custodian's request as before.
  perform set_config('request.jwt.claim.sub','94000000-0000-4000-8000-000000000006',true);

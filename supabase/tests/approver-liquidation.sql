@@ -105,10 +105,8 @@ begin
  perform save_liquidation(liq,'Ops',filing,jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'particulars','Printing','amount',500,'no_receipt_reason','No receipt')),null);
  perform submit_liquidation(liq);
  perform set_config('request.jwt.claim.sub',a::text,true);
- refused:=false; begin perform review_liquidation_before_sheets(liq,true,null); exception when others then refused:=true; end;
- assert refused,'the approver does not review an ordinary requester''s liquidation';
- perform set_config('request.jwt.claim.sub',c::text,true);
+ -- Since phase 47 the assigned approver reviews an ordinary requester's liquidation too.
  perform review_liquidation_before_sheets(liq,true,null);
- assert (select status from liquidations where id=liq)='approved','the custodian still reviews an ordinary requester''s liquidation';
+ assert (select status from liquidations where id=liq)='approved','the assigned approver reviews an ordinary requester''s liquidation';
 end $$;
 rollback;

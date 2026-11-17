@@ -28,19 +28,15 @@ export async function MyWork({ userId, role, approvalCount = 0, replenishmentCou
     role === "approver" || role === "admin" ? db.from("budget_requests").select("id", { count: "exact", head: true }).eq("status", "awaiting_approver").neq("requester_id", userId).neq("reviewed_by", userId) : null,
   ]);
 
-  // An approver reviews the liquidations of the custodians of the funds they are assigned to.
+  // An approver reviews every submitted liquidation in the funds they act in (not their own).
   let approverLiquidations = 0;
   if (role === "approver") {
-    const mine = await (db as unknown as SupabaseClient<WorkflowDatabase>).from("fund_approvers").select("fund_id").eq("approver_id", userId);
-    const fundIds = (mine.data ?? []).map(row => row.fund_id);
-    if (fundIds.length) {
-      const [custodians, waiting] = await Promise.all([
-        db.from("fund_custodians").select("fund_id, custodian_id").in("fund_id", fundIds),
-        db.from("liquidations").select("fund_id, owner_id").eq("status", "submitted").in("fund_id", fundIds).neq("owner_id", userId).limit(500),
-      ]);
-      const pairs = new Set((custodians.data ?? []).map(row => `${row.fund_id}:${row.custodian_id}`));
-      approverLiquidations = (waiting.data ?? []).filter(row => pairs.has(`${row.fund_id}:${row.owner_id}`)).length;
-    }
+    const wf = db as unknown as SupabaseClient<WorkflowDatabase>;
+    const waiting = await db.from("liquidations").select("fund_id").eq("status", "submitted").neq("owner_id", userId).limit(500);
+    const fundIds = [...new Set((waiting.data ?? []).map(row => row.fund_id))];
+    const acts = new Set<string>();
+    await Promise.all(fundIds.map(async fundId => { if ((await wf.rpc("approver_acts_in", { p_fund: fundId })).data === true) acts.add(fundId); }));
+    approverLiquidations = (waiting.data ?? []).filter(row => acts.has(row.fund_id)).length;
   }
 
   const loadError = [liquidations, requests, toReviewRequests, toReviewLiquidations, toApproveRequests].some(result => result?.error);

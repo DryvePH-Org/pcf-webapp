@@ -22,6 +22,7 @@ type Table<Row> = {
   Relationships: [];
 };
 type WorkflowFunctions = {
+      approver_acts_in: { Args: { p_fund: string }; Returns: boolean };
       approve_request_as_approver: { Args: { p_id: string; p_approve: boolean; p_note: string | null }; Returns: undefined };
       voucher_needs_pre_approval: { Args: { p_voucher: string }; Returns: boolean };
       advance_cancellation_state: {

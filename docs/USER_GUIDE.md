@@ -68,6 +68,16 @@ the extra payment first. Any approver of the fund or an administrator can do it,
 even if they approved the liquidation. Only the employee being paid cannot approve
 their own reimbursement. Then the custodian records it as paid.
 
+## What an approver can approve
+
+An approver can approve anything in the funds they are assigned to, for anyone's
+items except their own: budget requests, vouchers, liquidations (including the
+Google Sheets approval), extra reimbursements, cash settlements, cancelling an
+unused advance, and replenishments. An approver cannot act in funds they are not
+assigned to. A fund with no assigned approver can be handled by any approver, so
+nothing gets stuck. Administrators can act in every fund. Custodians keep their
+own duties.
+
 ## Notifications: the bell and email (everyone)
 
 The **bell** at the top of every page shows what needs you or changed on your

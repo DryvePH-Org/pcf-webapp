@@ -58,7 +58,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   if (approverResult.error) throw new Error(approverResult.error.message);
   const gated = Boolean(gatedResult.data);
   // A request that reaches the fund's approval limit waits for an independent approver after the custodian.
-  const isFundApprover = user.role === "approver" ? Boolean((await wf.rpc("is_fund_approver", { p_fund: request.fund_id })).data) : false;
+  const isFundApprover = user.role === "approver" ? Boolean((await wf.rpc("approver_acts_in", { p_fund: request.fund_id })).data) : false;
   const canApproverReview = request.status === "awaiting_approver"
     && (user.role === "admin" || (user.role === "approver" && isFundApprover))
     && ![request.requester_id, request.reviewed_by].includes(user.id);
