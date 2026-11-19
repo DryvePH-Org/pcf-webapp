@@ -11,6 +11,7 @@ import { getAdminUser, getCurrentUser } from "@/lib/auth";
 import { parseMoney, toMoneyNumber } from "@/lib/money";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { notifyFundAssignment } from "@/lib/notifications/events";
+import { emailResyncedRequests } from "@/lib/notifications/requests";
 import { createClient } from "@/lib/supabase/server";
 import type { WorkflowDatabase } from "@/lib/workflow";
 import { saveFundSchema, type SaveFundInput } from "@/lib/validators/fund";
@@ -32,7 +33,7 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   const parsed = saveFundSchema.safeParse(input);
   if (!parsed.success) return validationError(parsed.error);
 
-  const { id, confirmAmountChange, custodian_ids, ...values } = parsed.data;
+  const { id, confirmAmountChange, custodian_ids, sheet_ledger, expense_tags, ...values } = parsed.data;
   if (!id && (await isRepeat(admin.id, "fund:create", parsed.data))) return actionError(REPEAT_MESSAGE);
   const wanted = [...new Set(custodian_ids)];
   const payload = {
@@ -44,18 +45,22 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
   };
 
   const supabase = await createClient();
+  const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
   let previous: string[] = [];
   let fundId = id;
+  // How a fund keeps its ledger is chosen when it is created and cannot change (the database enforces it).
+  let databaseOnly = !sheet_ledger;
 
   if (id) {
-    const { data: current, error: readError } = await supabase
+    const { data: current, error: readError } = await workflow
       .from("funds")
-      .select("amount")
+      .select("amount, sheet_ledger")
       .eq("id", id)
       .maybeSingle();
 
     if (readError) return actionError(safeDbMessage(readError));
     if (!current) return actionError("Fund not found.");
+    databaseOnly = !current.sheet_ledger;
 
     const { data: links, error: linkError } = await supabase
       .from("fund_custodians")
@@ -75,9 +80,9 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
     const { error } = await supabase.from("funds").update(payload).eq("id", id);
     if (error) return actionError(safeDbMessage(error));
   } else {
-    const { data: created, error } = await supabase
+    const { data: created, error } = await workflow
       .from("funds")
-      .insert(payload)
+      .insert({ ...payload, sheet_ledger })
       .select("id")
       .single();
     if (error) return actionError(safeDbMessage(error));
@@ -89,6 +94,17 @@ export async function saveFund(input: SaveFundInput): Promise<ActionResult> {
     p_custodian_ids: wanted,
   });
   if (custodianError) return actionError(safeDbMessage(custodianError));
+
+  // A database-only fund keeps its own expense tag list (one per line).
+  if (databaseOnly) {
+    const tags = [...new Set(expense_tags.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
+    const { error: tagError } = await workflow.rpc("set_fund_expense_tags", { p_fund: fundId as string, p_tags: tags });
+    if (tagError) return actionError(safeDbMessage(tagError));
+  }
+
+  // Changing a fund's limits can send waiting requests back to their approver (the database does that itself);
+  // email the approvers about them. Nothing is sent when no request moved.
+  if (id) queueNotification("budget.needs_approver", () => emailResyncedRequests());
 
   const fundName = payload.name;
   const added = wanted.filter((userId) => !previous.includes(userId));

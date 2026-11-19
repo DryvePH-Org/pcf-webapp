@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { sendDailyDigest } from "@/lib/notifications/digest";
+import { emailResyncedRequests } from "@/lib/notifications/requests";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { WorkflowDatabase } from "@/lib/workflow";
 
@@ -37,6 +38,13 @@ async function handle(request: Request) {
   }
 
   if (process.env.NOTIFICATIONS_ENABLED !== "true") return NextResponse.json({ ok: true, skipped: "notifications_disabled" });
+
+  // A safety net: approvers of requests the database sent back to them who were not emailed straight away.
+  try {
+    await emailResyncedRequests();
+  } catch (error) {
+    console.error("approver emails failed", error);
+  }
 
   try {
     const { recipients, stats } = await sendDailyDigest();

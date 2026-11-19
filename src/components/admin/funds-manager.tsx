@@ -50,7 +50,14 @@ export function FundsManager({
     {
       key: "name",
       header: "Fund",
-      cell: (fund) => <span className="font-medium">{fund.name}</span>,
+      cell: (fund) => (
+        <span className="font-medium">
+          {fund.name}
+          {fund.sheet_ledger ? null : (
+            <span className="ml-2 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">Database only</span>
+          )}
+        </span>
+      ),
     },
     {
       key: "amount",

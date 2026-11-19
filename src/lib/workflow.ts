@@ -40,6 +40,8 @@ type WorkflowFunctions = {
       record_cancelled_advance_return: { Args: { p_voucher: string; p_returned_on: string }; Returns: undefined };
       approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       approver_prepares_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
+      set_fund_expense_tags: { Args: { p_fund: string; p_tags: string[] }; Returns: undefined };
+      approve_liquidation_without_sheet: { Args: { p_id: string }; Returns: undefined };
       apply_grokbot_book_snapshot: { Args: { p_book: string; p_rows: Json; p_tab: Json; p_token: string }; Returns: undefined };
       queue_grokbot_replenishment: { Args: { p_id: string; p_operation: string; p_hash: string; p_book?: string }; Returns: string };
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined };
@@ -106,7 +108,7 @@ type RequestRow = Database["public"]["Tables"]["budget_requests"]["Row"] & {
   approver_at: string | null;
   approver_note: string | null;
 };
-type FundRow = Database["public"]["Tables"]["funds"]["Row"] & { custodian_self_approval: boolean };
+type FundRow = Database["public"]["Tables"]["funds"]["Row"] & { custodian_self_approval: boolean; sheet_ledger: boolean };
 
 export type WorkflowDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables" | "Functions"> & {
@@ -118,6 +120,8 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       liquidation_receipt_lines: Table<ReceiptRecord>;
       advance_cancellations: Table<{ id: string; voucher_id: string; fund_id: string; amount: number; cancelled_at: string; returned_on: string | null }>;
       fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
+      fund_expense_tags: Table<{ fund_id: string; tag: string; position: number }>;
+      request_approval_emails: Table<{ request_id: string; created_at: string; emailed_at: string | null }>;
       fund_export_templates: Table<{ fund_id: string; file_name: string; storage_path: string; uploaded_by: string | null; uploaded_at: string }>;
     };
     // PostgreSQL does not expose RPC argument nullability to generated clients.

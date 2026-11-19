@@ -1,17 +1,20 @@
 import { FundsManager } from "@/components/admin/funds-manager";
 import type { FundRow } from "@/components/admin/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 export default async function AdminFundsPage() {
   await requireUser("/admin/funds");
   const supabase = await createClient();
 
-  const [fundsResult, custodiansResult, linksResult] = await Promise.all([
-    supabase
+  const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
+  const [fundsResult, custodiansResult, linksResult, tagsResult] = await Promise.all([
+    workflow
       .from("funds")
       .select(
-        "id, name, amount, per_txn_limit, approval_threshold, low_balance_pct, is_active",
+        "id, name, amount, per_txn_limit, approval_threshold, low_balance_pct, is_active, sheet_ledger",
       )
       .order("created_at"),
     supabase
@@ -20,11 +23,13 @@ export default async function AdminFundsPage() {
       .eq("role", "custodian")
       .order("full_name"),
     supabase.from("fund_custodians").select("fund_id, custodian_id"),
+    workflow.from("fund_expense_tags").select("fund_id, tag, position").order("position"),
   ]);
 
   if (fundsResult.error) throw new Error(fundsResult.error.message);
   if (custodiansResult.error) throw new Error(custodiansResult.error.message);
   if (linksResult.error) throw new Error(linksResult.error.message);
+  if (tagsResult.error) throw new Error(tagsResult.error.message);
 
   const custodians = custodiansResult.data;
   const custodianNames = new Map(
@@ -46,6 +51,8 @@ export default async function AdminFundsPage() {
     per_txn_limit: String(fund.per_txn_limit),
     approval_threshold: String(fund.approval_threshold),
     low_balance_pct: fund.low_balance_pct,
+    sheet_ledger: fund.sheet_ledger,
+    expense_tags: (tagsResult.data ?? []).filter((row) => row.fund_id === fund.id).map((row) => row.tag),
     custodian_ids: custodianIdsByFund.get(fund.id) ?? [],
     custodian_names: (custodianIdsByFund.get(fund.id) ?? []).map(
       (id) => custodianNames.get(id) ?? "—",

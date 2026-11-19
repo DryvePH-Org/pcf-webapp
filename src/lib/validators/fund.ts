@@ -29,6 +29,10 @@ export const fundFormSchema = z
     custodian_ids: z
       .array(z.string().regex(uuidPattern, "Select a valid custodian"))
       .max(20, "A fund can have at most 20 custodians"),
+    // true: Grokbot writes the ledger to a Google Sheet. false: the ledger lives in the database only.
+    sheet_ledger: z.boolean(),
+    // One expense tag per line; used only by a database-only fund.
+    expense_tags: z.string().max(20000, "That list is too long"),
   })
   .superRefine((value, context) => {
     const limit = parseMoney(value.per_txn_limit);

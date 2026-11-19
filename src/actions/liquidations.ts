@@ -1,4 +1,5 @@
 "use server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
@@ -10,6 +11,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { saveLiquidationSchema, submitLiquidationSchema, liquidationReviewSchema, settlementSchema, type LiquidationFormValues } from "@/lib/validators/liquidation";
 import { queueNotification } from "@/lib/notifications/deliver";
 import { notifyLiquidation } from "@/lib/notifications/liquidations";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 function refresh() {
   for (const path of ["/liquidations", "/vouchers", "/requests", "/replenishments"]) revalidatePath(path, "layout");
@@ -51,6 +53,18 @@ export async function reviewLiquidation(input: z.input<typeof liquidationReviewS
   const { error } = await db.rpc("review_liquidation", { p_id: parsed.data.id, p_approve: parsed.data.approve, p_note: parsed.data.note });
   if (error) return { ok: false, error: safeDbMessage(error) };
   queueNotification("liquidation.reviewed", () => notifyLiquidation(parsed.data.id, "liquidation.reviewed", user.id));
+  refresh(); return { ok: true };
+}
+// Approving a liquidation of a database-only fund: the same review as for a sheet fund, with no sheet update.
+export async function approveLiquidationWithoutSheet(id: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || !["custodian", "approver", "admin"].includes(user.role)) return { ok: false, error: "Only custodians, the fund approver and administrators can approve a liquidation." };
+  if (!z.uuid().safeParse(id).success) return { ok: false, error: "Liquidation not found." };
+  if (!(await withinLimit(`liquidation:approve:${user.id}`, 20, 60))) return { ok: false, error: "Too many attempts. Wait a minute." };
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("approve_liquidation_without_sheet", { p_id: id });
+  if (error) return { ok: false, error: safeDbMessage(error) };
+  queueNotification("liquidation.reviewed", () => notifyLiquidation(id, "liquidation.reviewed", user.id));
   refresh(); return { ok: true };
 }
 export async function approveLiquidationReimbursement(id: string): Promise<ActionResult> {

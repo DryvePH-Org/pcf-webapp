@@ -206,6 +206,19 @@ You review expenses after the cash is out.
 
 You can't review a voucher you prepared yourself.
 
+## A fund that lives in the database only (no Google Sheet)
+
+When an administrator creates a fund, **Keep this fund's ledger in the database only** makes it a fund with
+no Google Sheet and no Grokbot. This is chosen when the fund is created and cannot be changed once it has vouchers.
+
+- Everything is recorded in the app. The Excel file for the fund is made from the app (see below).
+- The administrator types the fund's **expense tags**, one per line. The custodian picks one for each expense
+  while reviewing receipts. Change the list later by editing the fund.
+- After the custodian has saved the receipt review, they press **Approve liquidation**. Nothing is written to
+  a sheet, and nothing waits for Grokbot.
+- A replenishment of this fund has no sheet marker.
+- Funds that write to a Google Sheet work exactly as before.
+
 ## Excel ledger export (a backup that does not depend on Google Sheets)
 
 **Accounting → Excel ledger export** builds each fund's ledger as an Excel file from the

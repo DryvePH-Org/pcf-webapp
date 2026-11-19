@@ -21,6 +21,11 @@ export async function syncSheetRollover(
     // Which bot serves this replenishment: the workbook enabled for its custodian and fund.
     const replenishment = await db.from("replenishments").select("fund_id, requested_by").eq("id", replenishmentId).single();
     if (replenishment.error || !replenishment.data.requested_by) throw new Error("Could not read the replenishment.");
+    // A database-only fund has no sheet and no marker. Without this, the lookup below would fall back to the
+    // Buying sheet, and a replenishment of another fund would be marked there.
+    const ledger = await (db as unknown as SupabaseClient<WorkflowDatabase>).from("funds").select("sheet_ledger").eq("id", replenishment.data.fund_id).single();
+    if (ledger.error) throw new Error("Could not read the fund.");
+    if (!ledger.data.sheet_ledger) return;
     const workbook = await db.from("sheet_workbooks").select("id").eq("custodian_id", replenishment.data.requested_by)
       .eq("fund_id", replenishment.data.fund_id).eq("enabled", true).maybeSingle();
     const book = targetForBook(workbook.data?.id ?? "buying").book;

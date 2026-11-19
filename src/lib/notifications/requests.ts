@@ -10,6 +10,56 @@ import { reviewersFor } from "./routing";
 
 export type BudgetRequestEvent = "budget.submitted" | "budget.reviewed" | "budget.cancelled" | "budget.voucher_created";
 
+type RequestRecord = Awaited<ReturnType<typeof loadRequest>>;
+async function loadRequest(id: string) {
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const { data, error } = await admin.from("budget_requests").select("*").eq("id", id).single();
+  if (error) throw error;
+  return data;
+}
+
+// Tell the fund's approvers (or the administrators, where none is assigned) that a request waits for them.
+// inApp: false is used when the in-app notice already exists and only the email is missing.
+async function notifyApprovers(request: RequestRecord, skip: string[], options: { inApp?: boolean } = {}) {
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const ref = shortRef(request.request_no);
+  const fundApprovers = await admin.from("fund_approvers").select("approver_id").eq("fund_id", request.fund_id);
+  const ids = (fundApprovers.data ?? []).map((row) => row.approver_id);
+  await notify({
+    event: "budget.needs_approver", entityType: "budget_requests", entityId: request.id,
+    inApp: options.inApp,
+    recipients: await recipientsByRole(ids.length ? [] : ["admin"], { include: ids, exclude: skip }),
+    subject: `${ref}: budget request needs your approval`,
+    content: () => ({
+      tone: "action", heading: "Budget request needs your approval",
+      paragraphs: [request.purpose, `${formatPHP(request.amount)} reaches the fund's approval limit. The custodian approved it. An approver has to approve it before its voucher can be created.`],
+      rows: [{ label: "Requester", value: request.requester_name }, { label: "Fund", value: request.fund_name }, { label: "Budget", value: formatPHP(request.amount) }],
+      cta: { label: "Open budget request", path: `/requests/${request.id}` },
+    }),
+  });
+}
+
+// Requests the database sweep sent back to their approver (after a fund's limits changed): the in-app notice
+// was made by the sweep, so only the email is sent here. Safe to run any number of times.
+export async function emailResyncedRequests() {
+  const admin = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
+  const pending = await admin.from("request_approval_emails").select("request_id").is("emailed_at", null).limit(50);
+  if (pending.error) throw pending.error;
+  for (const row of pending.data ?? []) {
+    try {
+      const request = await loadRequest(row.request_id);
+      // It may have been decided since; only a request still waiting needs the email.
+      if (request.status === "awaiting_approver") {
+        await notifyApprovers(request, [request.requester_id, ...(request.reviewed_by ? [request.reviewed_by] : [])], { inApp: false });
+      }
+    } catch (error) {
+      console.error("approver email failed", row.request_id, error);
+      continue;
+    }
+    await admin.from("request_approval_emails").update({ emailed_at: new Date().toISOString() }).eq("request_id", row.request_id);
+  }
+}
+
 export async function notifyBudgetRequest(id: string, event: BudgetRequestEvent, actorId: string) {
   const admin = createAdminClient();
   const { data: request, error } = await (admin as unknown as SupabaseClient<WorkflowDatabase>).from("budget_requests").select("*").eq("id", id).single();
@@ -26,20 +76,7 @@ export async function notifyBudgetRequest(id: string, event: BudgetRequestEvent,
 
   // A large request the custodian approved now waits for an independent approver.
   if (event === "budget.reviewed" && request.status === "awaiting_approver") {
-    const fundApprovers = await (admin as unknown as SupabaseClient<WorkflowDatabase>).from("fund_approvers").select("approver_id").eq("fund_id", request.fund_id);
-    const ids = (fundApprovers.data ?? []).map((row) => row.approver_id);
-    const skip = [actorId, request.requester_id, ...(request.reviewed_by ? [request.reviewed_by] : [])];
-    await notify({
-      event: "budget.needs_approver", entityType: "budget_requests", entityId: id,
-      recipients: await recipientsByRole(ids.length ? [] : ["admin"], { include: ids, exclude: skip }),
-      subject: `${ref}: budget request needs your approval`,
-      content: () => ({
-        tone: "action", heading: "Budget request needs your approval",
-        paragraphs: [request.purpose, `${formatPHP(request.amount)} reaches the fund's approval limit. The custodian approved it. An approver has to approve it before its voucher can be created.`],
-        rows: [{ label: "Requester", value: request.requester_name }, { label: "Fund", value: request.fund_name }, { label: "Budget", value: formatPHP(request.amount) }],
-        cta: { label: "Open budget request", path: `/requests/${id}` },
-      }),
-    });
+    await notifyApprovers(request, [actorId, request.requester_id, ...(request.reviewed_by ? [request.reviewed_by] : [])]);
   }
 
   const heading =

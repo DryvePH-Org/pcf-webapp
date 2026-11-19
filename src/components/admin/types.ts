@@ -9,6 +9,8 @@ export type FundRow = {
   low_balance_pct: number;
   custodian_ids: string[];
   custodian_names: string[];
+  sheet_ledger: boolean;
+  expense_tags: string[];
 };
 
 export type CustodianOption = {

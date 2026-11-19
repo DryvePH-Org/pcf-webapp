@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { saveFund } from "@/actions/funds";
@@ -27,6 +27,8 @@ const emptyValues: FundFormValues = {
   approval_threshold: "3000.00",
   low_balance_pct: 25,
   custodian_ids: [],
+  sheet_ledger: true,
+  expense_tags: "",
 };
 
 export function FundFormDialog({
@@ -52,6 +54,8 @@ export function FundFormDialog({
           approval_threshold: fund.approval_threshold,
           low_balance_pct: fund.low_balance_pct,
           custodian_ids: fund.custodian_ids,
+          sheet_ledger: fund.sheet_ledger,
+          expense_tags: fund.expense_tags.join("\n"),
         }
       : emptyValues,
   });
@@ -101,6 +105,7 @@ export function FundFormDialog({
   }
 
   const errors = form.formState.errors;
+  const keepsSheet = useWatch({ control: form.control, name: "sheet_ledger" });
 
   return (
     <>
@@ -206,6 +211,52 @@ export function FundFormDialog({
                 </p>
               ) : null}
             </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Where the ledger is kept</Label>
+              <Controller
+                control={form.control}
+                name="sheet_ledger"
+                render={({ field }) => (
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4"
+                      checked={!field.value}
+                      disabled={fund !== null}
+                      onChange={(event) => field.onChange(!event.target.checked)}
+                    />
+                    <span>
+                      Keep this fund&apos;s ledger in the database only
+                      <span className="block text-xs text-muted-foreground">
+                        {fund
+                          ? "Fixed when a fund is created. A database-only fund is never written to a Google Sheet; its Excel file is made from the app."
+                          : "No Google Sheet and no Grokbot for this fund. Every entry lives in the app, and the Excel file is made from it."}
+                      </span>
+                    </span>
+                  </label>
+                )}
+              />
+            </div>
+
+            {!keepsSheet ? (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="fund-tags">Expense tags (one per line)</Label>
+                <textarea
+                  id="fund-tags"
+                  rows={6}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                  placeholder={"MEALS\nFUEL\nTRANSPORTATION"}
+                  {...form.register("expense_tags")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  The custodian picks one of these for each expense when reviewing receipts.
+                </p>
+                {errors.expense_tags ? (
+                  <p className="text-xs text-destructive">{errors.expense_tags.message}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="space-y-2 sm:col-span-2">
               <Label>Custodians</Label>

@@ -16,6 +16,7 @@ import { parseMoney } from "@/lib/money";
 import type { CustodianReceipt } from "@/lib/validators/custodian-receipts";
 import { NaButton } from "@/components/shared/na-button";
 import { SheetApprovalControl } from "@/components/sheets/approval-control";
+import { DatabaseApprovalControl } from "@/components/liquidations/database-approval-control";
 import { MoneyText } from "@/components/shared/money-text";
 import { OptionSelect } from "@/components/shared/option-select";
 import {
@@ -43,6 +44,7 @@ export function CustodianReceiptReview({
   aiReady,
   reviewSaved,
   companies = [],
+  databaseOnly = false,
 }: {
   id: string;
   revision: number;
@@ -56,6 +58,8 @@ export function CustodianReceiptReview({
   reviewSaved: boolean;
   // Companies an expense can be charged to; empty when the sheet has no COMPANY column.
   companies?: readonly string[];
+  // The fund keeps its ledger in the app only: approval needs no sheet update.
+  databaseOnly?: boolean;
 }) {
   const router = useRouter();
   const [lines, setLines] = useState(initial);
@@ -444,7 +448,7 @@ export function CustodianReceiptReview({
         ) : null}
       </CardContent>
       <CardFooter className="flex-wrap justify-end gap-3">
-        {reviewSaved && !dirty ? <SheetApprovalControl id={id} /> : null}
+        {reviewSaved && !dirty ? (databaseOnly ? <DatabaseApprovalControl id={id} /> : <SheetApprovalControl id={id} />) : null}
         <Button type="button" disabled={busy} onClick={() => void save()}>
           {busy ? "Working…" : "Save receipt review"}
         </Button>

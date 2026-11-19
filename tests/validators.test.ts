@@ -32,6 +32,8 @@ const validFund = {
   approval_threshold: '3000.00',
   low_balance_pct: 25,
   custodian_ids: [] as string[],
+  sheet_ledger: true,
+  expense_tags: '',
 };
 
 describe('fundFormSchema', () => {
@@ -57,6 +59,16 @@ describe('fundFormSchema', () => {
     if (!result.success) {
       expect(result.error.issues[0]?.message).toMatch(/cannot exceed/i);
     }
+  });
+
+  it('accepts a database-only fund with its tag list, and needs both fields', () => {
+    expect(
+      fundFormSchema.safeParse({ ...validFund, sheet_ledger: false, expense_tags: 'MEALS\nFUEL' }).success,
+    ).toBe(true);
+    const { sheet_ledger: _sheet, ...withoutSetting } = validFund;
+    void _sheet;
+    expect(fundFormSchema.safeParse(withoutSetting).success).toBe(false);
+    expect(fundFormSchema.safeParse({ ...validFund, expense_tags: 'x'.repeat(20001) }).success).toBe(false);
   });
 
   it('rejects zero, negative, and over-precise money', () => {
