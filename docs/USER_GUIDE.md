@@ -57,6 +57,12 @@ above** the approval limit takes one more step:
    lets custodians approve their own.
 3. Only then can the custodian create the voucher and **Release cash**. The voucher
    needs no second approval, because the approver already cleared the budget.
+   A request an approver has approved can be made into a voucher for up to the approved
+   amount, even above the per-transaction limit. The limit only stops a custodian
+   from going over it without an approver.
+
+The custodian prepares the voucher for anyone's request. An approver prepares it only
+for a custodian's own request in the funds they are assigned to.
 
 Requests that were approved before this rule keep the old path: the approver
 approves the voucher itself before release.

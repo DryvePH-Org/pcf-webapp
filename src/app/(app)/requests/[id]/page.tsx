@@ -45,7 +45,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     : { data: [], error: null };
   if (assignmentError) throw new Error(assignmentError.message);
   // A custodian's own request goes to the fund's assigned approver, not to another custodian.
-  const [selfResult, gatedResult, approverResult, routesResult] = await Promise.all([
+  const [selfResult, gatedResult, approverResult, routesResult, preparesResult] = await Promise.all([
     request.requester_id === user.id && user.role === "custodian"
       ? wf.rpc("self_approval_allowed", { p_fund: request.fund_id, p_user: user.id })
       : { data: false, error: null },
@@ -53,9 +53,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     // The fund's assigned approver can review a custodian's own request whether or not the fund also allows self-approval.
     user.role === "approver" ? wf.rpc("approver_reviews_owner", { p_fund: request.fund_id, p_owner: request.requester_id }) : { data: false, error: null },
     wf.rpc("list_fund_review_routes"),
+    // An approver prepares the voucher only for a custodian's own request; anyone else's goes to a custodian.
+    user.role === "approver" ? wf.rpc("approver_prepares_owner", { p_fund: request.fund_id, p_owner: request.requester_id }) : { data: false, error: null },
   ]);
   if (gatedResult.error) throw new Error(gatedResult.error.message);
   if (approverResult.error) throw new Error(approverResult.error.message);
+  if (preparesResult.error) throw new Error(preparesResult.error.message);
   const gated = Boolean(gatedResult.data);
   // A request that reaches the fund's approval limit waits for an independent approver after the custodian.
   const isFundApprover = user.role === "approver" ? Boolean((await wf.rpc("approver_acts_in", { p_fund: request.fund_id })).data) : false;
@@ -187,7 +190,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
       {voucher ? <VoucherLiquidationPanel voucherId={voucher.id} userId={user.id} /> : null}
 
-      <RequestActions id={id} canReview={canManage && request.status === "submitted"} canApproverReview={canApproverReview} canCreateVoucher={canManage && request.status === "approved"} canCancel={(request.requester_id === user.id || user.role === "admin") && ["submitted", "awaiting_approver", "approved"].includes(request.status)} />
+      <RequestActions id={id} canReview={canManage && request.status === "submitted"} canApproverReview={canApproverReview} canCreateVoucher={canManage && request.status === "approved" && (user.role !== "approver" || Boolean(preparesResult.data))} canCancel={(request.requester_id === user.id || user.role === "admin") && ["submitted", "awaiting_approver", "approved"].includes(request.status)} />
     </div>
   );
 }

@@ -26,9 +26,9 @@ export default async function NewVoucherPage({ searchParams }: { searchParams: P
     const wf = supabase as unknown as SupabaseClient<WorkflowDatabase>;
     const gated = await wf.rpc("request_needs_fund_approver", { p_fund: data.fund_id, p_requester: data.requester_id });
     if (gated.error) throw new Error(gated.error.message);
-    // The fund's assigned approver can prepare a custodian's own request whether or not the fund also allows self-approval.
+    // The fund's assigned approver prepares only a custodian's own request (whether or not the fund also allows self-approval); any other request goes to a custodian.
     const gateway = user.role === "approver"
-      ? await wf.rpc("approver_reviews_owner", { p_fund: data.fund_id, p_owner: data.requester_id })
+      ? await wf.rpc("approver_prepares_owner", { p_fund: data.fund_id, p_owner: data.requester_id })
       : { data: false, error: null };
     if (gateway.error) throw new Error(gateway.error.message);
     // A custodian's own request is prepared by the fund's assigned approver; anyone else's by a custodian.
