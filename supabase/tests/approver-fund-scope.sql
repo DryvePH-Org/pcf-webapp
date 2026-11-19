@@ -83,12 +83,9 @@ begin
  perform record_liquidation_settlement(liq,1000,null);
  assert exists(select 1 from cash_settlements where liquidation_id=liq),'the assigned approver recorded the settlement';
 
- -- A voucher at the limit (an older-style request): only the assigned approver approves it.
- perform set_config('request.jwt.claim.sub',r2::text,true);
- req:=create_budget_request(f1,'Requester Two',4000,'Old style');
- update budget_requests set status='approved',reviewed_by=c,reviewer_name='Custodian',reviewed_at=now() where id=req;
+ -- A voucher at the limit made without a request: only the assigned approver approves it.
  perform set_config('request.jwt.claim.sub',c::text,true);
- v:=save_workflow_voucher(null,f1,req,'Requester Two',current_date,'[{"particulars":"Old","amount":4000}]','none',null);
+ v:=save_workflow_voucher(null,f1,null,'Requester Two',current_date,'[{"particulars":"Direct","amount":4000}]','none',null);
  perform submit_voucher(v);
  perform set_config('request.jwt.claim.sub',b::text,true);
  refused:=false; begin perform approve_voucher(v); exception when others then refused:=true; end;

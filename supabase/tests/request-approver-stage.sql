@@ -69,15 +69,16 @@ begin
  perform approve_request_as_approver(req,false,'Too much');
  assert (select status from budget_requests where id=req)='rejected','the approver rejected it';
 
- -- A request approved before this change still gets its approver at the voucher.
+ -- A request approved before this change, without its approver, goes back to the approver and cannot be turned into a voucher meanwhile.
  perform set_config('request.jwt.claim.sub',r2::text,true);
  req:=create_budget_request(fund,'Second Requester',4000,'Old style');
+ alter table budget_requests disable trigger budget_requests_approver_guard;
  update budget_requests set status='approved',reviewed_by=c,reviewer_name='Custodian',reviewed_at=now() where id=req;
+ alter table budget_requests enable trigger budget_requests_approver_guard;
  perform set_config('request.jwt.claim.sub',c::text,true);
- v:=save_workflow_voucher(null,fund,req,'Second Requester',current_date,'[{"particulars":"Old","amount":4000}]','none',null);
- assert voucher_needs_pre_approval(v),'an old request keeps the voucher-level approval';
- refused:=false; begin perform release_voucher(v); exception when others then refused:=true; end;
- assert refused,'it cannot be released without the approver';
+ refused:=false; begin perform save_workflow_voucher(null,fund,req,'Second Requester',current_date,'[{"particulars":"Old","amount":4000}]','none',null); exception when others then refused:=true; end;
+ assert refused,'an old request without its approver cannot become a voucher';
+ assert resync_request_approvals()=1 and (select status from budget_requests where id=req)='awaiting_approver','it goes back to the approver';
 
  -- An administrator or approver reviewing first is already the approver step.
  perform set_config('request.jwt.claim.sub',r2::text,true);

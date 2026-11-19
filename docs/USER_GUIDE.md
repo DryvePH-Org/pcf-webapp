@@ -61,6 +61,11 @@ above** the approval limit takes one more step:
    amount, even above the per-transaction limit. The limit only stops a custodian
    from going over it without an approver.
 
+A request that needs an approver can never be approved without one: the database refuses
+it, whoever tries. Anything above the per-transaction limit needs an approver too. If an
+administrator lowers a fund's limits, any waiting request that now needs an approver goes
+back to **Awaiting approver** by itself, and the approver is notified in the app.
+
 The custodian prepares the voucher for anyone's request. An approver prepares it only
 for a custodian's own request in the funds they are assigned to.
 

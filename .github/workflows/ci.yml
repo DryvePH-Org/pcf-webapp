@@ -70,6 +70,7 @@ jobs:
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/request-approver-stage.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/reimbursement-approver-rule.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/approver-fund-scope.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/request-approval-guard.sql
 
   deploy:
     needs: [check, deletion-database]
