@@ -195,6 +195,21 @@ You review expenses after the cash is out.
 
 You can't review a voucher you prepared yourself.
 
+## Excel ledger export (a backup that does not depend on Google Sheets)
+
+**Accounting → Excel ledger export** builds each fund's ledger as an Excel file from the
+app's own records. The Google Sheet is not read, so the file is correct even when the sheet is not.
+
+1. An administrator uploads each fund's own Excel ledger once (in Google Sheets: **File → Download →
+   Microsoft Excel**). Every fund keeps its own layout, formulas, summary blocks and older tabs;
+   only the current period's rows are filled in. Replace the file whenever the sheet's layout changes.
+2. **Check first** shows how many rows were filled and whether the file closes at the balance the app
+   expects. **Download Excel** saves the file.
+3. The PCF number printed is the paper voucher number, the same as the sheet shows.
+4. Amounts typed into the sheet by hand (input VAT, an additional fund) are not in the app. They stay as
+   the template has them, and the check lists them.
+5. A **PCF APP EXPORT** tab at the end of the file records when it was made and whether it matched.
+
 ## Accounting
 
 Use **Fund assignments** to assign one or more active custodians to each fund.

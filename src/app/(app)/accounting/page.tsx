@@ -1,6 +1,6 @@
 import { SpendingCharts } from "@/components/accounting/spending-charts";
 import Link from "next/link";
-import { Files, Settings2, ArrowDown } from "lucide-react";
+import { Files, FileSpreadsheet, Settings2, ArrowDown } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -117,6 +117,14 @@ export default async function AccountingPage({
             >
               <Settings2 />
               Workbook assignments
+            </Button>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/accounting/export" />}
+            >
+              <FileSpreadsheet />
+              Excel ledger export
             </Button>
             <PrintButton />
           </>
