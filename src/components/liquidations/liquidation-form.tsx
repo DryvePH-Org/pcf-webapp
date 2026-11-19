@@ -2,7 +2,7 @@
 
 import { formatDate } from "@/lib/dates";
 import { ReceiptAttachment } from "./receipt-attachment";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
@@ -50,6 +50,8 @@ export function LiquidationForm({
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const errorBox = useRef<HTMLDivElement>(null);
   const disabled = pending || uploading !== null;
   const spent = form.items.reduce(
     (sum, item) => sum + (parseMoney(item.amount) ?? 0),
@@ -64,24 +66,38 @@ export function LiquidationForm({
       ),
     }));
   }
+  // The buttons are at the bottom of a long form and the message used to appear at the top, out of sight, so
+  // the buttons looked dead. Say it in a toast, put it beside the field, and bring it into view.
+  function showError(message: string, field?: PropertyKey) {
+    setError(message);
+    setErrorField(typeof field === "string" ? field : null);
+    toast.error(message);
+    requestAnimationFrame(() => {
+      const input = field === "department" ? document.getElementById("liquidation-department") : null;
+      if (input) {
+        input.scrollIntoView({ behavior: "smooth", block: "center" });
+        input.focus({ preventScroll: true });
+      } else errorBox.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
   async function save(submit: boolean) {
     const parsed = (
       submit ? submitLiquidationSchema : saveLiquidationSchema
     ).safeParse(form);
     if (!parsed.success) {
-      setError(parsed.error.issues[0].message);
+      showError(parsed.error.issues[0].message, parsed.error.issues[0].path[0]);
       return;
     }
     if (isBusy()) return;
     setPending(true);
     setError("");
+    setErrorField(null);
     try {
       const result = await saveLiquidation(parsed.data, submit);
       if (!result.ok) {
         // Close the confirmation so the reason is not hidden behind it.
         setConfirm(false);
-        setError(result.error);
-        toast.error(result.error);
+        showError(result.error);
         return;
       }
       toast.success(
@@ -99,10 +115,11 @@ export function LiquidationForm({
   function reviewSubmission() {
     const parsed = submitLiquidationSchema.safeParse(form);
     if (!parsed.success) {
-      setError(parsed.error.issues[0].message);
+      showError(parsed.error.issues[0].message, parsed.error.issues[0].path[0]);
       return;
     }
     setError("");
+    setErrorField(null);
     setConfirm(true);
   }
   return (
@@ -127,9 +144,11 @@ export function LiquidationForm({
             Enter the actual amounts and attach any receipts you have.
           </p>
           {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div ref={errorBox}>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
           ) : null}
           <fieldset disabled={disabled} className="min-w-0 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -153,10 +172,14 @@ export function LiquidationForm({
                   maxLength={100}
                   value={form.department}
                   required
+                  aria-invalid={errorField === "department"}
                   onChange={(event) =>
                     setForm({ ...form, department: event.target.value })
                   }
                 />
+                {errorField === "department" ? (
+                  <p className="text-sm text-destructive">{error}</p>
+                ) : null}
               </div>
             </div>
             {form.items.map((item, index) => (

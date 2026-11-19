@@ -58,3 +58,26 @@ it("accepts iPhone receipt files larger than 5 MB and enforces the 20 MB limit",
   const oversized = new File([new Uint8Array(LIQUIDATION_ATTACHMENT_LIMIT + 1)], "Receipt.pdf", { type: "application/pdf" });
   expect(() => liquidationAttachmentType(oversized)).toThrow(/20 MB/);
 });
+
+describe("a draft with no department, as a requester sees it", () => {
+  const draft = {
+    id: "00000000-0000-4000-8000-000000000001",
+    department: "",
+    filing_date: "2026-11-19",
+    items: [{ id: "00000000-0000-4000-8000-000000000002", particulars: "Viewing", amount: "2074.00", receipt_path: "", no_receipt_reason: "" }],
+    unspent_reason: "",
+  };
+  it("is refused on both Save and Submit, naming the department field so the form can point at it", () => {
+    for (const schema of [saveLiquidationSchema, submitLiquidationSchema]) {
+      const parsed = schema.safeParse(draft);
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues[0].path[0]).toBe("department");
+        expect(parsed.error.issues[0].message).toBe("Department is required.");
+      }
+    }
+  });
+  it("goes through once a department is entered", () => {
+    expect(submitLiquidationSchema.safeParse({ ...draft, department: "Buying" }).success).toBe(true);
+  });
+});
