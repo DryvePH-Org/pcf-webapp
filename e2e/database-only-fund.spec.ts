@@ -119,4 +119,23 @@ test.describe("a database-only fund (desktop)", () => {
     expect((await adminClient().from("grokbot_operations").select("id").eq("liquidation_id", liquidationId)).data).toHaveLength(0);
     await context.close();
   });
+
+  test("the Accounting page shows it at once, from the app", async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+    await context.addCookies(await cookiesFor("admin", baseURL!));
+    const page = await context.newPage();
+
+    // the fund is its own place to look at, and its expense is there with no sheet refresh
+    await page.goto(`/accounting?book=${encodeURIComponent(`fund:${fundId}`)}`);
+    await expect(page.getByText("Showing the app's own records")).toBeVisible();
+    await expect(page.locator(`a[href="/liquidations/${liquidationId}"]`).first()).toBeVisible();
+    await expect(page.getByText("Supplies").first()).toBeVisible();
+    await expect(page.getByText("₱900.00").first()).toBeVisible();
+
+    // the Google Sheet copy is one click away, and has nothing for this fund
+    await page.getByRole("link", { name: "Compare with the Google Sheet copy" }).click();
+    await expect(page.getByText("Showing the Google Sheet copy")).toBeVisible();
+    await expect(page.locator(`a[href="/liquidations/${liquidationId}"]`)).toHaveCount(0);
+    await context.close();
+  });
 });

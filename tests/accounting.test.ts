@@ -99,3 +99,17 @@ it("validates uncertainty and never infers NON VAT from a missing TIN", () => {
   value.tax_status_evidence = "NON-VAT";
   expect(validateReceiptExtraction(value, []).suggestion.tin).toBe("NON VAT");
 });
+
+it("reads the app's own records unless the Google Sheet copy is asked for, and accepts a database-only fund", () => {
+  const fund = "fund:00000000-0000-4000-8000-000000000001";
+  const defaults = normalizeAccountingFilters({}, null, "2026-11-19");
+  expect(defaults.filters.source).toBe("database");
+  expect(normalizeAccountingFilters({ source: "sheet" }, null, "2026-11-19").filters.source).toBe("sheet");
+  // anything else falls back to the app's records
+  expect(normalizeAccountingFilters({ source: "other" }, null, "2026-11-19").filters.source).toBe("database");
+  expect(normalizeAccountingFilters({ book: fund }, null, "2026-11-19").error).toBeNull();
+  expect(normalizeAccountingFilters({ book: "fund:not-an-id" }, null, "2026-11-19").error).toBe("Choose an available workbook.");
+  // the default is not repeated in links; the sheet copy is
+  expect(accountingUrl(defaults.filters)).not.toContain("source=");
+  expect(accountingUrl(defaults.filters, { source: "sheet" })).toContain("source=sheet");
+});

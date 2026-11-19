@@ -1,6 +1,8 @@
 import "server-only";
 import type { Json } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { safeDbMessage } from "@/lib/db-error";
 import {
   normalizeAccountingFilters,
@@ -8,41 +10,20 @@ import {
   type AccountingFilters,
   type AccountingReport,
 } from "@/lib/accounting";
-import { todayInAppTz } from "@/lib/dates";
 export async function loadAccountingFilters(params: AccountingParams) {
   const preliminary = normalizeAccountingFilters(params, null);
   if (preliminary.error || preliminary.filters.period !== "latest")
     return preliminary;
-  const db = await createClient();
-  let query = db
-    .from("sheet_expenses")
-    .select("expense_date")
-    .lte("expense_date", todayInAppTz())
-    .order("expense_date", { ascending: false, nullsFirst: false })
-    .limit(1);
-  if (preliminary.filters.book)
-    query = query.eq("book_id", preliminary.filters.book);
-  if (preliminary.filters.tab)
-    query = query.eq("sheet_id", Number(preliminary.filters.tab));
-  if (preliminary.filters.custodian) {
-    let books = db.from("sheet_workbooks").select("id");
-    books =
-      preliminary.filters.custodian === "unassigned"
-        ? books.is("custodian_id", null)
-        : books.eq("custodian_id", preliminary.filters.custodian);
-    const assigned = await books;
-    if (assigned.error) throw new Error(safeDbMessage(assigned.error));
-    query = query.in(
-      "book_id",
-      assigned.data.map((book) => book.id),
-    );
-  }
-  const latest = await query;
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const filters = preliminary.filters;
+  const latest = await db.rpc("accounting_latest_date", {
+    p_source: filters.source,
+    p_book: filters.book || null,
+    p_tab: filters.tab ? Number(filters.tab) : null,
+    p_custodian: filters.custodian || null,
+  });
   if (latest.error) throw new Error(safeDbMessage(latest.error));
-  return normalizeAccountingFilters(
-    params,
-    latest.data[0]?.expense_date ?? null,
-  );
+  return normalizeAccountingFilters(params, latest.data ?? null);
 }
 export async function loadAccountingReport(
   filters: AccountingFilters,

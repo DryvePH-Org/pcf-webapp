@@ -53,7 +53,9 @@ export async function GET(request: Request) {
         row.plate,
         row.company,
         row.amount,
-        `https://docs.google.com/spreadsheets/d/${row.spreadsheet_id}/edit#gid=${row.sheet_id}&range=A${row.source_row}`,
+        row.liquidation_id
+          ? `/liquidations/${row.liquidation_id}`
+          : `https://docs.google.com/spreadsheets/d/${row.spreadsheet_id}/edit#gid=${row.sheet_id}&range=A${row.source_row}`,
       ]),
     );
     return new Response("\uFEFF" + csv, {

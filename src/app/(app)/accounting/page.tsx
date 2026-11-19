@@ -9,6 +9,8 @@ import {
 } from "@/lib/accounting-data";
 import { accountingUrl } from "@/lib/accounting";
 import type { Workbook, SheetTab } from "@/lib/sheets/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
@@ -39,15 +41,22 @@ export default async function AccountingPage({
   await requireUser("/accounting");
   const params = await searchParams;
   const db = await createClient();
-  const [normalized, workbooks, profiles] = await Promise.all([
+  const [normalized, workbooks, profiles, databaseFunds] = await Promise.all([
     loadAccountingFilters(params),
     db.from("sheet_workbooks").select("*").order("name"),
     db.from("profiles").select("id,full_name,role").order("full_name"),
+    // funds that keep their ledger in the app only have no workbook; they are listed as "fund:<id>"
+    (db as unknown as SupabaseClient<WorkflowDatabase>).from("funds").select("id,name").eq("sheet_ledger", false).order("name"),
   ]);
-  if (workbooks.error || profiles.error)
+  if (workbooks.error || profiles.error || databaseFunds.error)
     throw new Error("Could not load the Accounting dashboard.");
   const { filters, error } = normalized;
   const books = workbooks.data as Workbook[];
+  // every place records can belong to: the sheet workbooks, and the database-only funds
+  const bookOptions = [
+    ...books.map((book) => ({ id: book.id, name: book.name, catalog: book.catalog as unknown as SheetTab[] })),
+    ...(databaseFunds.data ?? []).map((fund) => ({ id: `fund:${fund.id}`, name: fund.name, catalog: [] as SheetTab[] })),
+  ];
   const people = new Map(
     profiles.data.map((person) => [person.id, person.full_name]),
   );
@@ -99,9 +108,14 @@ export default async function AccountingPage({
       : filters.period === "all"
         ? "All history"
         : `${filters.from ? formatDate(filters.from) : "Beginning"} – ${filters.to ? formatDate(filters.to) : "Latest"}`;
-  const selectedBook = books.find((book) => book.id === filters.book);
-  const source = (row: (typeof report.rows)[number]) =>
-    `https://docs.google.com/spreadsheets/d/${row.spreadsheet_id}/edit#gid=${row.sheet_id}&range=A${row.source_row}`;
+  const selectedBook = bookOptions.find((book) => book.id === filters.book);
+  // A record from the app opens its liquidation; one from the sheet copy opens its row in the sheet.
+  const rowLink = (row: (typeof report.rows)[number]) =>
+    row.liquidation_id
+      ? `/liquidations/${row.liquidation_id}`
+      : `https://docs.google.com/spreadsheets/d/${row.spreadsheet_id}/edit#gid=${row.sheet_id}&range=A${row.source_row}`;
+  const rowLabel = (row: (typeof report.rows)[number]) =>
+    row.liquidation_id ? `${row.sheet_name} · entry ${row.source_row}` : `${row.sheet_name} · row ${row.source_row}`;
   const lastPage = Math.max(1, Math.ceil(report.totals.expense_count / 50));
   return (
     <div className="space-y-6">
@@ -130,14 +144,28 @@ export default async function AccountingPage({
           </>
         }
       />
+      <Alert>
+        <AlertTitle>
+          {filters.source === "sheet" ? "Showing the Google Sheet copy" : "Showing the app's own records"}
+        </AlertTitle>
+        <AlertDescription>
+          {filters.source === "sheet" ? (
+            <>
+              These figures come from the copy of the sheet that the last refresh brought in, so they can be behind or include rows typed by hand.{" "}
+              <Link className="underline" href={accountingUrl(filters, { source: "database", tab: "", page: 1 })}>Show the app&apos;s records</Link>
+            </>
+          ) : (
+            <>
+              Every approved liquidation, as soon as it is approved. Nothing waits for a Google Sheet refresh, and funds with no sheet are included. Each entry opens its liquidation.{" "}
+              <Link className="underline" href={accountingUrl(filters, { source: "sheet", page: 1 })}>Compare with the Google Sheet copy</Link>
+            </>
+          )}
+        </AlertDescription>
+      </Alert>
       <AccountingFilterForm
         key={JSON.stringify(filters)}
         filters={filters}
-        books={books.map((book) => ({
-          id: book.id,
-          name: book.name,
-          catalog: book.catalog as unknown as SheetTab[],
-        }))}
+        books={bookOptions}
         custodians={profiles.data
           .filter(
             (person) =>
@@ -242,7 +270,7 @@ export default async function AccountingPage({
           </AlertDescription>
         </Alert>
       ) : null}
-      <SpendingCharts report={report} books={books} filters={filters} />
+      <SpendingCharts report={report} books={bookOptions} filters={filters} />
       <nav
         aria-label="Accounting sections"
         className="flex flex-wrap gap-2 print:hidden"
@@ -306,12 +334,12 @@ export default async function AccountingPage({
                     className="font-medium underline underline-offset-4"
                     target="_blank"
                     rel="noreferrer"
-                    href={source(row)}
+                    href={rowLink(row)}
                   >
                     {row.workbook_name}
                   </a>
                   <p className="max-w-40 whitespace-normal text-xs text-muted-foreground">
-                    {row.sheet_name} · row {row.source_row}
+                    {rowLabel(row)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {row.custodian_name ?? "Unassigned"}
@@ -427,9 +455,9 @@ export default async function AccountingPage({
                   className="block break-words text-sm underline underline-offset-4"
                   target="_blank"
                   rel="noreferrer"
-                  href={source(row)}
+                  href={rowLink(row)}
                 >
-                  {row.workbook_name} · {row.sheet_name} · row {row.source_row}
+                  {row.workbook_name} · {rowLabel(row)}
                 </a>
                 <p className="text-xs text-muted-foreground">
                   Custodian {row.custodian_name ?? "Unassigned"}

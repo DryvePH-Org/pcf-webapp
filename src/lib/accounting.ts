@@ -3,6 +3,8 @@ import { todayInAppTz } from "@/lib/dates";
 import type { SheetExpense } from "@/lib/sheets/types";
 export type AccountingParams = Record<string, string | undefined>;
 export type AccountingFilters = {
+  // Where the records come from: the app's own (default), or the copy of the Google Sheet.
+  source: "database" | "sheet";
   book: string;
   custodian: string;
   period: string;
@@ -29,7 +31,10 @@ export type AccountingRow = SheetExpense & {
   workbook_name: string;
   custodian_id: string | null;
   custodian_name: string | null;
-  spreadsheet_id: string;
+  // null for a record that comes from the app, which has no spreadsheet
+  spreadsheet_id: string | null;
+  // the liquidation behind a record that comes from the app
+  liquidation_id: string | null;
   copy_rank: number;
 };
 export type AccountingReport = {
@@ -78,6 +83,7 @@ export function normalizeAccountingFilters(
           ? "month"
           : "all");
   const filters: AccountingFilters = {
+    source: params.source === "sheet" ? "sheet" : "database",
     book: params.book ?? "",
     custodian: params.custodian ?? "",
     period,
@@ -106,7 +112,8 @@ export function normalizeAccountingFilters(
       .slice(0, field === "q" ? 150 : 300);
   if (
     filters.book &&
-    !["operations", "buying", "selling", "lmr", "dryve"].includes(filters.book)
+    !["operations", "buying", "selling", "lmr", "dryve"].includes(filters.book) &&
+    !/^fund:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.book)
   )
     error = "Choose an available workbook.";
   if (
@@ -162,6 +169,7 @@ export function accountingUrl(
     if (key === "from" || key === "to") {
       if ((changes.period ?? filters.period) !== "custom") continue;
     }
+    if (key === "source" && value === "database") continue; // the default
     if (value !== "" && value !== false && !(key === "page" && value === 1))
       params.set(key, value === true ? "1" : String(value));
   }

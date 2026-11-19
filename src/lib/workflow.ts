@@ -40,6 +40,7 @@ type WorkflowFunctions = {
       record_cancelled_advance_return: { Args: { p_voucher: string; p_returned_on: string }; Returns: undefined };
       approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       approver_prepares_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
+      accounting_latest_date: { Args: { p_source: string; p_book: string | null; p_tab: number | null; p_custodian: string | null }; Returns: string | null };
       set_fund_expense_tags: { Args: { p_fund: string; p_tags: string[] }; Returns: undefined };
       approve_liquidation_without_sheet: { Args: { p_id: string }; Returns: undefined };
       apply_grokbot_book_snapshot: { Args: { p_book: string; p_rows: Json; p_tab: Json; p_token: string }; Returns: undefined };

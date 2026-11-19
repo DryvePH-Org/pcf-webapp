@@ -27,7 +27,8 @@ export function AccountingFilterForm({
     [from, setFrom] = useState(filters.from),
     [to, setTo] = useState(filters.to),
     [book, setBook] = useState(filters.book),
-    [tab, setTab] = useState(filters.tab);
+    [tab, setTab] = useState(filters.tab),
+    [source, setSource] = useState(filters.source);
   const selected = books.find((item) => item.id === book);
   const advancedCount = [
     filters.custodian,
@@ -59,6 +60,22 @@ export function AccountingFilterForm({
                 maxLength={150}
                 defaultValue={filters.q}
                 placeholder="Search voucher, receipt, supplier or particulars…"
+              />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="accounting-source">Records from</Label>
+              <OptionSelect
+                id="accounting-source"
+                name="source"
+                value={source}
+                onValueChange={(value) => {
+                  setSource(value === "sheet" ? "sheet" : "database");
+                  setTab("");
+                }}
+                options={[
+                  { value: "database", label: "The app (recommended)" },
+                  { value: "sheet", label: "Google Sheet copy" },
+                ]}
               />
             </div>
             <div className="min-w-0 space-y-2">
@@ -165,6 +182,7 @@ export function AccountingFilterForm({
                 />
               </div>
 
+              {source === "sheet" ? (
               <div className="min-w-0 space-y-2">
                 <Label htmlFor="accounting-tab">Worksheet</Label>
                 <OptionSelect
@@ -187,6 +205,7 @@ export function AccountingFilterForm({
                   ]}
                 />
               </div>
+              ) : null}
               <div className="min-w-0 space-y-2">
                 <Label htmlFor="accounting-category">Expense tag</Label>
                 <OptionSelect

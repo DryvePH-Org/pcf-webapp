@@ -236,6 +236,16 @@ app's own records. The Google Sheet is not read, so the file is correct even whe
    the template has them, and the check lists them.
 5. A **PCF APP EXPORT** tab at the end of the file records when it was made and whether it matched.
 
+## Accounting: where the figures come from
+
+The Accounting page shows **the app's own records** by default: every approved liquidation, the moment it is
+approved. Nothing waits for a Google Sheet refresh, and a fund that keeps its ledger in the database only appears
+too. Each entry opens its liquidation.
+
+Use **Records from → Google Sheet copy** to see what the last sheet refresh brought in instead. Comparing the two
+shows what was typed into a sheet by hand, or what a sheet is behind on. The Worksheet filter exists only for the
+sheet copy.
+
 ## Accounting
 
 Use **Fund assignments** to assign one or more active custodians to each fund.
