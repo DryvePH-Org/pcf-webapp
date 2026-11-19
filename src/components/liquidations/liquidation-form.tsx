@@ -166,12 +166,11 @@ export function LiquidationForm({
                 </p>
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="liquidation-department">Department</Label>
+                <Label htmlFor="liquidation-department">Department <span className="font-normal text-muted-foreground">(needed to submit)</span></Label>
                 <Input
                   id="liquidation-department"
                   maxLength={100}
                   value={form.department}
-                  required
                   aria-invalid={errorField === "department"}
                   onChange={(event) =>
                     setForm({ ...form, department: event.target.value })

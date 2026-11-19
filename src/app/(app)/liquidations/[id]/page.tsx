@@ -171,7 +171,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
         </div>
       ) : null}
     </section>
-    {editAccess.data ? <LiquidationForm employeeName={l.employee_name} key={`${l.id}:${l.updated_at}`} received={Number(l.amount_received).toFixed(2)} initial={{ id: l.id, department: l.department, filing_date: l.filing_date, unspent_reason: l.unspent_reason ?? "", items: rows.map(item => ({ id: item.id, sheet_details: {plate:(item.sheet_details as Record<string,string>|null)?.plate??''}, particulars: item.particulars, amount: l.department ? Number(item.amount).toFixed(2) : "", category_id: item.category_id, receipt_path: item.receipt_path ?? "", no_receipt_reason: item.no_receipt_reason ?? "" })) }} /> : null}
+    {editAccess.data ? <LiquidationForm employeeName={l.employee_name} key={`${l.id}:${l.updated_at}`} received={Number(l.amount_received).toFixed(2)} initial={{ id: l.id, department: l.department, filing_date: l.filing_date, unspent_reason: l.unspent_reason ?? "", items: rows.map(item => ({ id: item.id, sheet_details: {plate:(item.sheet_details as Record<string,string>|null)?.plate??''}, particulars: item.particulars, amount: (l.department || flow.receipt_review_revision > 0) ? Number(item.amount).toFixed(2) : "", category_id: item.category_id, receipt_path: item.receipt_path ?? "", no_receipt_reason: item.no_receipt_reason ?? "" })) }} /> : null}
     {sheetJob && encoding ? (
       <EncodingReport
         title="Google Sheets"
