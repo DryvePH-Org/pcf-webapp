@@ -43,7 +43,9 @@ begin
  perform set_config('request.jwt.claim.sub',c::text,true);
  perform review_budget_request(req,true,null);
  assert (select status from budget_requests where id=req)='approved','a small request is approved by the custodian alone';
- assert resync_request_approvals(fund)=0 and (select status from budget_requests where id=req)='approved','the sweep leaves it alone';
+ moved:=resync_request_approvals(fund);
+ assert moved=0,'the sweep moved nothing: '||moved;
+ assert (select status from budget_requests where id=req)='approved','the small request is left alone';
 
  -- 2. A large request found approved without its approver (the old flow) goes back to the approver.
  perform set_config('request.jwt.claim.sub',r3::text,true);

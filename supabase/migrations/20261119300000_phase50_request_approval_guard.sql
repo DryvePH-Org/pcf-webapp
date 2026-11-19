@@ -93,6 +93,12 @@ begin
   fixed := replace(def, 'v_self := r.requester_id = auth.uid();',
     E'if public.request_needs_approver(r.fund_id, r.amount) and r.approver_id is null then\n    raise exception ''This budget request needs an approver''''s approval before its voucher can be created. Ask the fund''''s approver to approve it first.'';\n  end if;\n  v_self := r.requester_id = auth.uid();');
   if fixed = def then raise exception 'Voucher request check was not found'; end if;
+  -- The request the limit check was told about is forgotten as soon as the lines are saved, so it can never
+  -- clear a later voucher made in the same transaction.
+  def := fixed;
+  fixed := replace(def, 'select amount into v_total from public.vouchers where id = v_id;',
+    E'perform set_config(''pcf.voucher_request'', '''', true);\n  select amount into v_total from public.vouchers where id = v_id;');
+  if fixed = def then raise exception 'Voucher total lookup was not found'; end if;
   execute fixed;
 end $$;
 

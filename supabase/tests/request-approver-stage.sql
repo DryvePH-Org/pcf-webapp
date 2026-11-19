@@ -17,7 +17,7 @@ insert into profiles(id,full_name,role) values
 do $$
 declare c constant uuid:='99000000-0000-4000-8000-000000000001'; a constant uuid:='99000000-0000-4000-8000-000000000002';
  r constant uuid:='99000000-0000-4000-8000-000000000004'; adm constant uuid:='99000000-0000-4000-8000-000000000005'; r2 constant uuid:='99000000-0000-4000-8000-000000000006';
- fund uuid:=gen_random_uuid(); req uuid; v uuid; refused boolean; msg text; liq uuid;
+ fund uuid:=gen_random_uuid(); req uuid; v uuid; refused boolean; msg text; liq uuid; moved int;
 begin
  insert into funds(id,name,amount,per_txn_limit,approval_threshold) values(fund,'Stage fund',100000,50000,3000);
  insert into fund_custodians(fund_id,custodian_id) values(fund,c);
@@ -78,7 +78,9 @@ begin
  perform set_config('request.jwt.claim.sub',c::text,true);
  refused:=false; begin perform save_workflow_voucher(null,fund,req,'Second Requester',current_date,'[{"particulars":"Old","amount":4000}]','none',null); exception when others then refused:=true; end;
  assert refused,'an old request without its approver cannot become a voucher';
- assert resync_request_approvals()=1 and (select status from budget_requests where id=req)='awaiting_approver','it goes back to the approver';
+ moved:=resync_request_approvals();
+ assert moved=1,'the sweep moved it: '||moved;
+ assert (select status from budget_requests where id=req)='awaiting_approver','it goes back to the approver';
 
  -- An administrator or approver reviewing first is already the approver step.
  perform set_config('request.jwt.claim.sub',r2::text,true);
