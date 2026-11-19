@@ -39,7 +39,9 @@ describe("liquidation validation", () => {
   });
   it("validates dates and departments", () => {
     expect(saveLiquidationSchema.safeParse({ ...form, filing_date: "2026-02-30" }).success).toBe(false);
-    expect(saveLiquidationSchema.safeParse({ ...form, department: " " }).success).toBe(false);
+    // a blank department can be saved as a draft but not submitted
+    expect(saveLiquidationSchema.safeParse({ ...form, department: " " }).success).toBe(true);
+    expect(submitLiquidationSchema.safeParse({ ...form, department: " " }).success).toBe(false);
   });
   it("requires a reason to flag and a positive settlement amount", () => {
     expect(liquidationReviewSchema.safeParse({ id, approve: false, note: " " }).success).toBe(false);
@@ -67,14 +69,13 @@ describe("a draft with no department, as a requester sees it", () => {
     items: [{ id: "00000000-0000-4000-8000-000000000002", particulars: "Viewing", amount: "2074.00", receipt_path: "", no_receipt_reason: "" }],
     unspent_reason: "",
   };
-  it("is refused on both Save and Submit, naming the department field so the form can point at it", () => {
-    for (const schema of [saveLiquidationSchema, submitLiquidationSchema]) {
-      const parsed = schema.safeParse(draft);
-      expect(parsed.success).toBe(false);
-      if (!parsed.success) {
-        expect(parsed.error.issues[0].path[0]).toBe("department");
-        expect(parsed.error.issues[0].message).toBe("Department is required.");
-      }
+  it("can be saved as a draft, but is refused on Submit, naming the department field so the form can point at it", () => {
+    expect(saveLiquidationSchema.safeParse(draft).success).toBe(true);
+    const parsed = submitLiquidationSchema.safeParse(draft);
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0].path[0]).toBe("department");
+      expect(parsed.error.issues[0].message).toBe("Department is required.");
     }
   });
   it("goes through once a department is entered", () => {

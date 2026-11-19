@@ -31,11 +31,8 @@ export const liquidationLineSchema = z.object({
 export const saveLiquidationSchema = z
   .object({
     id: z.uuid(),
-    department: text({
-      min: 1,
-      max: 100,
-      requiredMessage: "Department is required.",
-    }),
+    // Optional while it is a draft; it is required to submit (see submitLiquidationSchema).
+    department: text({ max: 100 }),
     filing_date: z.iso.date("Choose a valid filing date."),
     items: z.array(liquidationLineSchema).max(20),
     unspent_reason: text({ max: 300 }).default(""),
@@ -48,13 +45,15 @@ export const saveLiquidationSchema = z
       ) <= 999999999999,
     { message: "The total is too large.", path: ["items"] },
   );
-export const submitLiquidationSchema = saveLiquidationSchema.refine(
-  (value) => value.items.length > 0 || Boolean(value.unspent_reason),
-  {
+export const submitLiquidationSchema = saveLiquidationSchema
+  .refine((value) => Boolean(value.department), {
+    message: "Department is required.",
+    path: ["department"],
+  })
+  .refine((value) => value.items.length > 0 || Boolean(value.unspent_reason), {
     message: "Explain why the advance was not spent.",
     path: ["unspent_reason"],
-  },
-);
+  });
 export const liquidationReviewSchema = z
   .object({
     id: z.uuid(),
