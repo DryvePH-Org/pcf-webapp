@@ -34,7 +34,7 @@ export default async function LedgerExportPage() {
       />
       <Alert>
         <AlertDescription>
-          The numbers come from the app&apos;s database, not from the Google Sheet. Each file keeps the fund&apos;s own layout, formulas and older tabs. Amounts typed by hand into the sheet (such as input VAT or an additional fund) are not in the app and stay as the template has them. “Check first” shows whether the file closes at the balance the app expects.
+          The numbers come from the app&apos;s database, not from the Google Sheet. Each file keeps the fund&apos;s own layout and formulas, and holds only the current period (the first ledger tab of the template you upload); older periods are not included. Amounts typed by hand into the sheet (such as input VAT or an additional fund) are not in the app and stay as the template has them. “Check first” shows whether the file closes at the balance the app expects.
         </AlertDescription>
       </Alert>
       {funds.data.length === 0 ? (

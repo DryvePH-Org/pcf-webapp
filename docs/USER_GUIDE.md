@@ -212,8 +212,10 @@ You can't review a voucher you prepared yourself.
 app's own records. The Google Sheet is not read, so the file is correct even when the sheet is not.
 
 1. An administrator uploads each fund's own Excel ledger once (in Google Sheets: **File → Download →
-   Microsoft Excel**). Every fund keeps its own layout, formulas, summary blocks and older tabs;
-   only the current period's rows are filled in. Replace the file whenever the sheet's layout changes.
+   Microsoft Excel**). Every fund keeps its own layout, formulas and summary blocks. The export uses
+   the first ledger tab (the current period) and leaves out the older tabs, so the file you download
+   is one period only. A balance forwarded that used to follow an older tab keeps the value it had.
+   Download the sheet again and use **Replace template** when a new period starts or the layout changes.
 2. **Check first** shows how many rows were filled and whether the file closes at the balance the app
    expects. **Download Excel** saves the file.
 3. The PCF number printed is the paper voucher number, the same as the sheet shows.

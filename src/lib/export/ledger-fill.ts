@@ -294,6 +294,42 @@ export function fillLedger(workbook: ExcelJS.Workbook, entries: LedgerEntry[]): 
   };
 }
 
+// The export is one period: the tab being filled. Older periods are history from before the app and are
+// left out, so the few links from this tab into them are settled first: a formula that read another tab
+// keeps the number it showed, and a dropdown list that lived on another tab points at this tab's own list.
+export function keepCurrentTabOnly(workbook: ExcelJS.Workbook, warnings: string[]) {
+  const current = currentLedger(workbook);
+  if (!current) return;
+  const { ws } = current;
+  const others = workbook.worksheets.filter((sheet) => sheet.id !== ws.id);
+  if (!others.length) return;
+  const reference = /(?:'((?:[^']|'')+)'|([A-Za-z0-9_.]+))!/g;
+  const leavesThisTab = (text: string) =>
+    [...text.matchAll(reference)].some((match) => (match[1] ?? match[2]).replace(/''/g, "'") !== ws.name);
+
+  const settled: string[] = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      const value = cell.value;
+      if (isFormulaValue(value) && "formula" in value && value.formula && leavesThisTab(value.formula)) {
+        cell.value = typeof value.result === "number" || typeof value.result === "string" ? value.result : null;
+        settled.push(cell.address);
+      }
+    });
+  });
+  if (settled.length) warnings.push(`${settled.join(", ")} used to read an older tab and now hold the value they had (${settled.length === 1 ? "it" : "they"} no longer follow${settled.length === 1 ? "s" : ""} it).`);
+
+  const own = `'${ws.name.replace(/'/g, "''")}'!`;
+  const model = (ws as unknown as { dataValidations: { model: Record<string, ExcelJS.DataValidation> } }).dataValidations.model;
+  for (const validation of Object.values(model)) {
+    validation.formulae = validation.formulae?.map((text) =>
+      typeof text === "string" && leavesThisTab(text) ? text.replace(reference, own) : text,
+    );
+  }
+  for (const sheet of others) workbook.removeWorksheet(sheet.id);
+  warnings.push(`Only the current period (${ws.name}) is in this file; older periods are not included.`);
+}
+
 // A small tab at the end of the file records where the numbers came from.
 export function addExportNote(workbook: ExcelJS.Workbook, input: { fund: string; generatedAt: string; report: FillReport; appClosing: number | null }) {
   const name = "PCF APP EXPORT";

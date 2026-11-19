@@ -4,7 +4,7 @@ import ExcelJS from "exceljs";
 import { todayInAppTz } from "@/lib/dates";
 
 import { loadFundLedger } from "./ledger-data";
-import { addExportNote, fillLedger, type FillReport } from "./ledger-fill";
+import { addExportNote, fillLedger, keepCurrentTabOnly, type FillReport } from "./ledger-fill";
 import { loadTemplateFile, templateFor } from "./templates";
 
 export type LedgerExport = {
@@ -27,6 +27,7 @@ export async function buildLedgerExport(fundId: string): Promise<LedgerExport> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(file as unknown as ArrayBuffer);
   const report = fillLedger(workbook, ledger.entries);
+  keepCurrentTabOnly(workbook, report.warnings);
   const matches = report.closingBalance !== null && cents(report.closingBalance) === cents(ledger.expectedClosing);
   if (report.openingBalance !== null && !matches)
     report.warnings.push(

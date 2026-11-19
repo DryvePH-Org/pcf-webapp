@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 
-import { addExportNote, currentLedger, fillLedger, findLedger, tidyValidations, type LedgerEntry } from "@/lib/export/ledger-fill";
+import { addExportNote, currentLedger, fillLedger, findLedger, keepCurrentTabOnly, tidyValidations, type LedgerEntry } from "@/lib/export/ledger-fill";
 
 const entry = (n: number, over: Partial<LedgerEntry> = {}): LedgerEntry => ({
   date: `2026-11-${String(10 + n).padStart(2, "0")}`, tag: "MEALS", voucher: `00${n}`, particulars: `Line ${n}`, plate: "", person: "A Person",
@@ -147,5 +147,38 @@ describe("the saved file", () => {
     expect(note.getCell("A1").value).toMatch(/PCF app database/);
     expect(note.getCell("B10").value).toBe("YES");
     expect(wb.worksheets[0].name).toBe("Notes");
+  });
+});
+
+describe("one period only", () => {
+  it("drops the older tabs and settles the links that pointed at them", () => {
+    const wb = opening();
+    const older = wb.addWorksheet("Older period");
+    older.getCell("A1").value = "history";
+    const ws = wb.getWorksheet("OTHER")!;
+    ws.getCell("D9").dataValidation = { type: "list", formulae: ["'Older period'!$N$10:$N$20"] };
+    ws.getCell("D10").dataValidation = { type: "list", formulae: ["OTHER!$N$10:$N$20"] };
+    const report = fillLedger(wb, [entry(1)]);
+    keepCurrentTabOnly(wb, report.warnings);
+    expect(wb.worksheets.map((sheet) => sheet.name)).toEqual(["OTHER"]);
+    // the balance forwarded and the replenishment used to follow the older tab; they keep what they showed
+    expect(ws.getCell("L5").value).toBe(500);
+    expect(ws.getCell("J6").value).toBe(300);
+    // formulas inside the tab are untouched
+    expect(ws.getCell("L6").value).toMatchObject({ formula: "L5+J6-K6" });
+    const model = (ws as unknown as { dataValidations: { model: Record<string, { formulae: string[] }> } }).dataValidations.model;
+    expect(Object.values(model).every((rule) => !/Older period/.test(rule.formulae.join()))).toBe(true);
+    expect(report.warnings.join(" ")).toMatch(/Only the current period/);
+    expect(report.warnings.join(" ")).toMatch(/L5, J6|J6, L5/);
+  });
+
+  it("changes nothing when the file already has just one tab", () => {
+    const wb = stacked();
+    wb.removeWorksheet(wb.getWorksheet("Notes")!.id);
+    const report = fillLedger(wb, [entry(1)]);
+    const before = report.warnings.length;
+    keepCurrentTabOnly(wb, report.warnings);
+    expect(report.warnings.length).toBe(before);
+    expect(wb.worksheets).toHaveLength(1);
   });
 });
