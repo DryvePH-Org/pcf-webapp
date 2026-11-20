@@ -21,7 +21,7 @@ Add these lines to `/opt/pcf/.env.runtime` on the server (over `ssh root@76.13.2
 ```
 TELEGRAM_BOT_TOKEN=<the token from BotFather>
 TELEGRAM_WEBHOOK_SECRET=<a long random secret: run  openssl rand -hex 24  and use the result>
-TELEGRAM_BOT_USERNAME=dryve_pcf_bot
+TELEGRAM_BOT_USERNAME=budgetReqBot   # optional: the app asks Telegram for the real name
 ELEVENLABS_API_KEY=<your ElevenLabs key>
 ```
 

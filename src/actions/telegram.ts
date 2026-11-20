@@ -8,7 +8,7 @@ import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { safeDbMessage } from "@/lib/db-error";
 import { createClient } from "@/lib/supabase/server";
-import { botName, setWebhook, telegramConfigured } from "@/lib/telegram/api";
+import { resolveBotUsername, setWebhook, telegramConfigured } from "@/lib/telegram/api";
 import type { WorkflowDatabase } from "@/lib/workflow";
 
 const person = z.object({ userId: z.uuid() });
@@ -20,7 +20,7 @@ export async function createTelegramLink(input: z.input<typeof person>): Promise
   const parsed = person.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Choose a person." };
   if (!telegramConfigured()) return { ok: false, error: "Connect the Telegram bot first (the settings are not on the server yet)." };
-  const username = process.env.TELEGRAM_BOT_USERNAME || (await botName());
+  const username = await resolveBotUsername();
   if (!username) return { ok: false, error: "The bot could not be reached. Check its token." };
   const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
   const { data, error } = await db.rpc("telegram_issue_link_code", { p_user: parsed.data.userId });

@@ -4,7 +4,7 @@ import { TelegramManager, type TelegramPerson, type TelegramStatus } from "@/com
 import { PageHeader } from "@/components/layout/page-header";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { botName, telegramConfigured, webhookInfo } from "@/lib/telegram/api";
+import { resolveBotUsername, telegramConfigured, webhookInfo } from "@/lib/telegram/api";
 import type { WorkflowDatabase } from "@/lib/workflow";
 
 export default async function AdminTelegramPage() {
@@ -30,7 +30,7 @@ export default async function AdminTelegramPage() {
   const configured = telegramConfigured();
   const status: TelegramStatus = { configured, bot: null, webhook: null, pending: 0, error: null, expected: null };
   if (configured) {
-    status.bot = process.env.TELEGRAM_BOT_USERNAME || (await botName());
+    status.bot = await resolveBotUsername();
     status.expected = `${(process.env.APP_URL ?? "").replace(/\/$/, "")}/api/telegram/webhook`;
     try {
       const info = await webhookInfo();

@@ -84,3 +84,13 @@ export async function botName(): Promise<string | null> {
     return null;
   }
 }
+
+// The bot's real @username comes from Telegram itself (the token decides it), so a setting copied from the example
+// ("YOUR_BOT_USERNAME") can never put a wrong name into the link. The setting is only the fallback if Telegram
+// cannot be reached, and a placeholder or a leading @ is never used as is.
+export async function resolveBotUsername(): Promise<string | null> {
+  const asked = await botName();
+  if (asked) return asked;
+  const configured = (process.env.TELEGRAM_BOT_USERNAME ?? "").trim().replace(/^@/, "");
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(configured) && !/^your[_-]?bot/i.test(configured) ? configured : null;
+}
