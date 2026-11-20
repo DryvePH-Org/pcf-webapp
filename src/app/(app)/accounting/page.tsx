@@ -151,12 +151,12 @@ export default async function AccountingPage({
           {filters.source === "sheet" ? (
             <>
               These figures come from the copy of the sheet that Grokbot brings back after each approved liquidation, so they can be behind or include rows typed by hand.{" "}
-              <Link className="underline" href={accountingUrl(filters, { source: "database", tab: "", page: 1 })}>Show the app&apos;s records</Link>
+              <Link className="tap-link underline" href={accountingUrl(filters, { source: "database", tab: "", page: 1 })}>Show the app&apos;s records</Link>
             </>
           ) : (
             <>
               Every approved liquidation, as soon as it is approved. Nothing waits for the Google Sheet, and funds with no sheet are included. Each entry opens its liquidation.{" "}
-              <Link className="underline" href={accountingUrl(filters, { source: "sheet", page: 1 })}>Compare with the Google Sheet copy</Link>
+              <Link className="tap-link underline" href={accountingUrl(filters, { source: "sheet", page: 1 })}>Compare with the Google Sheet copy</Link>
             </>
           )}
         </AlertDescription>
@@ -242,7 +242,7 @@ export default async function AccountingPage({
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {report.totals.missing_receipt_numbers ? (
                 <Link
-                  className="underline"
+                  className="tap-link underline"
                   href={accountingUrl(filters, { receipt: "missing", page: 1 })}
                 >
                   {report.totals.missing_receipt_numbers} entries without
@@ -254,7 +254,7 @@ export default async function AccountingPage({
               ) : null}
               {report.undated_scope ? (
                 <Link
-                  className="underline"
+                  className="tap-link underline"
                   href={accountingUrl(filters, {
                     period: "all",
                     date_status: "missing",
@@ -310,7 +310,7 @@ export default async function AccountingPage({
           <p className="text-sm text-muted-foreground">
             {report.hidden_copies} exact cross-worksheet copies hidden.{" "}
             <Link
-              className="underline"
+              className="tap-link underline"
               href={accountingUrl(filters, { repeats: true, page: 1 })}
             >
               Include source copies
@@ -523,7 +523,7 @@ export default async function AccountingPage({
             {pending.data.map((item) => (
               <div key={item.id} className="space-y-2 border-t pt-3">
                 <Link
-                  className="text-sm underline"
+                  className="tap-link text-sm underline"
                   href={`/replenishments/${item.replenishment_id}`}
                 >
                   {item.target_name ?? "Review replenishment"}

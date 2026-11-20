@@ -261,7 +261,7 @@ export default async function VouchersPage({
             href={hrefWith({ status: undefined, page: undefined })}
             aria-current={status ? undefined : "page"}
             className={cn(
-              "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+              "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:px-4",
               status
                 ? "border-border text-muted-foreground hover:bg-muted"
                 : "border-transparent bg-primary text-primary-foreground",
@@ -275,7 +275,7 @@ export default async function VouchersPage({
               href={hrefWith({ status: value, page: undefined })}
               aria-current={status === value ? "page" : undefined}
               className={cn(
-                "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+                "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:px-4",
                 status === value
                   ? "border-transparent bg-primary text-primary-foreground"
                   : "border-border text-muted-foreground hover:bg-muted",

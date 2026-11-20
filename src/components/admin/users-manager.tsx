@@ -160,7 +160,7 @@ export function UsersManager({
                 Activate
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => setRemoving(user)}>
+            <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setRemoving(user)}>
               Remove
             </Button>
           </div>
@@ -233,7 +233,7 @@ export function UsersManager({
                   </Button>
                 )}
                 {user.id === currentUserId ? null : (
-                  <Button variant="outline" size="sm" onClick={() => setRemoving(user)}>
+                  <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setRemoving(user)}>
                     Remove
                   </Button>
                 )}

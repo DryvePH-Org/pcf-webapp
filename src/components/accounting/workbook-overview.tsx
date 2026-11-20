@@ -53,7 +53,7 @@ export function WorkbookOverview({
       <span className="text-sm text-muted-foreground">Opens later</span>
     ) : (
     <a
-      className="text-sm underline underline-offset-4"
+      className="tap-link text-sm underline underline-offset-4"
       target="_blank"
       rel="noreferrer"
       href={`https://docs.google.com/spreadsheets/d/${row.book.spreadsheet_id}/edit${row.tab ? "#gid=" + row.tab.sheetId : ""}`}
@@ -72,7 +72,7 @@ export function WorkbookOverview({
           </p>
         </div>
         <Link
-          className="text-sm underline underline-offset-4 print:hidden"
+          className="tap-link text-sm underline underline-offset-4 print:hidden"
           href="/accounting/workbooks"
         >
           Manage assignments

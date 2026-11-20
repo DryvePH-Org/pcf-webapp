@@ -30,7 +30,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur lg:hidden print:hidden">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 font-semibold"
+            className="flex min-h-11 items-center gap-2 font-semibold"
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Wallet className="size-4" />

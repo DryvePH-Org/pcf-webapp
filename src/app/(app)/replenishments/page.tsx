@@ -175,7 +175,7 @@ export default async function ReplenishmentsPage({ searchParams }: { searchParam
 
       <ReplenishmentEligibilityPanel page={queue} />
       <p className="text-sm text-muted-foreground">{replenishmentsResult.count ?? 0} replenishments · Page {page}</p>
-      <div className="flex justify-between text-sm">{page > 1 ? <Link className="underline" href={`?page=${page - 1}`}>Previous requests</Link> : <span />}{page * 20 < (replenishmentsResult.count ?? 0) ? <Link className="underline" href={`?page=${page + 1}`}>More requests</Link> : null}</div>
+      <div className="flex justify-between text-sm">{page > 1 ? <Link className="tap-link underline" href={`?page=${page - 1}`}>Previous requests</Link> : <span />}{page * 20 < (replenishmentsResult.count ?? 0) ? <Link className="tap-link underline" href={`?page=${page + 1}`}>More requests</Link> : null}</div>
       <ResponsiveList
         rows={rows}
         columns={columns}

@@ -112,7 +112,7 @@ export function WorkbookAssignment({
           </div>
           <CardDescription>
             <a
-              className="underline underline-offset-4"
+              className="tap-link underline underline-offset-4"
               href={`https://docs.google.com/spreadsheets/d/${book.spreadsheet_id}/edit${sheet ? `#gid=${sheet}` : ""}`}
               target="_blank"
               rel="noreferrer"
@@ -217,7 +217,7 @@ export function WorkbookAssignment({
           {custodian && !eligibleFunds.length && (
             <p className="text-sm text-muted-foreground">
               This custodian has no active funds. Assign one under{" "}
-              <a className="underline" href="/funds">
+              <a className="tap-link underline" href="/funds">
                 Fund assignments
               </a>
               .

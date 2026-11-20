@@ -375,7 +375,7 @@ function FilterChip({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+        "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors pointer-coarse:min-h-11 pointer-coarse:px-4",
         active
           ? "border-transparent bg-primary text-primary-foreground"
           : "border-border text-muted-foreground hover:bg-muted",

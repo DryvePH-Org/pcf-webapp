@@ -477,7 +477,7 @@ export default async function ReplenishmentDetailPage({
 }
 
 function ReceiptThumb({ voucher }: { voucher: ReplenishmentVoucherRow }) {
-  if (voucher.liquidation_id) return <Link className="text-sm underline" href={`/liquidations/${voucher.liquidation_id}`}>Liquidation and receipts</Link>;
+  if (voucher.liquidation_id) return <Link className="tap-link text-sm underline" href={`/liquidations/${voucher.liquidation_id}`}>Liquidation and receipts</Link>;
   if (!voucher.receipt_url) {
     return (
       <span

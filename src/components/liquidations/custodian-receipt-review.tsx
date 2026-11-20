@@ -238,6 +238,11 @@ export function CustodianReceiptReview({
                   <Sparkles />
                   Extract and autofill
                 </Button>
+                {!line.receipt_path && aiReady && (
+                  <p className="self-center text-xs text-muted-foreground">
+                    Attach a receipt photo below and its details fill in by themselves.
+                  </p>
+                )}
                 {line.receipt_path &&
                   !canExtractLiquidationAttachment(line.receipt_path) && (
                     <p className="self-center text-xs text-muted-foreground">
