@@ -190,6 +190,46 @@ test.describe("asking for a budget by Telegram (desktop)", () => {
     expect((await adminClient().from("budget_requests").select("id").eq("requester_id", requesterId).eq("amount", 5000)).data).toHaveLength(0);
   });
 
+  test("with several funds the bot lists each with its custodian, and the request goes to the one tapped", async ({ request }) => {
+    const db = adminClient();
+    const custodianId = (await (await clientFor("custodian")).auth.getUser()).data.user!.id;
+    const second = await db.from("funds").insert({ name: "Telegram Second Fund", amount: 5000, per_txn_limit: 1000, approval_threshold: 3000 }).select("id").single();
+    expect(second.error).toBeNull();
+    const fundId = second.data!.id as string;
+    await db.from("fund_custodians").insert({ fund_id: fundId, custodian_id: custodianId });
+    try {
+      calls = [];
+      transcript = `Kailangan ko ng 700 para sa papel ${tag}z`;
+      await post(request, message({ voice: { file_id: "jkl", duration: 4, file_size: 9000 } }));
+      await until(() => heard("Anong fund?", "edit"), "the fund choices");
+      const ask = calls.find((call) => call.kind === "edit" && call.text?.includes("Anong fund?"))!;
+      // each fund is listed with the custodian to ask about it; the choices are buttons, and Submit is not there yet
+      expect(ask.text).toContain("Telegram Second Fund");
+      expect(ask.text).toContain("Main Petty Cash");
+      expect(ask.text).toMatch(/custodian: PCF Custodian/);
+      // the fund this person used last is first and marked
+      expect(ask.buttons.slice(0, 2)).toEqual(["⭐ Main Petty Cash", "Telegram Second Fund"]);
+      expect(ask.buttons).not.toContain("✅ Submit");
+
+      const draft = await openDraft();
+      const choose = ask.callbacks.find((data) => data.startsWith(`fund:${draft.id}:${fundId.slice(0, 8)}`))!;
+      expect(choose).toBeTruthy();
+      calls = [];
+      await post(request, press(choose, Number(draft.message_id)));
+      await until(() => calls.some((call) => call.buttons.includes("✅ Submit")), "Submit after the fund was tapped");
+      calls = [];
+      await post(request, press(`submit:${draft.id}`, Number(draft.message_id)));
+      await until(() => heard("Naipasa na ang request mo"), "the confirmation");
+      expect(calls.find((call) => call.text?.includes("Naipasa na"))!.text).toContain("Magre-review: PCF Custodian");
+      const made = await db.from("budget_requests").select("fund_id, amount").eq("requester_id", requesterId).eq("amount", 700).single();
+      expect(made.data?.fund_id).toBe(fundId);
+    } finally {
+      await cleanTestData();
+      for (const table of ["fund_counters", "fund_custodians", "fund_approvers", "fund_expense_tags"]) await db.from(table).delete().eq("fund_id", fundId);
+      await db.from("funds").delete().eq("id", fundId);
+    }
+  });
+
   test("the administrator makes a person's link on the Telegram page", async ({ browser, baseURL }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
     await context.addCookies(await cookiesFor("admin", baseURL!));

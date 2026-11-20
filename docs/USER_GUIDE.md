@@ -218,6 +218,11 @@ they tap it once.
 4. They tap **Submit**. It becomes a normal budget request, with the same limits and approvals as on the website.
 5. When the custodian approves or rejects it, the bot tells the requester.
 
+**Choosing the fund.** If only one fund can take requests, the bot uses it. With several, the bot lists each fund
+**with its custodian** (the person to ask about it) as buttons in the same message. The fund the person used last is
+first, marked ⭐. If they say a fund's name ("para sa DRYVE"), it is picked for them. Submit appears only after a
+fund is chosen, and the summary shows the fund and who will review it.
+
 Nothing is submitted without a tap on **Submit**. A request made this way says "sent by Telegram" on its page.
 
 ## A fund that lives in the database only (no Google Sheet)

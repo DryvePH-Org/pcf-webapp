@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { extractBudgetRequest, guessAmount } from "@/lib/voice/extract-request";
+import { extractBudgetRequest, fundNamed, guessAmount } from "@/lib/voice/extract-request";
 import { transcribeAudio, transcriptionConfigured } from "@/lib/voice/transcribe";
 
 describe("reading an amount from what was said or typed", () => {
@@ -18,12 +18,33 @@ describe("reading an amount from what was said or typed", () => {
   it.each([["dalawang libo"], ["salamat po"], [""], ["800 at 900"], ["0"]])("is not guessed from %j", (said) => expect(guessAmount(said)).toBe(""));
 });
 
+describe("the fund that was said by name", () => {
+  const funds = [
+    { id: "f-buying", name: "Buying PCF" },
+    { id: "f-dryve", name: "DRYVE PCF" },
+  ];
+  it.each([
+    ["Kailangan ko ng 800 para sa gasolina sa DRYVE", "f-dryve"],
+    ["pambili ng papel sa buying", "f-buying"],
+    ["dryve pcf po", "f-dryve"],
+    ["para sa Dryv", "f-dryve"],
+    // speech to text often writes the brand as the ordinary word
+    ["para sa drive", "f-dryve"],
+  ])("%s -> %s", (said, id) => expect(fundNamed(said, funds)).toBe(id));
+  it.each([["800 para sa gasolina"], ["buying at dryve"], ["pcf fund"], [""]])("is not decided from %j (the person is asked)", (said) => expect(fundNamed(said, funds)).toBeNull());
+});
+
 describe("extracting a request without a language model", () => {
   beforeEach(() => vi.stubEnv("GROQ_API_KEY", ""));
   afterEach(() => vi.unstubAllEnvs());
   it("takes the digits as the amount and the sentence as the purpose, and leaves the fund to the person", async () => {
     const result = await extractBudgetRequest("Kailangan ko ng 800 para sa gasolina", [{ id: "f", name: "Buying" }]);
     expect(result).toEqual({ amount: "800.00", purpose: "Kailangan ko ng 800 para sa gasolina", fund_id: "" });
+  });
+  it("takes the fund only when its name was clearly said", async () => {
+    const funds = [{ id: "f1", name: "Buying PCF" }, { id: "f2", name: "DRYVE PCF" }];
+    expect((await extractBudgetRequest("800 para sa gasolina sa DRYVE", funds)).fund_id).toBe("f2");
+    expect((await extractBudgetRequest("800 para sa gasolina", funds)).fund_id).toBe("");
   });
 });
 

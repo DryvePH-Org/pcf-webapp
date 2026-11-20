@@ -25,13 +25,17 @@ export type Draft = {
 };
 export type DraftPatch = Partial<{ fund_id: string | null; amount: number | null; purpose: string | null; status: Draft["status"]; message_id: number | null }>;
 export type Person = { id: string; name: string };
+// A fund a request can be made against, with the custodians who review it (the people to ask about it).
+export type Fund = FundChoice & { custodians: string[] };
 
 export type Deps = {
   store: {
     firstSeen(updateId: number): Promise<boolean>;
     profileOf(chatId: number): Promise<Person | null>;
     redeem(code: string, chatId: number, username: string | null): Promise<Person>;
-    funds(): Promise<FundChoice[]>;
+    funds(): Promise<Fund[]>;
+    // the fund this person last asked a budget from, to put first in the list
+    lastFund(profileId: string): Promise<string | null>;
     openDraft(chatId: number): Promise<Draft | null>;
     newDraft(input: { chatId: number; profileId: string; fundId: string | null; amount: number | null; purpose: string | null; transcript: string; messageId: number | null }): Promise<Draft>;
     updateDraft(id: string, patch: DraftPatch): Promise<Draft>;
@@ -107,45 +111,59 @@ export const words = {
   alreadyDone: "Naipasa na ang request na ito.",
 };
 
-const fundName = (funds: FundChoice[], id: string | null) => funds.find((fund) => fund.id === id)?.name ?? null;
+const fundOf = (funds: Fund[], id: string | null) => funds.find((fund) => fund.id === id) ?? null;
+const custodianLine = (fund: Fund) => (fund.custodians.length ? `custodian: ${fund.custodians.map(esc).join(", ")}` : "walang custodian");
 
-export function summary(draft: Draft, funds: FundChoice[]): string {
-  const fund = fundName(funds, draft.fund_id);
+export function summary(draft: Draft, funds: Fund[]): string {
+  const fund = fundOf(funds, draft.fund_id);
+  const needsFund = !fund && funds.length > 1;
   const lines = [
     "📝 <b>Budget request mo</b>",
     "",
     `💰 Halaga: ${draft.amount ? `<b>${formatPHP(draft.amount)}</b>` : "❓ <i>kulang pa</i>"}`,
     `📌 Para sa: ${draft.purpose ? esc(draft.purpose) : "❓ <i>kulang pa</i>"}`,
-    `🏦 Fund: ${fund ? esc(fund) : "❓ <i>piliin</i>"}`,
-    "",
-    draft.amount && draft.purpose && fund ? "Tama ba? Pindutin ang ✅ Submit." : "Kumpletuhin muna ang may ❓.",
+    `🏦 Fund: ${fund ? `<b>${esc(fund.name)}</b>` : "❓ <i>piliin sa baba</i>"}`,
+    ...(fund ? [`👤 ${custodianLine(fund)}`] : []),
   ];
+  if (needsFund) {
+    // the custodian is who the person asks about a fund, so every choice shows theirs
+    lines.push("", "🏦 <b>Anong fund?</b> Pindutin ang tamang fund:", ...funds.slice(0, 8).map((f) => `• <b>${esc(f.name)}</b> (${custodianLine(f)})`));
+  }
+  lines.push("", draft.amount && draft.purpose && fund ? "Tama ba? Pindutin ang ✅ Submit." : "Kumpletuhin muna ang may ❓.");
   return lines.join("\n");
 }
 
-export function summaryButtons(draft: Draft, funds: FundChoice[]): Markup {
+// The fund buttons, the one used last first and marked, so most people tap the top one.
+function fundRows(draft: Draft, funds: Fund[], last: string | null): Button[][] {
+  const ordered = [...funds].sort((a, b) => Number(b.id === last) - Number(a.id === last));
+  return ordered.slice(0, 8).map((fund) => [{ text: `${fund.id === last ? "⭐ " : ""}${fund.name.slice(0, 36)}`, callback_data: `fund:${draft.id}:${fund.id.slice(0, 8)}` }]);
+}
+
+export function summaryButtons(draft: Draft, funds: Fund[], last: string | null = null): Markup {
   const rows: Button[][] = [];
-  if (draft.amount && draft.purpose && draft.fund_id) rows.push([{ text: "✅ Submit", callback_data: `submit:${draft.id}` }]);
+  const chosen = fundOf(funds, draft.fund_id);
+  // With more than one fund and none chosen, the choices are right here: one tap, no hidden menu, and no Submit yet.
+  if (!chosen && funds.length > 1) rows.push(...fundRows(draft, funds, last));
+  if (draft.amount && draft.purpose && chosen) rows.push([{ text: "✅ Submit", callback_data: `submit:${draft.id}` }]);
   rows.push([{ text: "💰 Palitan ang halaga", callback_data: `amt:${draft.id}` }]);
   rows.push([{ text: "📌 Palitan ang dahilan", callback_data: `pur:${draft.id}` }]);
-  if (funds.length > 1) rows.push([{ text: "🏦 Palitan ang fund", callback_data: `fundmenu:${draft.id}` }]);
+  if (chosen && funds.length > 1) rows.push([{ text: "🏦 Palitan ang fund", callback_data: `fundmenu:${draft.id}` }]);
   rows.push([{ text: "❌ Kanselahin", callback_data: `cancel:${draft.id}` }]);
   return { inline_keyboard: rows };
 }
 
-function fundButtons(draft: Draft, funds: FundChoice[]): Markup {
+function fundMenu(draft: Draft, funds: Fund[], last: string | null): { text: string; markup: Markup } {
   return {
-    inline_keyboard: [
-      ...funds.slice(0, 8).map((fund) => [{ text: fund.name.slice(0, 40), callback_data: `fund:${draft.id}:${fund.id.slice(0, 8)}` }]),
-      [{ text: "⬅️ Bumalik", callback_data: `back:${draft.id}` }],
-    ],
+    text: ["🏦 <b>Anong fund?</b>", "", ...funds.slice(0, 8).map((f) => `• <b>${esc(f.name)}</b> (${custodianLine(f)})`)].join("\n"),
+    markup: { inline_keyboard: [...fundRows(draft, funds, last), [{ text: "⬅️ Bumalik", callback_data: `back:${draft.id}` }]] },
   };
 }
 
 // Show (or refresh) the summary in the message the person is already looking at.
-async function showSummary(deps: Deps, draft: Draft, funds: FundChoice[], replaceMessage = true) {
+async function showSummary(deps: Deps, draft: Draft, funds: Fund[], replaceMessage = true) {
+  const last = funds.length > 1 ? await deps.store.lastFund(draft.profile_id) : null;
   const body = summary(draft, funds);
-  const markup = summaryButtons(draft, funds);
+  const markup = summaryButtons(draft, funds, last);
   if (replaceMessage && draft.message_id) {
     try {
       await deps.tg.edit(draft.chat_id, draft.message_id, body, markup);
@@ -159,14 +177,15 @@ async function showSummary(deps: Deps, draft: Draft, funds: FundChoice[], replac
 }
 
 // The fund of a new draft: the only one, or the one the speaker named.
-function pickFund(funds: FundChoice[], named: string): string | null {
+function pickFund(funds: Fund[], named: string): string | null {
   if (funds.length === 1) return funds[0].id;
   return funds.some((fund) => fund.id === named) ? named : null;
 }
 
 async function startDraft(deps: Deps, person: Person, chatId: number, transcript: string, messageId: number | null) {
   const funds = await deps.store.funds();
-  const spoken = await deps.voice.extract(transcript, funds);
+  // the model is told the fund names only, never the custodians
+  const spoken = await deps.voice.extract(transcript, funds.map(({ id, name }) => ({ id, name })));
   const draft = await deps.store.newDraft({
     chatId,
     profileId: person.id,
@@ -230,7 +249,7 @@ async function handleText(deps: Deps, person: Person, chatId: number, said: stri
   await startDraft(deps, person, chatId, cleanText(said).slice(0, 2000), null);
 }
 
-async function submit(deps: Deps, person: Person, draft: Draft, funds: FundChoice[]) {
+async function submit(deps: Deps, person: Person, draft: Draft, funds: Fund[]) {
   if (!draft.amount) {
     await deps.store.updateDraft(draft.id, { status: "editing_amount" });
     return void (await deps.tg.send(draft.chat_id, words.needAmount));
@@ -240,7 +259,11 @@ async function submit(deps: Deps, person: Person, draft: Draft, funds: FundChoic
     return void (await deps.tg.send(draft.chat_id, words.needPurpose));
   }
   if (!draft.fund_id || !funds.some((fund) => fund.id === draft.fund_id)) {
-    if (draft.message_id) await deps.tg.edit(draft.chat_id, draft.message_id, "🏦 Anong fund?", fundButtons(draft, funds));
+    // no fund chosen yet: show the choices again, with their custodians
+    const last = await deps.store.lastFund(draft.profile_id);
+    const menu = fundMenu(draft, funds, last);
+    if (draft.message_id) await deps.tg.edit(draft.chat_id, draft.message_id, menu.text, menu.markup);
+    else await deps.tg.send(draft.chat_id, menu.text, menu.markup);
     return;
   }
   const checked = createBudgetRequestSchema.safeParse({ fund_id: draft.fund_id, requester_name: person.name, amount: draft.amount.toFixed(2), purpose: draft.purpose });
@@ -258,7 +281,8 @@ async function submit(deps: Deps, person: Person, draft: Draft, funds: FundChoic
       `Ref: ${made.ref}`,
       `💰 ${formatPHP(draft.amount)}`,
       `📌 ${esc(draft.purpose)}`,
-      `🏦 ${esc(fundName(funds, draft.fund_id) ?? "")}`,
+      `🏦 ${esc(fundOf(funds, draft.fund_id)?.name ?? "")}`,
+      `👤 Magre-review: ${esc(fundOf(funds, draft.fund_id)?.custodians.join(", ") || "ang custodian ng fund")}`,
       "",
       "Aabisuhan kita rito kapag may sagot na.",
     ].join("\n");
@@ -299,9 +323,11 @@ async function handleCallback(deps: Deps, person: Person, query: NonNullable<TgU
     case "pur":
       await deps.store.updateDraft(draft.id, { status: "editing_purpose" });
       return void (await deps.tg.send(chatId, words.needPurpose));
-    case "fundmenu":
-      if (draft.message_id) await deps.tg.edit(chatId, draft.message_id, "🏦 Anong fund?", fundButtons(draft, funds));
+    case "fundmenu": {
+      const menu = fundMenu(draft, funds, await deps.store.lastFund(draft.profile_id));
+      if (draft.message_id) await deps.tg.edit(chatId, draft.message_id, menu.text, menu.markup);
       return;
+    }
     case "fund": {
       const chosen = funds.find((fund) => fund.id.startsWith(extra ?? "\u0000"));
       if (!chosen) return;

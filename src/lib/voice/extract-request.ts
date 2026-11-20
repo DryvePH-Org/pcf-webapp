@@ -23,10 +23,35 @@ export function guessAmount(text: string): string {
   return only && isPositiveMoney(only) ? only : "";
 }
 
+const GENERIC = new Set(["pcf", "fund", "petty", "cash", "inc", "corp", "corporation", "company", "the", "and"]);
+const normalize = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+// the same word, or one letter off (speech to text spells names a little differently)
+function near(a: string, b: string) {
+  if (a === b) return true;
+  if (Math.max(a.length, b.length) < 5 || Math.min(a.length, b.length) < 4 || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1);
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return short.slice(i) === long.slice(i + 1);
+}
+
+// The one fund whose name was said ("para sa DRYVE"): every distinctive word of its name is heard, and no other fund
+// matches. Generic words (PCF, fund) do not count. Two matches, or none, give null so the person is asked.
+export function fundNamed(said: string, funds: FundChoice[]): string | null {
+  const heard = normalize(said).split(" ").filter(Boolean);
+  const hits = funds.filter((fund) => {
+    const words = normalize(fund.name).split(" ").filter((word) => word.length >= 3 && !GENERIC.has(word));
+    return words.length > 0 && words.every((word) => heard.some((h) => near(h, word)));
+  });
+  return hits.length === 1 ? hits[0].id : null;
+}
+
 // The amount, purpose and fund of a spoken request. A language model reads Filipino/Taglish well; without one the
 // amount is read from the digits and the whole sentence becomes the purpose, which the person reviews anyway.
 export async function extractBudgetRequest(transcript: string, funds: FundChoice[]): Promise<SpokenRequest> {
-  const fallback: SpokenRequest = { amount: guessAmount(transcript), purpose: cleanText(transcript).slice(0, 300), fund_id: "" };
+  // Without a language model (or when it fails) the fund is only taken from a name that was clearly said.
+  const fallback: SpokenRequest = { amount: guessAmount(transcript), purpose: cleanText(transcript).slice(0, 300), fund_id: fundNamed(transcript, funds) ?? "" };
   const key = process.env.GROQ_API_KEY;
   if (!key) return fallback;
   try {

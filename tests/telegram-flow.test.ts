@@ -4,8 +4,8 @@ vi.mock("server-only", () => ({}));
 
 import { handleUpdate, words, type Deps, type Draft, type Markup, type Person, type TgUpdate } from "@/lib/telegram/flow";
 
-const FUND_A = { id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Buying PCF" };
-const FUND_B = { id: "bbbbbbbb-0000-4000-8000-000000000002", name: "DRYVE PCF" };
+const FUND_A = { id: "aaaaaaaa-0000-4000-8000-000000000001", name: "Buying PCF", custodians: ["Ana Reyes"] };
+const FUND_B = { id: "bbbbbbbb-0000-4000-8000-000000000002", name: "DRYVE PCF", custodians: ["Ben Cruz", "Carla Dizon"] };
 const CHAT = 1001;
 const PERSON: Person = { id: "11111111-0000-4000-8000-000000000001", name: "Maria Santos" };
 
@@ -30,6 +30,7 @@ function world(options: { funds?: typeof FUND_A[]; spoken?: { amount: string; pu
     seq: 0,
     nextDraft: 1,
     transcribeFails: false,
+    lastFund: null as string | null,
   };
   const open = (chat: number) => state.drafts.find((d) => d.chat_id === chat && !d.done && ["draft", "editing_amount", "editing_purpose"].includes(d.status));
   const deps: Deps = {
@@ -44,6 +45,7 @@ function world(options: { funds?: typeof FUND_A[]; spoken?: { amount: string; pu
         return person;
       },
       funds: async () => funds,
+      lastFund: async () => state.lastFund,
       openDraft: async (chat) => open(chat) ?? null,
       newDraft: async (input) => {
         const old = open(input.chatId);
@@ -151,11 +153,36 @@ describe("a voice message becomes a summary to check", () => {
     expect(labels(summary.markup)).toEqual(["✅ Submit", "💰 Palitan ang halaga", "📌 Palitan ang dahilan", "❌ Kanselahin"]);
     expect(w.lastDraft().fund_id).toBe(FUND_A.id);
   });
-  it("asks which fund when there are several and none was named", async () => {
+  it("asks which fund when there are several and none was named: the choices, with their custodians, are in the message", async () => {
     const w = world({ funds: [FUND_A, FUND_B] });
     await w.voice();
-    expect(w.last().text).toContain("❓ <i>piliin</i>");
+    const summary = w.last();
+    expect(summary.text).toContain("❓ <i>piliin sa baba</i>");
+    expect(summary.text).toContain("Anong fund?");
+    // the custodian is who the person asks about a fund
+    expect(summary.text).toContain("<b>Buying PCF</b> (custodian: Ana Reyes)");
+    expect(summary.text).toContain("<b>DRYVE PCF</b> (custodian: Ben Cruz, Carla Dizon)");
+    // one tap: the fund buttons are right there, and Submit is not
+    expect(labels(summary.markup).slice(0, 2)).toEqual(["Buying PCF", "DRYVE PCF"]);
+    expect(labels(summary.markup)).not.toContain("✅ Submit");
+    expect(w.lastDraft().fund_id).toBeNull();
+  });
+  it("puts the fund used last first, marked, but still waits for a tap", async () => {
+    const w = world({ funds: [FUND_A, FUND_B] });
+    w.state.lastFund = FUND_B.id;
+    await w.voice();
+    expect(labels(w.last().markup).slice(0, 2)).toEqual(["⭐ DRYVE PCF", "Buying PCF"]);
+    expect(w.lastDraft().fund_id).toBeNull();
     expect(labels(w.last().markup)).not.toContain("✅ Submit");
+  });
+  it("shows the custodian of the chosen fund, and Submit appears only after the tap", async () => {
+    const w = world({ funds: [FUND_A, FUND_B] });
+    await w.voice();
+    await w.press(`fund:${w.lastDraft().id}:${FUND_B.id.slice(0, 8)}`);
+    expect(w.lastDraft().fund_id).toBe(FUND_B.id);
+    expect(w.last().text).toContain("<b>DRYVE PCF</b>");
+    expect(w.last().text).toContain("👤 custodian: Ben Cruz, Carla Dizon");
+    expect(labels(w.last().markup)).toContain("✅ Submit");
     expect(labels(w.last().markup)).toContain("🏦 Palitan ang fund");
   });
   it("uses the fund the speaker named", async () => {
@@ -214,14 +241,15 @@ describe("checking and correcting", () => {
     expect(w.lastDraft().purpose).toBe("Pambili ng printer ink");
     expect(w.last().text).toContain("Pambili ng printer ink");
   });
-  it("picks a fund from the menu", async () => {
-    const w = world({ funds: [FUND_A, FUND_B] });
+  it("changes the fund from the menu, which lists the custodians too", async () => {
+    const w = world({ funds: [FUND_A, FUND_B], spoken: { amount: "800.00", purpose: "Gas", fund_id: FUND_A.id } });
     await w.voice();
+    expect(w.lastDraft().fund_id).toBe(FUND_A.id);
     await w.press(`fundmenu:${w.lastDraft().id}`);
-    expect(labels(w.last().markup)).toEqual(expect.arrayContaining(["Buying PCF", "DRYVE PCF"]));
+    expect(w.last().text).toContain("(custodian: Ben Cruz, Carla Dizon)");
+    expect(labels(w.last().markup)).toEqual(expect.arrayContaining(["Buying PCF", "DRYVE PCF", "⬅️ Bumalik"]));
     await w.press(`fund:${w.lastDraft().id}:${FUND_B.id.slice(0, 8)}`);
     expect(w.lastDraft().fund_id).toBe(FUND_B.id);
-    expect(labels(w.last().markup)).toContain("✅ Submit");
   });
   it("does not let Submit through with a missing amount, and asks for it instead", async () => {
     const w = world({ spoken: { amount: "", purpose: "Gas", fund_id: "" } });
@@ -231,6 +259,13 @@ describe("checking and correcting", () => {
     expect(w.state.requests).toHaveLength(0);
     expect(w.lastDraft().status).toBe("editing_amount");
     expect(w.state.sent.at(-1)!.text).toBe(words.needAmount);
+  });
+  it("will not submit with no fund chosen when there are several: it shows the choices again", async () => {
+    const w = world({ funds: [FUND_A, FUND_B] });
+    await w.voice();
+    await w.press(`submit:${w.lastDraft().id}`);
+    expect(w.state.requests).toHaveLength(0);
+    expect(w.last().text).toContain("Anong fund?");
   });
   it("cancels", async () => {
     const w = world();
@@ -274,6 +309,7 @@ describe("submitting", () => {
     expect(w.state.requests).toEqual([{ person: PERSON.id, fund: FUND_A.id, amount: 800, purpose: "Gasolina ng service" }]);
     expect(w.last().text).toContain("Naipasa na ang request mo");
     expect(w.last().text).toContain("BR-ABCD1234");
+    expect(w.last().text).toContain("Magre-review: Ana Reyes");
     expect(w.state.notified).toEqual(["req1"]);
     expect(w.lastDraft().request_id).toBe("req1");
   });

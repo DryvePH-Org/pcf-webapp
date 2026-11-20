@@ -56,17 +56,24 @@ export const telegramStore: Deps["store"] = {
     return { id: data[0].profile_id, name: data[0].full_name };
   },
 
-  // The funds a person can ask a budget from: active funds that have an active custodian to review the request.
+  // The funds a person can ask a budget from: active funds that have an active custodian to review the request, each
+  // with the custodians' names (the people to ask about that fund).
   async funds() {
     const [funds, links, people] = await Promise.all([
       db().from("funds").select("id, name").eq("is_active", true).order("name"),
       db().from("fund_custodians").select("fund_id, custodian_id"),
-      db().from("profiles").select("id").eq("role", "custodian").eq("is_active", true),
+      db().from("profiles").select("id, full_name").eq("role", "custodian").eq("is_active", true).order("full_name"),
     ]);
     if (funds.error || links.error || people.error) throw new Error("Could not read the funds.");
-    const active = new Set((people.data ?? []).map((row) => row.id));
-    const staffed = new Set((links.data ?? []).filter((row) => active.has(row.custodian_id)).map((row) => row.fund_id));
-    return (funds.data ?? []).filter((fund) => staffed.has(fund.id)).map((fund) => ({ id: fund.id, name: fund.name }));
+    const names = new Map((people.data ?? []).map((row) => [row.id, row.full_name]));
+    const custodiansOf = (fundId: string) =>
+      (links.data ?? []).filter((row) => row.fund_id === fundId && names.has(row.custodian_id)).map((row) => names.get(row.custodian_id) as string).sort();
+    return (funds.data ?? []).map((fund) => ({ id: fund.id, name: fund.name, custodians: custodiansOf(fund.id) })).filter((fund) => fund.custodians.length > 0);
+  },
+
+  async lastFund(profileId) {
+    const { data } = await db().from("budget_requests").select("fund_id").eq("requester_id", profileId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    return data?.fund_id ?? null;
   },
 
   async openDraft(chatId) {
