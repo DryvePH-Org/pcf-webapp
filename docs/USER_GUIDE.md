@@ -236,9 +236,16 @@ website (for example, they ask for budgets by Telegram), a **custodian of the fu
 3. It is still **their** liquidation. Its page shows **Filed by <you> for <name>**, and the name is kept in its history.
 4. The employee is told (in the app, by email, and on Telegram if they use it), so they can say if something is wrong.
 
-**You cannot review what you filed.** The receipt review, the approval and an extra-reimbursement approval must be
-done by someone else: another custodian of the fund, the fund's approver or an administrator. If you are the fund's
-only custodian, the approver or an administrator reviews it. The system refuses the person who filed it at every step.
+**Who reviews it.**
+- **A custodian of the fund who filed it may review and approve it herself.** Each decision is written to the audit
+  log ("filed and reviewed by the same custodian"), and administrators and accounting get a notice in the bell.
+- **An administrator who filed it may not review it.** Another custodian, the fund's approver or another
+  administrator does. The system refuses it at every step.
+- **An extra reimbursement** (spending above the cash received and above the fund's limits) is never approved by the
+  person who filed the liquidation; the independent approver does that.
+- **Replenishment** is still approved by accounting and then an approver, whoever filed the liquidations in it.
+- A custodian who is no longer assigned to the fund can no longer edit or review what she filed.
+
 If it is flagged for corrections, the person who filed it and the employee can both fix it.
 
 ## A fund that lives in the database only (no Google Sheet)

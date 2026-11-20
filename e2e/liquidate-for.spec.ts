@@ -61,7 +61,7 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
 
   test.afterAll(async () => {
     await cleanTestData();
-    await adminClient().from("notifications").delete().eq("event", "liquidation.filed_for_you");
+    await adminClient().from("notifications").delete().in("event", ["liquidation.filed_for_you", "audit.self_approval"]);
     await removeTestFund();
   });
 
@@ -85,51 +85,49 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     const saved = await adminClient().from("liquidations").select("owner_id, filed_by, status, department, total_spent").eq("id", liquidationId).single();
     expect(saved.data).toMatchObject({ owner_id: employeeId, filed_by: custodianId, status: "submitted", department: "Operations", total_spent: 900 });
 
-    // the person who filed it sees who filed it, and no way to review it
+    // the page says who filed it, and the custodian who filed it can review it herself
     await page.reload();
     await expect(page.getByText(/Filed by .* for /)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Approve liquidation" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Save receipt review" })).toHaveCount(0);
-    await expect(page.getByText("You filed this, so you cannot review it")).toBeVisible();
+    await expect(page.getByText("This liquidation needs your review")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save receipt review" })).toBeVisible();
     await context.close();
   });
 
-  test("the employee is told and the filer cannot approve it", async ({ browser, baseURL }) => {
+  test("the employee is told; the custodian who filed it reviews and approves it, on record", async ({ browser, baseURL }) => {
     // told in the app
     await expect
       .poll(async () => (await adminClient().from("notifications").select("id").eq("user_id", employeeId).eq("event", "liquidation.filed_for_you")).data?.length ?? 0, { timeout: 15000 })
       .toBeGreaterThan(0);
-    const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
-    await context.addCookies(await cookiesFor("accounting", baseURL!));
-    const page = await context.newPage();
-    await page.goto(`/liquidations/${liquidationId}`);
-    await expect(page.getByText(/This was filed for you/)).toBeVisible();
-    await context.close();
+    const employeePage = await (async () => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+      await context.addCookies(await cookiesFor("accounting", baseURL!));
+      return { context, page: await context.newPage() };
+    })();
+    await employeePage.page.goto(`/liquidations/${liquidationId}`);
+    await expect(employeePage.page.getByText(/This was filed for you/)).toBeVisible();
+    await employeePage.context.close();
 
-    // the database refuses the filer at every step, even with a saved receipt review by someone else's hand
+    // the custodian who filed it does the receipt review and approves it herself
     const custodian = await clientFor("custodian");
-    const refused = await custodian.rpc("approve_liquidation_without_sheet", { p_id: liquidationId });
-    expect(refused.error).not.toBeNull();
     const revision = (await adminClient().from("liquidations").select("receipt_review_revision").eq("id", liquidationId).single()).data!.receipt_review_revision;
     const lines = [{ particulars: "Supplies", amount: 900, supplier: "N/A", tin: "N/A", tag: "MEALS", expense_date: new Date().toISOString().slice(0, 10), plate: "N/A", receipt_number: "", physical_checked: true, receipt_path: "" }];
-    const byFiler = await custodian.rpc("save_custodian_receipts", { p_id: liquidationId, p_revision: revision, p_lines: lines });
-    expect(byFiler.error?.message).toMatch(/cannot review it/);
-  });
-
-  test("an administrator reviews and approves it", async ({ browser, baseURL }) => {
-    const admin = await clientFor("admin");
-    const revision = (await adminClient().from("liquidations").select("receipt_review_revision").eq("id", liquidationId).single()).data!.receipt_review_revision;
-    const lines = [{ particulars: "Supplies", amount: 900, supplier: "N/A", tin: "N/A", tag: "MEALS", expense_date: new Date().toISOString().slice(0, 10), plate: "N/A", receipt_number: "", physical_checked: true, receipt_path: "" }];
-    expect((await admin.rpc("save_custodian_receipts", { p_id: liquidationId, p_revision: revision, p_lines: lines })).error).toBeNull();
+    expect((await custodian.rpc("save_custodian_receipts", { p_id: liquidationId, p_revision: revision, p_lines: lines })).error).toBeNull();
     const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
-    await context.addCookies(await cookiesFor("admin", baseURL!));
+    await context.addCookies(await cookiesFor("custodian", baseURL!));
     const page = await context.newPage();
     await page.goto(`/liquidations/${liquidationId}`);
     await page.getByRole("button", { name: "Approve liquidation" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Approve" }).click();
     await expect(page.getByText("Liquidation approved")).toBeVisible();
-    const approved = await adminClient().from("liquidations").select("status, filed_by").eq("id", liquidationId).single();
-    expect(approved.data).toMatchObject({ status: "approved", filed_by: custodianId });
+    const approved = await adminClient().from("liquidations").select("status, filed_by, reviewed_by").eq("id", liquidationId).single();
+    expect(approved.data).toMatchObject({ status: "approved", filed_by: custodianId, reviewed_by: custodianId });
     await context.close();
+
+    // it is on record, and administrators are told
+    const audit = await adminClient().from("audit_log").select("new_data").eq("entity_type", "liquidations").eq("entity_id", liquidationId).eq("action", "self_approval");
+    expect(audit.data?.some((row) => (row.new_data as { step?: string }).step === "filed_and_reviewed_by_same_custodian")).toBe(true);
+    await expect
+      .poll(async () => (await adminClient().from("notifications").select("id").eq("event", "audit.self_approval").eq("entity_id", liquidationId)).data?.length ?? 0, { timeout: 15000 })
+      .toBeGreaterThan(0);
   });
 });

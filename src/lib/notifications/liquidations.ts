@@ -1,6 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { WorkflowDatabase } from "@/lib/workflow";
 import { formatPHP } from "@/lib/money";
 import { LIQUIDATION_LABELS } from "@/lib/liquidation";
 import { notify, recipientsByRole } from "./deliver";
@@ -41,15 +39,11 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
   }
 
   if (event === "liquidation.submitted") {
-    // Reviewers follow the fund's rules, the same ones the database enforces. Whoever filed it for the employee is
-    // never a reviewer, so when they are the fund's only custodian the approver and administrators are told instead.
+    // Reviewers follow the fund's rules, the same ones the database enforces.
     const reviewers = await reviewersFor(l.fund_id, l.owner_id);
-    const others = reviewers.ids.filter((reviewer) => reviewer !== actor);
-    const needsOthers = reviewers.fallbackToAdmin || (filedForEmployee && others.length === 0);
-    const approvers = needsOthers ? ((await (db as unknown as SupabaseClient<WorkflowDatabase>).from("fund_approvers").select("approver_id").eq("fund_id", l.fund_id)).data ?? []).map((row) => row.approver_id) : [];
     await notify({
       event, entityType: "liquidations", entityId: id,
-      recipients: await recipientsByRole(needsOthers ? ["admin"] : [], { include: [...others, ...approvers], exclude: [actor] }),
+      recipients: await recipientsByRole(reviewers.fallbackToAdmin ? ["admin"] : [], { include: reviewers.ids, exclude: [actor] }),
       subject: `${l.pcv_number}: liquidation needs your review`,
       content: () => ({ tone: "action", heading: `${l.pcv_number} liquidation needs your review`,
         paragraphs: [filedForEmployee ? `${l.filed_by_name ?? "A custodian"} filed the liquidation for ${l.employee_name}.` : `${l.employee_name} submitted their liquidation.`], rows, cta }),
@@ -75,6 +69,16 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
         subject: `${l.pcv_number}: extra reimbursement needs approval`,
         content: () => ({ tone: "action", heading: `${l.pcv_number} needs an additional reimbursement approval`,
           paragraphs: ["Spending was above the cash received. An approver must approve before the custodian pays it."], rows, cta }),
+      });
+    }
+    // A custodian who filed the liquidation for the employee and then reviewed it herself is allowed, and always visible.
+    if (filedForEmployee && actor === l.filed_by) {
+      await notify({
+        event: "audit.self_approval", entityType: "liquidations", entityId: id, email: false,
+        recipients: await recipientsByRole(["admin", "accounting"], { exclude: [actor] }),
+        subject: `${l.pcv_number}: filed and reviewed by ${l.filed_by_name ?? "the same custodian"}`,
+        content: () => ({ tone: "info", heading: `${l.filed_by_name ?? "A custodian"} filed and reviewed the liquidation for ${l.employee_name}`,
+          paragraphs: ["The custodian who filed it also reviewed it. It is recorded in the audit log."], rows, cta }),
       });
     }
     if (actor === l.owner_id) {

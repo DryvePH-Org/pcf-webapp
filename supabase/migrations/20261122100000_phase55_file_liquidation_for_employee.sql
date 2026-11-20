@@ -5,10 +5,13 @@
 -- or an administrator, can file it for them: the liquidation still belongs to the employee, the person who filed it
 -- is recorded on it (and shown on its page and in its history), and the employee is told.
 --
--- Safety, in the database:
---  * Filing for someone else is a separate, explicit function; the employee's own rules are unchanged.
---  * Whoever filed it can never review it: not the receipt review, not the approval, not an extra reimbursement.
---    Another custodian, the fund's approver or an administrator does. So one person never both prepares and approves.
+-- Who may review it:
+--  * A custodian of the fund who filed it MAY review and approve it herself. Every time, an audit record is written
+--    ("filed and reviewed by the same custodian") and administrators are told, as with any self-approval.
+--  * An administrator who filed it may NOT review it; another custodian, the approver or another administrator does.
+--  * An extra reimbursement (spending above the cash received and above the fund's limits) is never approved by the
+--    person who filed the liquidation; the independent approver does that.
+-- Replenishment is still approved by accounting and then an approver, whoever filed the liquidations in it.
 
 alter table public.liquidations add column filed_by uuid references public.profiles(id) on delete set null;
 alter table public.liquidations add column filed_by_name text check (filed_by_name is null or char_length(filed_by_name) <= 100);
@@ -76,16 +79,26 @@ language sql stable security definer set search_path = public as $$
       and l.status in ('draft', 'flagged') and v.status not in ('void', 'closed') and v.replenishment_id is null);
 $$;
 
--- Whoever filed it for the employee cannot review it, whatever function is used to try.
+-- The rules above, enforced on every change to a liquidation, whatever function made it.
 create function public.guard_liquidation_filer() returns trigger
-language plpgsql set search_path = public as $$
+language plpgsql security definer set search_path = public as $$
 begin
-  if new.filed_by is not null and new.filed_by <> new.owner_id and (
-       (new.reviewed_by is distinct from old.reviewed_by and new.reviewed_by = new.filed_by)
-    or (new.receipt_reviewed_by is distinct from old.receipt_reviewed_by and new.receipt_reviewed_by = new.filed_by)
-    or (new.reimbursement_approved_by is distinct from old.reimbursement_approved_by and new.reimbursement_approved_by = new.filed_by)
-  ) then
-    raise exception 'The person who filed this liquidation for the employee cannot review it. Another custodian, the approver or an administrator must';
+  if new.filed_by is not null and new.filed_by <> new.owner_id then
+    if new.reimbursement_approved_by is distinct from old.reimbursement_approved_by and new.reimbursement_approved_by = new.filed_by then
+      raise exception 'The person who filed this liquidation for the employee cannot approve its extra reimbursement. The approver must';
+    end if;
+    if (new.reviewed_by is distinct from old.reviewed_by and new.reviewed_by = new.filed_by)
+       or (new.receipt_reviewed_by is distinct from old.receipt_reviewed_by and new.receipt_reviewed_by = new.filed_by) then
+      if not public.is_fund_custodian_user(new.fund_id, new.filed_by) then
+        raise exception 'Only a custodian of this fund can review a liquidation she filed for the employee. Another custodian, the approver or an administrator must';
+      end if;
+      -- allowed, and always on record
+      if new.reviewed_by is distinct from old.reviewed_by and new.reviewed_by = new.filed_by then
+        perform public.audit_self_approval('liquidations', new.id, jsonb_build_object(
+          'step', 'filed_and_reviewed_by_same_custodian', 'decision', new.status, 'filed_by', new.filed_by,
+          'employee', new.owner_id, 'fund_id', new.fund_id, 'amount', new.total_spent));
+      end if;
+    end if;
   end if;
   return new;
 end $$;
