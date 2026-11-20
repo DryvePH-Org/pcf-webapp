@@ -95,10 +95,9 @@ it("returns editable suggestions, keeps VAT out, and does not persist an approva
     (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]
       .body as string,
   );
-  expect(request.response_format.json_schema.strict).toBe(true);
-  expect(
-    request.response_format.json_schema.schema.properties,
-  ).not.toHaveProperty("input_vat");
+  expect(request.response_format).toEqual({ type: "json_object" });
+  // Input VAT is never asked for: the app does not calculate it
+  expect(JSON.stringify(request.messages[0].content)).not.toContain("input_vat");
   expect(rpc.mock.calls.map((call) => call[0])).toEqual([
     "can_access_fund",
     "list_custodian_tags",

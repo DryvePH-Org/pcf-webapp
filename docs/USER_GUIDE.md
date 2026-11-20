@@ -281,10 +281,10 @@ app's own records. The Google Sheet is not read, so the file is correct even whe
 ## Accounting: where the figures come from
 
 The Accounting page shows **the app's own records** by default: every approved liquidation, the moment it is
-approved. Nothing waits for a Google Sheet refresh, and a fund that keeps its ledger in the database only appears
+approved. Nothing waits for the Google Sheet, and a fund that keeps its ledger in the database only appears
 too. Each entry opens its liquidation.
 
-Use **Records from → Google Sheet copy** to see what the last sheet refresh brought in instead. Comparing the two
+Use **Records from → Google Sheet copy** to see what Grokbot last brought back from the sheet instead. Comparing the two
 shows what was typed into a sheet by hand, or what a sheet is behind on. The Worksheet filter exists only for the
 sheet copy.
 

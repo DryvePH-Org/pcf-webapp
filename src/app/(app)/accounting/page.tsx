@@ -17,7 +17,6 @@ import { PrintButton } from "@/components/layout/print-button";
 import { AccountingFilterForm } from "@/components/accounting/filters";
 import { AccountingExportButton } from "@/components/accounting/export-button";
 import { WorkbookOverview } from "@/components/accounting/workbook-overview";
-import { SheetsRefresh } from "@/components/sheets/refresh-control";
 import { RolloverRetry } from "@/components/sheets/rollover-retry";
 import { MoneyText } from "@/components/shared/money-text";
 import { ResponsiveList } from "@/components/shared/responsive-list";
@@ -151,12 +150,12 @@ export default async function AccountingPage({
         <AlertDescription>
           {filters.source === "sheet" ? (
             <>
-              These figures come from the copy of the sheet that the last refresh brought in, so they can be behind or include rows typed by hand.{" "}
+              These figures come from the copy of the sheet that Grokbot brings back after each approved liquidation, so they can be behind or include rows typed by hand.{" "}
               <Link className="underline" href={accountingUrl(filters, { source: "database", tab: "", page: 1 })}>Show the app&apos;s records</Link>
             </>
           ) : (
             <>
-              Every approved liquidation, as soon as it is approved. Nothing waits for a Google Sheet refresh, and funds with no sheet are included. Each entry opens its liquidation.{" "}
+              Every approved liquidation, as soon as it is approved. Nothing waits for the Google Sheet, and funds with no sheet are included. Each entry opens its liquidation.{" "}
               <Link className="underline" href={accountingUrl(filters, { source: "sheet", page: 1 })}>Compare with the Google Sheet copy</Link>
             </>
           )}
@@ -186,7 +185,6 @@ export default async function AccountingPage({
           </p>
           <p className="text-sm text-muted-foreground">{periodLabel}</p>
         </div>
-        <SheetsRefresh book={filters.book} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-t-4 border-t-blue-500 bg-blue-50/60 dark:bg-blue-950/20">
@@ -469,7 +467,7 @@ export default async function AccountingPage({
             <EmptyState
               icon={Files}
               title="No matching expenses"
-              description="Change the period or filters, or refresh the workbooks to import their latest records."
+              description="Change the period or the filters."
             />
           }
         />

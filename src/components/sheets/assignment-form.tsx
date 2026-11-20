@@ -5,7 +5,6 @@ import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
-import { SheetsRefresh } from "@/components/sheets/refresh-control";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { configureWorkbook } from "@/actions/sheets";
@@ -229,7 +228,6 @@ export function WorkbookAssignment({
               <AlertDescription>{book.sync_error}</AlertDescription>
             </Alert>
           )}
-          <SheetsRefresh book={book.id} automatic={false} />
         </CardContent>
         <CardFooter className="justify-end">
           <Button type="submit" disabled={pending || (enabled && !ready)}>

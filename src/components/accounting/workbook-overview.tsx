@@ -36,16 +36,16 @@ export function WorkbookOverview({
   const state = (row: (typeof rows)[number]) => {
     if (!isBookOpen(row.book.id)) return <Badge variant="outline">Not open yet</Badge>;
     if (row.book.refresh_until)
-      return <Badge variant="secondary">Refresh requested</Badge>;
+      return <Badge variant="secondary">Reading the sheet</Badge>;
     if (row.book.sync_error)
-      return <Badge variant="destructive">Refresh failed</Badge>;
+      return <Badge variant="destructive">Sheet read failed</Badge>;
     if (!row.tab)
       return <Badge variant="outline">Choose active worksheet</Badge>;
     if (row.ledger?.formula_errors)
       return <Badge variant="destructive">Formula issue</Badge>;
     if (row.ledger?.balanced === false)
       return <Badge variant="destructive">Check subtotal</Badge>;
-    if (!row.ledger) return <Badge variant="outline">Refresh needed</Badge>;
+    if (!row.ledger) return <Badge variant="outline">Not read yet</Badge>;
     return <Badge variant="secondary">Snapshot available</Badge>;
   };
   const source = (row: (typeof rows)[number]) =>
