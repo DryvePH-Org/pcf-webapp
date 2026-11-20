@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { LiquidationForm } from "@/components/liquidations/liquidation-form";
+import { LiquidationPrintSheet } from "@/components/liquidations/liquidation-print-sheet";
 import { LiquidationActions } from "@/components/liquidations/liquidation-actions";
 import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -122,7 +123,22 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     if (waitingApproval) return <Callout tone="warning" title="Waiting for an approver">The extra payment needs an approver (not the employee being paid) before the custodian can pay it.</Callout>;
     return <Callout tone="info" title={difference.kind === "return" ? "Waiting for the cash to be returned" : "Waiting for the reimbursement to be paid"}>The custodian records it once the cash has actually moved.</Callout>;
   };
-  return <div className="space-y-6 print:space-y-4">
+  const printLines = rows.map(item => ({
+    position: item.position, particulars: item.particulars, amount: Number(item.amount),
+    receipt: item.receipt_path ? "Attached" : item.no_receipt_reason ? `None: ${item.no_receipt_reason}` : "None",
+  }));
+  return <div className="space-y-6">
+    <LiquidationPrintSheet
+      pcv={l.pcv_number} fund={l.fund_name} statusLabel={LIQUIDATION_LABELS[l.status]} name={l.employee_name}
+      department={l.department} filingDate={l.filing_date} advance={Number(l.amount_received)} spent={Number(l.total_spent)}
+      settlementLabel={difference.kind === "return" ? "Cash to return" : difference.kind === "reimbursement" ? "Owed to employee" : "Difference"}
+      settlementAmount={difference.kind === "none" ? "Balanced" : formatPHP(difference.amount)}
+      lines={printLines} unspentReason={l.unspent_reason}
+      filedBy={filedForOwner ? filing.filed_by_name : null}
+      reviewedLine={l.reviewed_at ? `${l.reviewer_name}, ${formatDateTime(l.reviewed_at)}` : null}
+      settlementNote={settlement ? `${settlement.kind === "return" ? "Cash received back" : "Reimbursement paid"}: ${formatPHP(settlement.amount)} (${formatDateTime(settlement.created_at)})` : null}
+    />
+    <div className="space-y-6 print:hidden">
     <div className="print:hidden"><PageHeader title="Liquidation / reimbursement" description={`${l.pcv_number} · ${l.fund_name}`} actions={<><PrintButton /><CsvExportButton filename={`${l.pcv_number}-liquidation.csv`} header={["PCV", "Name", "Department", "Filing date", "Particulars", "Category", "Amount", "Receipt attached", "Missing receipt reason", "Advance", "Total spent", "Return amount", "Reimbursement amount", "Status"]} rows={rows.length ? rows.map(item => [l.pcv_number, l.employee_name, l.department, l.filing_date, item.particulars, flow.flow_version === 2 ? "" : nameByCategory.get(item.category_id) ?? "", item.amount, item.receipt_path ? "Yes" : "No", item.no_receipt_reason ?? "", l.amount_received, l.total_spent, difference.kind === "return" ? difference.amount : "0", difference.kind === "reimbursement" ? difference.amount : "0", LIQUIDATION_LABELS[l.status]]) : [[l.pcv_number, l.employee_name, l.department, l.filing_date, l.unspent_reason ?? "No expenses", "", 0, "No", "", l.amount_received, l.total_spent, difference.amount, "0", LIQUIDATION_LABELS[l.status]]]} /><Link className="text-sm underline" href="/liquidations">All liquidations</Link></>} /></div>
     {filedForOwner && l.status !== "draft" ? <Callout tone="info" title={`Filed by ${filing.filed_by_name ?? "a custodian"} for ${l.employee_name}`}>{isOwner ? "This was filed for you. If something is wrong, tell the reviewer." : "The employee did not file this themselves; the person named here did, on their behalf."}</Callout> : null}
     {nextStep()}
@@ -206,6 +222,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
       initial={receiptRows.data?.length ? receiptRows.data.map(row=>({...row,amount:String(row.amount),receipt_path:row.receipt_path??'',company:row.company||companies[0]||''})) : rows.map(item=>({id:item.id,particulars:item.particulars,amount:String(item.amount),supplier:'',tin:'',tag:'',expense_date:l.filing_date,plate:(item.sheet_details as Record<string,string>|null)?.plate??'',receipt_number:'',company:companies[0]??'',receipt_path:item.receipt_path??'',physical_checked:false}))} /> : null}
     {receiptRows.data?.length ? <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">Custodian receipt entries</h2>{receiptRows.data.map(row=><div key={row.id} className="space-y-1 border-t pt-3 text-sm"><p>{row.supplier} · {row.tag} · {formatDate(row.expense_date)}</p><p>{row.particulars} · {formatPHP(row.amount)}</p><p>TIN {row.tin} · Plate {row.plate||'—'} · Receipt {row.receipt_number||'—'}</p><p className="text-muted-foreground">{row.receipt_path ? "Receipt verified" : "Reviewed without a receipt attachment"}</p></div>)}</section>:null}
     <section className="space-y-3 print:hidden"><h2 className="font-semibold">Submission history</h2><p className="text-sm text-muted-foreground">Every submitted version is retained, including its receipt references. Page {historyPage}.</p>{(revisions.data ?? []).map(r => <details key={r.id} className="rounded-lg border p-3"><summary className="cursor-pointer text-sm">Submission {r.revision} · {LIQUIDATION_LABELS[r.status]} · {formatDateTime(r.created_at)}</summary><div className="mt-3 space-y-3">{r.review_note ? <p>{r.review_note}</p> : null}{snapshotItems(r.payload).map((item, index) => <div key={index}><p>{item.particulars} · {formatPHP(item.amount)}</p>{item.receipt_path ? (urls.has(item.receipt_path) ? <a href={urls.get(item.receipt_path)} target="_blank" rel="noreferrer" className="text-sm underline">Submitted receipt</a> : <p className="text-sm text-destructive">Submitted receipt currently unavailable</p>) : <p className="text-sm">No receipt: {item.no_receipt_reason}</p>}</div>)}</div></details>)}<div className="flex justify-between">{historyPage > 1 ? <Link className="underline" href={`?history=${historyPage - 1}`}>Previous submissions</Link> : <span />}{historyPage * 10 < (revisions.count ?? 0) ? <Link className="underline" href={`?history=${historyPage + 1}`}>Older submissions</Link> : null}</div></section>
+    </div>
   </div>;
 }
 function Tile({ label, value, tone }: { label: string; value: string; tone?: "warning" | "info" | "success" }) {
