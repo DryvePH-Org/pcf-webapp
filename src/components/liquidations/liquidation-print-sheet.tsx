@@ -31,11 +31,11 @@ const SIGNATORIES: { role: string; caption: string }[] = [
 // A one-page paper copy: the numbers first, the expenses in a tight table, then who signs.
 export function LiquidationPrintSheet(p: Props) {
   return (
-    <section className="hidden break-inside-avoid text-[11px] leading-snug text-black print:block">
-      <header className="flex items-end justify-between border-b-2 border-black pb-1.5">
+    <section className="hidden text-[11px] leading-snug text-black print:block">
+      <header className="flex items-end justify-between gap-3 border-b-2 border-black pb-1.5">
         <div>
           <h1 className="text-base font-bold uppercase tracking-wide">Liquidation / Reimbursement Form</h1>
-          <p className="text-xs">{p.fund}</p>
+          <p className="break-words text-xs">{p.fund}</p>
         </div>
         <div className="text-right">
           <p className="font-mono text-sm font-bold">{p.pcv}</p>
@@ -49,13 +49,13 @@ export function LiquidationPrintSheet(p: Props) {
         <Info label="Filing date" value={formatDate(p.filingDate)} />
       </dl>
 
-      <table className="mt-2 w-full border-collapse border border-black text-[11px]">
-        <thead>
+      <table className="mt-2 w-full table-fixed border-collapse border border-black text-[11px]">
+        <thead className="table-header-group">
           <tr className="bg-neutral-200 text-left text-[10px] uppercase">
-            <th className="w-7 border border-black px-1.5 py-1">#</th>
+            <th className="w-8 border border-black px-1.5 py-1">#</th>
             <th className="border border-black px-1.5 py-1">Particulars</th>
-            <th className="w-36 border border-black px-1.5 py-1">Receipt</th>
-            <th className="w-24 border border-black px-1.5 py-1 text-right">Amount</th>
+            <th className="w-40 border border-black px-1.5 py-1">Receipt</th>
+            <th className="w-28 border border-black px-1.5 py-1 text-right">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -64,13 +64,13 @@ export function LiquidationPrintSheet(p: Props) {
           ) : p.lines.map(line => (
             <tr key={line.position} className="break-inside-avoid align-top">
               <td className="border border-black px-1.5 py-1">{line.position}</td>
-              <td className="border border-black px-1.5 py-1">{line.particulars}</td>
-              <td className="border border-black px-1.5 py-1">{line.receipt}</td>
+              <td className="whitespace-pre-wrap break-words border border-black px-1.5 py-1 [overflow-wrap:anywhere]">{line.particulars}</td>
+              <td className="break-words border border-black px-1.5 py-1 [overflow-wrap:anywhere]">{line.receipt}</td>
               <td className="border border-black px-1.5 py-1 text-right tabular-nums">{formatPHP(line.amount)}</td>
             </tr>
           ))}
         </tbody>
-        <tfoot>
+        <tfoot className="table-row-group">
           <tr className="font-bold">
             <td colSpan={3} className="border border-black px-1.5 py-1 text-right uppercase">Total spent</td>
             <td className="border border-black px-1.5 py-1 text-right tabular-nums">{formatPHP(p.spent)}</td>
@@ -78,15 +78,15 @@ export function LiquidationPrintSheet(p: Props) {
         </tfoot>
       </table>
 
-      <div className="mt-2 grid grid-cols-3 border border-black text-center">
+      <div className="mt-2 grid break-inside-avoid grid-cols-3 border border-black text-center">
         <Figure label="Cash received" value={formatPHP(p.advance)} />
         <Figure label="Actually spent" value={formatPHP(p.spent)} />
         <Figure label={p.settlementLabel} value={p.settlementAmount} strong />
       </div>
-      {p.unspentReason && p.lines.length > 0 ? <p className="mt-1.5"><b>Why not spent:</b> {p.unspentReason}</p> : null}
-      {p.settlementNote ? <p className="mt-1.5">{p.settlementNote}</p> : null}
-      {p.filedBy ? <p className="mt-1.5"><b>Prepared by:</b> {p.filedBy}, on behalf of the employee</p> : null}
-      {p.reviewedLine ? <p className="mt-1.5"><b>Custodian review:</b> {p.reviewedLine}</p> : null}
+      {p.unspentReason && p.lines.length > 0 ? <p className="mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"><b>Why not spent:</b> {p.unspentReason}</p> : null}
+      {p.settlementNote ? <p className="mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{p.settlementNote}</p> : null}
+      {p.filedBy ? <p className="mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"><b>Prepared by:</b> {p.filedBy}, on behalf of the employee</p> : null}
+      {p.reviewedLine ? <p className="mt-1.5 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"><b>Custodian review:</b> {p.reviewedLine}</p> : null}
 
       <div className="mt-5 grid break-inside-avoid grid-cols-2 gap-x-12 gap-y-7">
         {SIGNATORIES.map(s => (
@@ -107,7 +107,7 @@ export function LiquidationPrintSheet(p: Props) {
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-[10px] uppercase">{label}</dt><dd className="border-b border-neutral-400 font-semibold">{value}</dd></div>;
+  return <div><dt className="text-[10px] uppercase">{label}</dt><dd className="break-words border-b border-neutral-400 font-semibold [overflow-wrap:anywhere]">{value}</dd></div>;
 }
 
 function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {

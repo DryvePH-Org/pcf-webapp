@@ -16,3 +16,19 @@ test("the paper copy has the summary, the table and every signature line", () =>
     expect(html).toContain(text);
   }
 });
+
+test("long text is kept whole: nothing is cut, and wrapping is allowed everywhere", () => {
+  const long = "Reimbursement for the team outing ".repeat(12) + "SUPERCALIFRAGILISTICEXPIALIDOCIOUS".repeat(4);
+  const html = renderToStaticMarkup(
+    <LiquidationPrintSheet
+      pcv="PCV-2026-0015" fund={"A fund with a very long name ".repeat(3)} statusLabel="Submitted" name={"A Very Long Name ".repeat(5)} department="Operations"
+      filingDate="2026-11-18" advance={100} spent={5000} settlementLabel="Owed to employee" settlementAmount="₱4,900.00"
+      lines={Array.from({ length: 35 }, (_, i) => ({ position: i + 1, particulars: long, amount: 100 + i, receipt: "None: " + long }))}
+      unspentReason={long} filedBy={null} reviewedLine={long} settlementNote={long}
+    />,
+  );
+  expect(html).toContain(long);
+  expect(html.match(/<tr /g)?.length).toBeGreaterThanOrEqual(35);
+  expect(html).toContain("overflow-wrap:anywhere");
+  expect(html).toContain("table-header-group");
+});

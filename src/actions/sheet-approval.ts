@@ -1,4 +1,5 @@
 "use server";
+import { plateCase, sentenceCase, titleCase } from "@/lib/proper-case";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -179,7 +180,7 @@ export async function previewSheetApproval(id: string) {
         company: detail.company || (w.data.id === "dryve" ? "DRYVE" : "MAD"),
       };
     });
-    const expenses: ExpenseForSheet[] = newFlow
+    const typedExpenses: ExpenseForSheet[] = newFlow
       ? (receipts.data ?? []).map((receipt) => ({
           id: receipt.id,
           expense_date: receipt.expense_date,
@@ -196,6 +197,14 @@ export async function previewSheetApproval(id: string) {
           company: receipt.company || (w.data.id === "dryve" ? "DRYVE" : "MAD"),
         }))
       : legacyExpenses;
+    // People type "gas for van" or "JUAN DELA CRUZ": the sheet gets tidy capitals (the app keeps what was typed).
+    const expenses: ExpenseForSheet[] = typedExpenses.map((expense) => ({
+      ...expense,
+      particulars: sentenceCase(expense.particulars),
+      supplier: titleCase(expense.supplier),
+      person: titleCase(expense.person),
+      plate: plateCase(expense.plate),
+    }));
     if (
       newFlow &&
       Math.round(
@@ -234,8 +243,8 @@ export async function previewSheetApproval(id: string) {
       liquidation_id: id,
       voucher_id: l.data.voucher_id,
       voucher_number: voucherNumber,
-      requester_name: l.data.employee_name,
-      department: l.data.department,
+      requester_name: titleCase(l.data.employee_name),
+      department: titleCase(l.data.department),
       filing_date: l.data.filing_date,
       custodian_approved_at: l.data.reviewed_at ?? new Date().toISOString(),
       custodian_id: user.id,

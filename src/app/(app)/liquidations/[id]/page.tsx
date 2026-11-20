@@ -135,7 +135,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
       settlementAmount={difference.kind === "none" ? "Balanced" : formatPHP(difference.amount)}
       lines={printLines} unspentReason={l.unspent_reason}
       filedBy={filedForOwner ? filing.filed_by_name : null}
-      reviewedLine={l.reviewed_at ? `${l.reviewer_name}, ${formatDateTime(l.reviewed_at)}` : null}
+      reviewedLine={l.reviewed_at ? `${l.reviewer_name}, ${formatDateTime(l.reviewed_at)}${l.review_note ? `. Note: ${l.review_note}` : ""}` : null}
       settlementNote={settlement ? `${settlement.kind === "return" ? "Cash received back" : "Reimbursement paid"}: ${formatPHP(settlement.amount)} (${formatDateTime(settlement.created_at)})` : null}
     />
     <div className="space-y-6 print:hidden">
