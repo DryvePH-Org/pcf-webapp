@@ -225,6 +225,22 @@ fund is chosen, and the summary shows the fund and who will review it.
 
 Nothing is submitted without a tap on **Submit**. A request made this way says "sent by Telegram" on its page.
 
+## Filing a liquidation for someone who cannot use the website
+
+Only the person who received the cash can normally file their liquidation. When that person cannot use the
+website (for example, they ask for budgets by Telegram), a **custodian of the fund**, or an administrator, can file it for them:
+
+1. Open the voucher. Under **Liquidation** it says the liquidation is not filed, and a custodian sees
+   **File liquidation for <name>**.
+2. Fill in the actual expenses, attach the receipts you have, and choose **Submit for review**.
+3. It is still **their** liquidation. Its page shows **Filed by <you> for <name>**, and the name is kept in its history.
+4. The employee is told (in the app, by email, and on Telegram if they use it), so they can say if something is wrong.
+
+**You cannot review what you filed.** The receipt review, the approval and an extra-reimbursement approval must be
+done by someone else: another custodian of the fund, the fund's approver or an administrator. If you are the fund's
+only custodian, the approver or an administrator reviews it. The system refuses the person who filed it at every step.
+If it is flagged for corrections, the person who filed it and the employee can both fix it.
+
 ## A fund that lives in the database only (no Google Sheet)
 
 When an administrator creates a fund, **Keep this fund's ledger in the database only** makes it a fund with

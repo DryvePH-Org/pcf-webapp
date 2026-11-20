@@ -133,7 +133,11 @@ test.describe("a database-only fund (desktop)", () => {
     await expect(page.getByText("₱900.00").first()).toBeVisible();
 
     // the Google Sheet copy is one click away, and has nothing for this fund
-    await page.getByRole("link", { name: "Compare with the Google Sheet copy" }).click();
+    // A click in the instant before the page has finished loading can be dropped; like a person, click again until it moves.
+    await expect(async () => {
+      await page.getByRole("link", { name: "Compare with the Google Sheet copy" }).click();
+      await expect(page).toHaveURL(/source=sheet/, { timeout: 4000 });
+    }).toPass({ timeout: 25000 });
     await expect(page.getByText("Showing the Google Sheet copy")).toBeVisible({ timeout: 20000 });
     await expect(page.locator(`a[href="/liquidations/${liquidationId}"]`)).toHaveCount(0);
     await context.close();

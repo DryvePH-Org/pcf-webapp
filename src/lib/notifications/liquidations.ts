@@ -1,15 +1,21 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { formatPHP } from "@/lib/money";
 import { LIQUIDATION_LABELS } from "@/lib/liquidation";
 import { notify, recipientsByRole } from "./deliver";
 import { reviewersFor } from "./routing";
+import { tellPerson } from "@/lib/telegram/notify";
 
-export type LiquidationEvent = "liquidation.submitted" | "liquidation.reviewed" | "liquidation.settled" | "liquidation.reimbursement_approved";
+export type LiquidationEvent = "liquidation.submitted" | "liquidation.filed_for_you" | "liquidation.reviewed" | "liquidation.settled" | "liquidation.reimbursement_approved";
 
 export async function notifyLiquidation(id: string, event: LiquidationEvent, actor: string) {
   const db = createAdminClient();
-  const { data: l, error } = await db.from("liquidations").select("*").eq("id", id).single();
+  const { data: row, error } = await db.from("liquidations").select("*").eq("id", id).single();
   if (error) throw error;
+  // who filed it for the employee, when it was not the employee (the column is newer than the generated types)
+  const l = row as typeof row & { filed_by?: string | null; filed_by_name?: string | null };
+  const filedForEmployee = Boolean(l.filed_by) && l.filed_by !== l.owner_id;
   const { data: fund } = await db.from("funds").select("approval_threshold, per_txn_limit").eq("id", l.fund_id).single();
   const rows = [
     { label: "Employee", value: l.employee_name }, { label: "Advance", value: formatPHP(l.amount_received) },
@@ -19,15 +25,34 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
   const needsApprover = event === "liquidation.reviewed" && l.status === "approved"
     && l.total_spent > l.amount_received && (l.total_spent >= (fund?.approval_threshold ?? 0) || l.total_spent > (fund?.per_txn_limit ?? Infinity));
 
-  if (event === "liquidation.submitted") {
-    // Reviewers follow the fund's rules, the same ones the database enforces.
-    const reviewers = await reviewersFor(l.fund_id, l.owner_id);
+  // The employee is told when a custodian filed the liquidation for them, so they can say if something is wrong.
+  if (event === "liquidation.filed_for_you") {
+    if (!filedForEmployee || actor !== l.filed_by) return;
+    const filer = l.filed_by_name ?? "Ang custodian";
     await notify({
       event, entityType: "liquidations", entityId: id,
-      recipients: await recipientsByRole(reviewers.fallbackToAdmin ? ["admin"] : [], { include: reviewers.ids, exclude: [actor] }),
+      recipients: await recipientsByRole([], { include: [l.owner_id], exclude: [] }),
+      subject: `${l.pcv_number}: ${filer} filed your liquidation`,
+      content: () => ({ tone: "info", heading: `${filer} filed your liquidation`,
+        paragraphs: [`${filer} filed the liquidation of ${l.pcv_number} for you (spent ${formatPHP(l.total_spent)}). If something is wrong, tell them before it is reviewed.`], rows, cta }),
+    });
+    await tellPerson(l.owner_id, `📋 <b>May nag-file ng liquidation para sa iyo.</b>\n\n${l.pcv_number} · ginastos ${formatPHP(l.total_spent)}\nSi ${(l.filed_by_name ?? "custodian").replace(/&/g, "&amp;").replace(/</g, "&lt;")} ang nag-file.\n\nKung may mali, sabihin agad sa kanya bago ito ma-review.`);
+    return;
+  }
+
+  if (event === "liquidation.submitted") {
+    // Reviewers follow the fund's rules, the same ones the database enforces. Whoever filed it for the employee is
+    // never a reviewer, so when they are the fund's only custodian the approver and administrators are told instead.
+    const reviewers = await reviewersFor(l.fund_id, l.owner_id);
+    const others = reviewers.ids.filter((reviewer) => reviewer !== actor);
+    const needsOthers = reviewers.fallbackToAdmin || (filedForEmployee && others.length === 0);
+    const approvers = needsOthers ? ((await (db as unknown as SupabaseClient<WorkflowDatabase>).from("fund_approvers").select("approver_id").eq("fund_id", l.fund_id)).data ?? []).map((row) => row.approver_id) : [];
+    await notify({
+      event, entityType: "liquidations", entityId: id,
+      recipients: await recipientsByRole(needsOthers ? ["admin"] : [], { include: [...others, ...approvers], exclude: [actor] }),
       subject: `${l.pcv_number}: liquidation needs your review`,
       content: () => ({ tone: "action", heading: `${l.pcv_number} liquidation needs your review`,
-        paragraphs: [`${l.employee_name} submitted their liquidation.`], rows, cta }),
+        paragraphs: [filedForEmployee ? `${l.filed_by_name ?? "A custodian"} filed the liquidation for ${l.employee_name}.` : `${l.employee_name} submitted their liquidation.`], rows, cta }),
     });
     return;
   }

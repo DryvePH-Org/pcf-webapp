@@ -75,6 +75,7 @@ jobs:
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/database-only-fund.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/accounting-from-database.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/telegram-gateway.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/file-liquidation-for.sql
 
   deploy:
     needs: [check, deletion-database]

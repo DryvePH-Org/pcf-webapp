@@ -40,6 +40,8 @@ type WorkflowFunctions = {
       record_cancelled_advance_return: { Args: { p_voucher: string; p_returned_on: string }; Returns: undefined };
       approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       approver_prepares_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
+      create_liquidation_for: { Args: { p_voucher_id: string }; Returns: string };
+      can_file_liquidation_for: { Args: { p_voucher: string }; Returns: boolean };
       telegram_issue_link_code: { Args: { p_user: string }; Returns: string };
       telegram_unlink: { Args: { p_user: string }; Returns: undefined };
       telegram_redeem_link_code: { Args: { p_code: string; p_chat: number; p_username: string | null }; Returns: { profile_id: string; full_name: string }[] };

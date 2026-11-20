@@ -27,6 +27,18 @@ export async function createLiquidation(voucherId: string): Promise<{ ok: true; 
   if (error) return { ok: false, error: safeDbMessage(error) };
   refresh(); return { ok: true, id: data };
 }
+// A custodian (or administrator) starts the liquidation for an employee who cannot use the website. It stays the
+// employee's liquidation; the database records who filed it for them and never lets that person review it.
+export async function createLiquidationFor(voucherId: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user || !["custodian", "admin"].includes(user.role)) return { ok: false, error: "Only a custodian of the fund or an administrator can file for someone else." };
+  if (!z.uuid().safeParse(voucherId).success) return { ok: false, error: "Voucher not found." };
+  if (!(await withinLimit(`liquidation:create-for:${user.id}`, 20, 60))) return { ok: false, error: "Too many attempts. Wait a minute." };
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { data, error } = await db.rpc("create_liquidation_for", { p_voucher_id: voucherId });
+  if (error) return { ok: false, error: safeDbMessage(error) };
+  refresh(); return { ok: true, id: data };
+}
 export async function saveLiquidation(input: LiquidationFormValues, submit: boolean): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Sign in first." };
@@ -41,6 +53,8 @@ export async function saveLiquidation(input: LiquidationFormValues, submit: bool
     const sent = await db.rpc("submit_liquidation", { p_id: v.id });
     if (sent.error) { refresh(); return { ok: false, error: `Draft saved. ${safeDbMessage(sent.error)}` }; }
     queueNotification("liquidation.submitted", () => notifyLiquidation(v.id, "liquidation.submitted", user.id));
+    // When someone filed it for the employee, the employee is told (it is a no-op for the employee's own filing).
+    queueNotification("liquidation.filed_for_you", () => notifyLiquidation(v.id, "liquidation.filed_for_you", user.id));
   }
   refresh(); return { ok: true };
 }

@@ -53,6 +53,10 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const receiptRows = await workflow.from("liquidation_receipt_lines").select("*").eq("liquidation_id", id).order("position");
   if (receiptRows.error) throw new Error(receiptRows.error.message);
   const flow = l as typeof l & {flow_version:number;receipt_review_revision:number;receipt_reviewed_by:string|null};
+  // A custodian may have filed this for the employee. That person can fill it in but never review it.
+  const filing = l as typeof l & { filed_by: string | null; filed_by_name: string | null };
+  const filedForOwner = Boolean(filing.filed_by) && filing.filed_by !== l.owner_id;
+  const isFiler = filedForOwner && user.id === filing.filed_by;
   const encoding = await liquidationEncoding(id);
   const rows = items.data ?? [];
   const cats = categories.data ?? [];
@@ -68,7 +72,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const approverGateway = user.role === "approver"
     ? Boolean((await workflow.rpc("approver_reviews_owner", { p_fund: l.fund_id, p_owner: l.owner_id })).data)
     : false;
-  const canReview = l.status === "submitted" && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway);
+  const canReview = l.status === "submitted" && !isFiler && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway);
   // A database-only fund has no sheet: approval needs no sheet update, and there is no company column.
   const fundLedger = await workflow.from("funds").select("sheet_ledger").eq("id", l.fund_id).maybeSingle();
   if (fundLedger.error) throw new Error(fundLedger.error.message);
@@ -106,8 +110,10 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   ];
   const nextStep = () => {
     if (l.status === "flagged") return <Callout tone="danger" title={isOwner ? "Your custodian asked for corrections" : "Waiting for the employee to correct this"}>{l.review_note ? <>Note: {l.review_note}</> : "Fix the expenses below, then submit again."}</Callout>;
+    if (l.status === "draft" && isFiler) return <Callout tone="info" title={`You are filling this out for ${l.employee_name}`}>Enter what was actually spent, attach the receipts you have, then choose Submit for review. {l.employee_name.split(/\s+/)[0]} will be told. You cannot review it yourself: another custodian, the approver or an administrator does.</Callout>;
+    if (l.status === "draft" && filedForOwner) return <Callout tone="info" title={isOwner ? `${filing.filed_by_name ?? "A custodian"} is filling this out for you` : "A custodian is filling this out for the employee"}>{isOwner ? "You do not need to do anything. If something is wrong, tell them before it is reviewed." : "It will appear for review after it is submitted."}</Callout>;
     if (l.status === "draft") return <Callout tone="info" title={isOwner ? "Draft: not submitted yet" : "The employee has not submitted this yet"}>{isOwner ? "Check each expense, attach any available receipts, then choose Submit for review." : "It will appear for review after submission."}</Callout>;
-    if (l.status === "submitted") return canReview ? <Callout tone="warning" title="This liquidation needs your review">Review the expenses and any available receipts, then save your review before {databaseOnly ? "approving it" : "preparing the Google Sheets approval preview"}.</Callout> : <Callout tone="info" title="Waiting for custodian review">Editing is locked until the custodian responds.</Callout>;
+    if (l.status === "submitted") return canReview ? <Callout tone="warning" title="This liquidation needs your review">Review the expenses and any available receipts, then save your review before {databaseOnly ? "approving it" : "preparing the Google Sheets approval preview"}.</Callout> : <Callout tone="info" title="Waiting for custodian review">{isFiler ? "You filed this, so you cannot review it. Another custodian, the approver or an administrator will." : "Editing is locked until the custodian responds."}</Callout>;
     if (settled) return <Callout tone="success" title={difference.kind === "none" ? "Fully reconciled" : "Settled"}>{difference.kind === "none" ? "The advance matched the expenses, so no cash needs to move." : "The cash movement has been recorded."}</Callout>;
     if (canApproveReimbursement) return <Callout tone="warning" title="Additional reimbursement needs your approval">Spending was above the cash received. An approver must approve before the custodian pays it.</Callout>;
     if (canSettle) return <Callout tone="warning" title={difference.kind === "return" ? "Next: record the cash returned" : "Next: record the reimbursement paid"}>Use the button below once the money has actually changed hands.</Callout>;
@@ -116,6 +122,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   };
   return <div className="space-y-6 print:space-y-4">
     <div className="print:hidden"><PageHeader title="Liquidation / reimbursement" description={`${l.pcv_number} · ${l.fund_name}`} actions={<><PrintButton /><CsvExportButton filename={`${l.pcv_number}-liquidation.csv`} header={["PCV", "Name", "Department", "Filing date", "Particulars", "Category", "Amount", "Receipt attached", "Missing receipt reason", "Advance", "Total spent", "Return amount", "Reimbursement amount", "Status"]} rows={rows.length ? rows.map(item => [l.pcv_number, l.employee_name, l.department, l.filing_date, item.particulars, flow.flow_version === 2 ? "" : nameByCategory.get(item.category_id) ?? "", item.amount, item.receipt_path ? "Yes" : "No", item.no_receipt_reason ?? "", l.amount_received, l.total_spent, difference.kind === "return" ? difference.amount : "0", difference.kind === "reimbursement" ? difference.amount : "0", LIQUIDATION_LABELS[l.status]]) : [[l.pcv_number, l.employee_name, l.department, l.filing_date, l.unspent_reason ?? "No expenses", "", 0, "No", "", l.amount_received, l.total_spent, difference.amount, "0", LIQUIDATION_LABELS[l.status]]]} /><Link className="text-sm underline" href="/liquidations">All liquidations</Link></>} /></div>
+    {filedForOwner && l.status !== "draft" ? <Callout tone="info" title={`Filed by ${filing.filed_by_name ?? "a custodian"} for ${l.employee_name}`}>{isOwner ? "This was filed for you. If something is wrong, tell the reviewer." : "The employee did not file this themselves; the person named here did, on their behalf."}</Callout> : null}
     {nextStep()}
     <LiquidationActions canPrepareApproval={flow.flow_version!==2} id={id} canReview={canReview} canSettle={canSettle} canApproveReimbursement={canApproveReimbursement} amount={difference.amount} kind={difference.kind} />
     <FlowSteps label="Liquidation progress" steps={steps} />

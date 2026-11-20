@@ -26,16 +26,19 @@ export function requesterNotice(event: string, request: RequestSummary): string 
   return null;
 }
 
-// Best effort: a person with no Telegram, or a Telegram that is down, must never break the approval itself.
-export async function tellRequester(requesterId: string, event: string, request: RequestSummary) {
+// Best effort: a person with no Telegram, or a Telegram that is down, must never break the action itself.
+export async function tellPerson(profileId: string, text: string) {
   try {
     if (!telegramConfigured()) return;
-    const text = requesterNotice(event, request);
-    if (!text) return;
     const db = createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>;
-    const link = await db.from("telegram_links").select("chat_id").eq("profile_id", requesterId).maybeSingle();
+    const link = await db.from("telegram_links").select("chat_id").eq("profile_id", profileId).maybeSingle();
     if (link.data) await sendMessage(Number(link.data.chat_id), text);
   } catch (error) {
     console.error("telegram notice failed", error instanceof Error ? error.message : "unknown error");
   }
+}
+
+export async function tellRequester(requesterId: string, event: string, request: RequestSummary) {
+  const text = requesterNotice(event, request);
+  if (text) await tellPerson(requesterId, text);
 }

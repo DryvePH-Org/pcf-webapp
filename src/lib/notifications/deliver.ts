@@ -16,6 +16,7 @@ export type Recipient = {
 
 export type NotificationEvent =
   | "liquidation.submitted"
+  | "liquidation.filed_for_you"
   | "liquidation.reviewed"
   | "liquidation.settled"
   | "liquidation.reimbursement_approved"
@@ -103,6 +104,7 @@ const ACTION_EMAIL_EVENTS = new Set<NotificationEvent>([
   "voucher.flagged",
   "voucher.released_to_requester",
   "liquidation.submitted",
+  "liquidation.filed_for_you",
   "liquidation.flagged",
   "liquidation.needs_approver",
   "liquidation.due",
