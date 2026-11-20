@@ -40,6 +40,10 @@ type WorkflowFunctions = {
       record_cancelled_advance_return: { Args: { p_voucher: string; p_returned_on: string }; Returns: undefined };
       approver_reviews_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
       approver_prepares_owner: { Args: { p_fund: string; p_owner: string }; Returns: boolean };
+      telegram_issue_link_code: { Args: { p_user: string }; Returns: string };
+      telegram_unlink: { Args: { p_user: string }; Returns: undefined };
+      telegram_redeem_link_code: { Args: { p_code: string; p_chat: number; p_username: string | null }; Returns: { profile_id: string; full_name: string }[] };
+      telegram_create_budget_request: { Args: { p_user: string; p_fund: string; p_amount: number; p_purpose: string }; Returns: string };
       accounting_latest_date: { Args: { p_source: string; p_book: string | null; p_tab: number | null; p_custodian: string | null }; Returns: string | null };
       set_fund_expense_tags: { Args: { p_fund: string; p_tags: string[] }; Returns: undefined };
       approve_liquidation_without_sheet: { Args: { p_id: string }; Returns: undefined };
@@ -122,6 +126,9 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       advance_cancellations: Table<{ id: string; voucher_id: string; fund_id: string; amount: number; cancelled_at: string; returned_on: string | null }>;
       fund_approvers: Table<{ fund_id: string; approver_id: string; created_at: string }>;
       fund_expense_tags: Table<{ fund_id: string; tag: string; position: number }>;
+      telegram_links: Table<{ profile_id: string; chat_id: number; username: string | null; linked_at: string }>;
+      telegram_drafts: Table<{ id: string; chat_id: number; profile_id: string; fund_id: string | null; amount: number | null; purpose: string | null; transcript: string | null; status: string; request_id: string | null; message_id: number | null; created_at: string; updated_at: string }>;
+      telegram_updates: Table<{ update_id: number; received_at: string }>;
       request_approval_emails: Table<{ request_id: string; created_at: string; emailed_at: string | null }>;
       fund_export_templates: Table<{ fund_id: string; file_name: string; storage_path: string; uploaded_by: string | null; uploaded_at: string }>;
     };

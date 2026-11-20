@@ -206,6 +206,20 @@ You review expenses after the cash is out.
 
 You can't review a voucher you prepared yourself.
 
+## Asking for a budget by Telegram
+
+Requesters who find the website hard to use can ask for a budget with a **voice message** on Telegram.
+An administrator links each person (**Administration -> Telegram -> Make link**) and sends them the link;
+they tap it once.
+
+1. The requester sends a voice message: the amount and what it is for (Filipino, English or both).
+2. The bot replies with a summary: **amount, reason and fund**.
+3. They check it. **Palitan ang halaga / dahilan / fund** corrects it, by voice or typing.
+4. They tap **Submit**. It becomes a normal budget request, with the same limits and approvals as on the website.
+5. When the custodian approves or rejects it, the bot tells the requester.
+
+Nothing is submitted without a tap on **Submit**. A request made this way says "sent by Telegram" on its page.
+
 ## A fund that lives in the database only (no Google Sheet)
 
 When an administrator creates a fund, **Keep this fund's ledger in the database only** makes it a fund with

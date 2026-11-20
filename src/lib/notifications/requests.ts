@@ -7,6 +7,7 @@ import { shortRef } from "@/lib/refs";
 import { requestStatusLabel } from "@/lib/request-status";
 import { notify, recipientsByRole } from "./deliver";
 import { reviewersFor } from "./routing";
+import { tellRequester } from "@/lib/telegram/notify";
 
 export type BudgetRequestEvent = "budget.submitted" | "budget.reviewed" | "budget.cancelled" | "budget.voucher_created";
 
@@ -109,6 +110,9 @@ export async function notifyBudgetRequest(id: string, event: BudgetRequestEvent,
       cta: { label: "Open budget request", path: `/requests/${id}` },
     }),
   });
+
+  // Someone who asked by Telegram hears the answer there too (a person with no Telegram link is skipped).
+  await tellRequester(request.requester_id, event, request);
 
   // Where a fund lets a custodian approve her own request, admins and accounting
   // see it in their bell (the audit log has the full record).

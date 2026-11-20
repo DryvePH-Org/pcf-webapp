@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Scale,
   ScrollText,
+  Send,
   Table2,
   Tags,
   Trash2,
@@ -56,6 +57,7 @@ const ADMINISTRATION: NavItem[] = [
   { href: "/admin/categories", label: "Categories", icon: Tags },
   { href: "/admin/sheets", label: "Google Sheets", icon: Table2 },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/telegram", label: "Telegram", icon: Send },
   { href: "/admin/data", label: "Data deletion", icon: Trash2 },
 ];
 

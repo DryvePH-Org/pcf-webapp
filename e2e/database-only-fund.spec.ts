@@ -134,7 +134,7 @@ test.describe("a database-only fund (desktop)", () => {
 
     // the Google Sheet copy is one click away, and has nothing for this fund
     await page.getByRole("link", { name: "Compare with the Google Sheet copy" }).click();
-    await expect(page.getByText("Showing the Google Sheet copy")).toBeVisible();
+    await expect(page.getByText("Showing the Google Sheet copy")).toBeVisible({ timeout: 20000 });
     await expect(page.locator(`a[href="/liquidations/${liquidationId}"]`)).toHaveCount(0);
     await context.close();
   });

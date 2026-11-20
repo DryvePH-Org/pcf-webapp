@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkflowDatabase } from "@/lib/workflow";
 import { canAccessRoute, canPerform } from "@/lib/permissions";
 import { requestStatusLabel } from "@/lib/request-status";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const liquidationLabel = (status: string) => LIQUIDATION_LABELS[status] ?? status;
 
@@ -33,6 +34,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   const { data: request, error } = await wf.from("budget_requests").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!request) notFound();
+  // A request a person made by voice message on Telegram says so (what they said is kept with it).
+  const fromTelegram = ((await (createAdminClient() as unknown as SupabaseClient<WorkflowDatabase>).from("telegram_drafts").select("id", { count: "exact", head: true }).eq("request_id", id)).count ?? 0) > 0;
   const [{ data: vouchers, error: voucherError }, { data: funds, error: fundError }] = await Promise.all([
     supabase.rpc("request_voucher_summary", { p_request_id: id }),
     supabase.rpc("list_request_funds"),
@@ -115,7 +118,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
       <div className="print:hidden">
         <PageHeader
           title={`Budget request ${shortRef(request.request_no)}`}
-          description={`${request.requester_name} · ${request.fund_name}`}
+          description={`${request.requester_name} · ${request.fund_name}${fromTelegram ? " · sent by Telegram" : ""}`}
           actions={
             <>
               <PrintButton />
