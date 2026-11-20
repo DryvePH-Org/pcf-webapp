@@ -13,6 +13,14 @@ export const createUserSchema = z.object({
   role: roleSchema,
 });
 
+// The form asks for the password twice. Only the password goes to the server.
+export const createUserFormSchema = createUserSchema
+  .extend({ confirm: z.string().max(128) })
+  .refine((value) => value.password === value.confirm, {
+    path: ["confirm"],
+    message: "The two passwords don't match.",
+  });
+
 export const updateUserRoleSchema = z.object({
   userId: z.string().uuid(),
   role: roleSchema,
@@ -24,3 +32,4 @@ export const setUserActiveSchema = z.object({
 });
 
 export type CreateUserValues = z.infer<typeof createUserSchema>;
+export type CreateUserFormValues = z.infer<typeof createUserFormSchema>;

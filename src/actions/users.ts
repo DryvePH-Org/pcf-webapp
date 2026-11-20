@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { safeDbMessage } from "@/lib/db-error";
@@ -16,6 +17,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRepeat, REPEAT_MESSAGE, withinLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import type { WorkflowDatabase } from "@/lib/workflow";
 import { resetPasswordSchema } from "@/lib/validators/auth";
 import {
   createUserSchema,
@@ -283,5 +285,35 @@ export async function resetUserPassword(input: {
     new_data: { password: "reset by an administrator" },
   });
 
+  return { ok: true };
+}
+
+const removeUserSchema = z.object({ userId: z.uuid() });
+
+// Removes a person who has no history (a mistaken account, someone who never started). Anyone with requests, vouchers,
+// liquidations or other records cannot be removed, because their history would lose its owner: the database refuses
+// with the reason, and the person can be deactivated instead, which keeps everything.
+export async function removeUser(input: { userId: string }): Promise<ActionResult> {
+  const admin = await getAdminUser();
+  if (!admin) return actionError("Only administrators can remove users.");
+  const parsed = removeUserSchema.safeParse(input);
+  if (!parsed.success) return actionError("Choose a person to remove.");
+  if (parsed.data.userId === admin.id) return actionError("You cannot remove your own account.");
+  if (!(await withinLimit(`user:remove:${admin.id}`, 20, 600))) return actionError("Too many removals. Wait a few minutes, then try again.");
+
+  // The database checks everything (records, funds held, approver assignments) and removes the person from the app.
+  const db = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await db.rpc("remove_user", { p_user: parsed.data.userId });
+  if (error) return actionError(safeDbMessage(error));
+
+  // Then the sign-in account itself, so the email can be used again.
+  const service = createAdminClient();
+  let failed = (await service.auth.admin.deleteUser(parsed.data.userId)).error;
+  if (failed) failed = (await service.auth.admin.deleteUser(parsed.data.userId)).error;
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/funds");
+  if (failed) {
+    return actionError("The person was removed from the app, but their sign-in account could not be deleted. They cannot use the app. Try removing the account again from your Supabase dashboard.");
+  }
   return { ok: true };
 }

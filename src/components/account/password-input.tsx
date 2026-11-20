@@ -13,6 +13,8 @@ export function PasswordInput({
   autoComplete,
   invalid,
   disabled,
+  visible: controlledVisible,
+  onVisibleChange,
 }: {
   id: string;
   value: string;
@@ -20,8 +22,13 @@ export function PasswordInput({
   autoComplete: "current-password" | "new-password";
   invalid?: boolean;
   disabled?: boolean;
+  // Optional: let the parent decide whether the password is shown (for example after one is generated).
+  visible?: boolean;
+  onVisibleChange?: (visible: boolean) => void;
 }) {
-  const [visible, setVisible] = useState(false);
+  const [ownVisible, setOwnVisible] = useState(false);
+  const visible = controlledVisible ?? ownVisible;
+  const setVisible = (next: boolean) => (onVisibleChange ? onVisibleChange(next) : setOwnVisible(next));
   return (
     <div className="relative">
       <Input
@@ -37,7 +44,7 @@ export function PasswordInput({
       />
       <button
         type="button"
-        onClick={() => setVisible((current) => !current)}
+        onClick={() => setVisible(!visible)}
         className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground"
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}

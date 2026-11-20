@@ -324,6 +324,13 @@ You can do everything above, plus set the system up.
   hold many funds, and a fund can have several custodians; ticking a fund never
   takes it from another custodian. Before you deactivate a custodian or change
   their role, take them off their funds.
+  When you create a user or reset a password you type it twice; the eye button
+  shows or hides both boxes, and **Generate a strong one** fills both with a
+  password you can copy and send. **Remove** deletes a person completely (their
+  login too), but only someone who never did anything in the system: a person
+  who made requests, vouchers or liquidations, still holds a fund, or is an
+  assigned approver cannot be removed. Deactivate them instead, which keeps the
+  history. You cannot remove your own account.
 - **Admin → Funds**: create the fund, set its amount, per-transaction limit,
   low-balance warning level, and its custodians (tick as many as you need; each
   can prepare and release their own vouchers and request

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 
-import { setUserActive, updateUserRole } from "@/actions/users";
+import { removeUser, setUserActive, updateUserRole } from "@/actions/users";
 import { AssignFundsDialog } from "@/components/admin/assign-funds-dialog";
 import { ResetPasswordDialog } from "@/components/admin/reset-password-dialog";
 import type { FundAssignmentOption, UserRow } from "@/components/admin/types";
@@ -50,6 +50,7 @@ export function UsersManager({
   const [deactivating, setDeactivating] = useState<UserRow | null>(null);
   const [assigning, setAssigning] = useState<UserRow | null>(null);
   const [resetting, setResetting] = useState<UserRow | null>(null);
+  const [removing, setRemoving] = useState<UserRow | null>(null);
   const [pending, setPending, isBusy] = usePending();
 
   async function setActive(user: UserRow, isActive: boolean) {
@@ -65,6 +66,20 @@ export function UsersManager({
 
     setDeactivating(null);
     toast.success(isActive ? "User activated" : "User deactivated");
+    router.refresh();
+  }
+
+  async function remove(user: UserRow) {
+    if (isBusy()) return;
+    setPending(true);
+    const result = await removeUser({ userId: user.id });
+    setPending(false);
+    setRemoving(null);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`${user.full_name} was removed`);
     router.refresh();
   }
 
@@ -145,6 +160,9 @@ export function UsersManager({
                 Activate
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => setRemoving(user)}>
+              Remove
+            </Button>
           </div>
         ),
     },
@@ -214,6 +232,11 @@ export function UsersManager({
                     Activate
                   </Button>
                 )}
+                {user.id === currentUserId ? null : (
+                  <Button variant="outline" size="sm" onClick={() => setRemoving(user)}>
+                    Remove
+                  </Button>
+                )}
               </div>
 
               {user.role === "custodian" ? (
@@ -272,6 +295,25 @@ export function UsersManager({
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(next) => {
+          if (!next) setRemoving(null);
+        }}
+        title="Remove this user?"
+        description={
+          removing
+            ? `${removing.full_name} (${removing.email}) is deleted completely, and their email can be used again. This cannot be undone. Anyone who has made requests, vouchers or liquidations cannot be removed, because their history would be lost: for them, use Deactivate, which keeps everything.`
+            : ""
+        }
+        confirmLabel="Remove user"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (removing) void remove(removing);
+        }}
+      />
 
       <ConfirmDialog
         open={deactivating !== null}

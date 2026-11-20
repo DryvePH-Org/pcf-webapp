@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Check, Copy, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { createUser } from "@/actions/users";
+import { PasswordInput } from "@/components/account/password-input";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -20,15 +23,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ALL_ROLES, ROLE_LABELS } from "@/lib/permissions";
+import { generatePassword } from "@/lib/password-generator";
 import {
-  createUserSchema,
+  createUserFormSchema,
+  type CreateUserFormValues,
   type CreateUserValues,
 } from "@/lib/validators/user";
 
-const emptyValues: CreateUserValues = {
+const emptyValues: CreateUserFormValues = {
   full_name: "",
   email: "",
   password: "",
+  confirm: "",
   role: "custodian",
 };
 
@@ -46,15 +52,21 @@ export function UserFormDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: (user: Omit<CreateUserValues, "password">) => void;
 }) {
-  const form = useForm<CreateUserValues>({
-    resolver: zodResolver(createUserSchema),
+  const form = useForm<CreateUserFormValues>({
+    resolver: zodResolver(createUserFormSchema),
     defaultValues: emptyValues,
   });
+  const [showPasswords, setShowPasswords] = useState(false);
+  const password = useWatch({ control: form.control, name: "password" });
+  const confirm = useWatch({ control: form.control, name: "confirm" });
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting, isBusy] = usePending();
 
-  async function onSubmit(values: CreateUserValues) {
+  async function onSubmit(formValues: CreateUserFormValues) {
     if (isBusy()) return;
+    // the confirmation was only for checking; the server gets the password once
+    const { confirm: _confirm, ...values } = formValues;
+    void _confirm;
     setSubmitting(true);
     setServerError(null);
     let result;
@@ -71,7 +83,7 @@ export function UserFormDialog({
       setServerError(result.error);
       if (result.fieldErrors) {
         for (const [key, messages] of Object.entries(result.fieldErrors)) {
-          form.setError(key as keyof CreateUserValues, {
+          form.setError(key as keyof CreateUserFormValues, {
             message: messages[0],
           });
         }
@@ -81,6 +93,7 @@ export function UserFormDialog({
 
     onOpenChange(false);
     form.reset(emptyValues);
+    setShowPasswords(false);
     onSaved({ full_name: values.full_name, email: values.email, role: values.role });
   }
 
@@ -125,19 +138,92 @@ export function UserFormDialog({
 
         <div className="space-y-2">
           <Label htmlFor="user-password">Password</Label>
-          <Input
-            id="user-password"
-            type="password"
-            autoComplete="new-password"
-            minLength={8}
-            maxLength={128}
-            {...form.register("password")}
-            aria-invalid={Boolean(errors.password)}
+          <Controller
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <PasswordInput
+                id="user-password"
+                value={field.value}
+                onChange={field.onChange}
+                autoComplete="new-password"
+                invalid={Boolean(errors.password)}
+                visible={showPasswords}
+                onVisibleChange={setShowPasswords}
+                disabled={submitting}
+              />
+            )}
           />
-          <p className="text-xs text-muted-foreground">Use 8–128 characters. Share the password with the user privately.</p>
           {errors.password ? (
             <p className="text-xs text-destructive">{errors.password.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Use 8–128 characters. Share the password with the user privately.</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="user-password-confirm">Confirm password</Label>
+          <Controller
+            control={form.control}
+            name="confirm"
+            render={({ field }) => (
+              <PasswordInput
+                id="user-password-confirm"
+                value={field.value}
+                onChange={field.onChange}
+                autoComplete="new-password"
+                invalid={Boolean(errors.confirm) || (confirm !== "" && confirm !== password)}
+                visible={showPasswords}
+                onVisibleChange={setShowPasswords}
+                disabled={submitting}
+              />
+            )}
+          />
+          {errors.confirm ? (
+            <p className="text-xs text-destructive">{errors.confirm.message}</p>
+          ) : confirm !== "" && confirm !== password ? (
+            <p className="text-xs text-destructive">The two passwords don&apos;t match yet.</p>
+          ) : confirm !== "" ? (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Check className="size-3" />
+              The passwords match.
+            </p>
           ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={submitting}
+              onClick={() => {
+                // a strong one in both boxes, shown so it can be read out or copied
+                const made = generatePassword();
+                form.setValue("password", made, { shouldValidate: true });
+                form.setValue("confirm", made, { shouldValidate: true });
+                setShowPasswords(true);
+              }}
+            >
+              <Wand2 />
+              Generate a strong one
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={submitting || !password}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(password);
+                  toast.success("Password copied");
+                } catch {
+                  toast.error("Could not copy. Select the password and copy it instead.");
+                }
+              }}
+            >
+              <Copy />
+              Copy
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">
