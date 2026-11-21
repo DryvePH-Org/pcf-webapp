@@ -75,7 +75,8 @@ test.describe("passwords (desktop)", () => {
     await row.getByRole("button", { name: "Reset password" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Generate a strong one" }).click();
-    const generated = await dialog.getByLabel("New password").inputValue();
+    const generated = await dialog.getByLabel("New password", { exact: true }).inputValue();
+    await expect(dialog.getByLabel("Confirm new password")).toHaveValue(generated);
     expect(generated).toMatch(/^[A-Za-z2-9]{7}-[A-Za-z2-9]{7}$/);
     await dialog.getByRole("button", { name: "Set new password" }).click();
     await expect(page.getByText(/New password set for PCF Approver/).first()).toBeVisible();

@@ -1,3 +1,5 @@
+import { RequestTrail } from "@/components/shared/request-trail";
+import { loadRequestTrail } from "@/lib/request-trail-data";
 import { LiquidationDeadline } from "@/components/liquidations/deadline-indicator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkflowDatabase } from "@/lib/workflow";
@@ -133,6 +135,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     position: item.position, particulars: item.particulars, amount: Number(item.amount),
     receipt: item.receipt_path ? `Attached${(extraByItem.get(item.id) ?? []).length ? ` (+${(extraByItem.get(item.id) ?? []).length} more)` : ""}` : item.no_receipt_reason ? `None: ${item.no_receipt_reason}` : "None",
   }));
+  const trail = await loadRequestTrail(db, { key: "liquidation", id });
   return <div className="space-y-6">
     <LiquidationPrintSheet
       pcv={l.pcv_number} fund={l.fund_name} statusLabel={LIQUIDATION_LABELS[l.status]} name={l.employee_name}
@@ -145,6 +148,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
       settlementNote={settlement ? `${settlement.kind === "return" ? "Cash received back" : "Reimbursement paid"}: ${formatPHP(settlement.amount)} (${formatDateTime(settlement.created_at)})` : null}
     />
     <div className="space-y-6 print:hidden">
+    <RequestTrail steps={trail} />
     <div className="print:hidden"><PageHeader title="Liquidation / reimbursement" description={`${l.pcv_number} · ${l.fund_name}`} actions={<><PrintButton /><CsvExportButton filename={`${l.pcv_number}-liquidation.csv`} header={["PCV", "Name", "Department", "Filing date", "Particulars", "Category", "Amount", "Receipt attached", "Missing receipt reason", "Advance", "Total spent", "Return amount", "Reimbursement amount", "Status"]} rows={rows.length ? rows.map(item => [l.pcv_number, l.employee_name, l.department, l.filing_date, item.particulars, flow.flow_version === 2 ? "" : nameByCategory.get(item.category_id) ?? "", item.amount, item.receipt_path ? "Yes" : "No", item.no_receipt_reason ?? "", l.amount_received, l.total_spent, difference.kind === "return" ? difference.amount : "0", difference.kind === "reimbursement" ? difference.amount : "0", LIQUIDATION_LABELS[l.status]]) : [[l.pcv_number, l.employee_name, l.department, l.filing_date, l.unspent_reason ?? "No expenses", "", 0, "No", "", l.amount_received, l.total_spent, difference.amount, "0", LIQUIDATION_LABELS[l.status]]]} /><Link className="tap-link text-sm underline" href="/liquidations">All liquidations</Link></>} /></div>
     {filedForOwner && l.status !== "draft" ? <Callout tone="info" title={`Filed by ${filing.filed_by_name ?? "a custodian"} for ${l.employee_name}`}>{isOwner ? "This was filed for you. If something is wrong, tell the reviewer." : "The employee did not file this themselves; the person named here did, on their behalf."}</Callout> : null}
     {nextStep()}
@@ -202,7 +206,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
       {l.unspent_reason ? <Field label="Why the advance was not spent" value={l.unspent_reason} /> : null}
       {l.reviewed_at ? <div className="space-y-2 border-t pt-3"><Field label="Custodian review" value={`${l.reviewer_name} · ${formatDateTime(l.reviewed_at)}${l.reviewed_by === l.owner_id ? " · self-approved (recorded in the audit log)" : ""}`} />{l.review_note ? <Field label="Review note" value={l.review_note} /> : null}</div> : null}
       {l.status === "approved" ? (
-        <div className="space-y-2 border-t pt-3">
+        <div id="settlement" className="scroll-mt-20 space-y-2 border-t pt-3">
           <h3 className="font-semibold">Cash settlement</h3>
           {settlement ? (
             <>

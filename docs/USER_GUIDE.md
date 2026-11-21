@@ -320,6 +320,16 @@ and voucher preparation belong to custodians/admins.
 Also yours: voucher CSV export and the **Audit Trail** (every change, with who
 and when). Vouchers and replenishment forms can be printed.
 
+## Following a request from start to finish
+
+The request, voucher and liquidation pages show a **trail** at the very top:
+Budget request, Voucher, Liquidation, Settlement. Each step says where it
+stands (done, waiting, stopped or not yet) and every step that already exists
+is a tap away, so you can jump between a request, its voucher and its
+liquidation without searching. Settlement opens the settlement section of the
+liquidation. On a phone the trail is one line, "Trail · step 3 of 4", that you
+tap to open the list.
+
 ## Administrator
 
 You can do everything above, plus set the system up.

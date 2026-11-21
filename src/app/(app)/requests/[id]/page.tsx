@@ -1,3 +1,5 @@
+import { RequestTrail } from "@/components/shared/request-trail";
+import { loadRequestTrail } from "@/lib/request-trail-data";
 import { VoucherLiquidationPanel } from "@/components/liquidations/voucher-liquidation-panel";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -113,8 +115,10 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     },
   ];
 
+  const trail = await loadRequestTrail(supabase, { key: "request", id });
   return (
     <div className="space-y-6 print:space-y-4">
+      <RequestTrail steps={trail} />
       <div className="print:hidden">
         <PageHeader
           title={`Budget request ${shortRef(request.request_no)}`}

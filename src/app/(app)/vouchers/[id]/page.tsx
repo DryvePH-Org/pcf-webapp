@@ -1,3 +1,5 @@
+import { RequestTrail } from "@/components/shared/request-trail";
+import { loadRequestTrail } from "@/lib/request-trail-data";
 import { CancelAdvancePanel } from "@/components/vouchers/cancel-advance-panel";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkflowDatabase } from "@/lib/workflow";
@@ -222,9 +224,11 @@ export default async function VoucherDetailPage({
     }));
   }
 
+  const trail = await loadRequestTrail(supabase, { key: "voucher", id: voucher.id });
   return (
     <>
       <div className="space-y-6 print:hidden">
+        <RequestTrail steps={trail} />
         <PageHeader
           title={voucher.pcv_number}
           description={`${voucher.payee} · ${formatDate(voucher.voucher_date)}`}
