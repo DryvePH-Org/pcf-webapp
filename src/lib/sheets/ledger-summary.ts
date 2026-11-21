@@ -40,8 +40,16 @@ export function summarizeLedger(grid: Cell[][]): LedgerSummary | null {
     outgoing = headers.indexOf("OUT"),
     balance = headers.indexOf("BALANCE");
   if (incoming < 0 || outgoing < 0 || balance < 0) return null;
-  const boundary = findLedgerBoundary(grid, header, outgoing);
-  if (boundary < 0) return null;
+  let boundary = findLedgerBoundary(grid, header, outgoing);
+  if (boundary < 0) {
+    // No total or sign-off row came with the snapshot (a sheet read that stopped at the last used row):
+    // the ledger then simply runs to the last row that holds an amount.
+    let last = -1;
+    for (let index = grid.length - 1; index > header && last < 0; index--)
+      if ([incoming, outgoing, balance].some((column) => numeric(grid[index]?.[column]) !== undefined)) last = index;
+    if (last < 0) return null;
+    boundary = last + 1;
+  }
   let opening: number | null = null,
     closing: number | null = null,
     balanceCell: string | null = null,
@@ -115,4 +123,22 @@ export function summarizeLedger(grid: Cell[][]): LedgerSummary | null {
         ? null
         : Math.abs(round(outflows) - round(printedTotal)) < 0.01,
   };
+}
+
+// Why a snapshot cannot be used, in words a person can act on; null when it is fine. The cells are named so
+// the sheet can be fixed.
+export function ledgerProblem(grid: Cell[][], summary: LedgerSummary | null): string | null {
+  if (!summary) return "The snapshot has no readable ledger: a header row with DATE, OUT and BALANCE and at least one amount is needed.";
+  if (summary.formula_errors > 0) {
+    const cells: string[] = [];
+    grid.forEach((row, rowIndex) =>
+      row.forEach((cell, columnIndex) => {
+        if (/^#(REF!|VALUE!|DIV\/0!|N\/A|ERROR!)/.test(text(cell)) && cells.length < 5) cells.push(`${columnName(columnIndex)}${rowIndex + 1}`);
+      }),
+    );
+    return `The sheet shows formula errors (${cells.join(", ")}${summary.formula_errors > cells.length ? ", ..." : ""}). Fix them, then the next read will be accepted.`;
+  }
+  if (summary.balanced === false)
+    return `The OUT total printed in the sheet does not match the expense rows above it (rows add up to ${summary.outflows.toFixed(2)}). Check for a total that stops early or a row typed outside the ledger.`;
+  return null;
 }

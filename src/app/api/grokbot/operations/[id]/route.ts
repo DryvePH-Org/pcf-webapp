@@ -14,7 +14,7 @@ import { targetEnvelope, targetForSpreadsheet } from "@/lib/grokbot/targets";
 import type { WorkflowDatabase } from "@/lib/workflow";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseExpenseRows } from "@/lib/sheets/parser";
-import { summarizeLedger } from "@/lib/sheets/ledger-summary";
+import { ledgerProblem, summarizeLedger } from "@/lib/sheets/ledger-summary";
 import { latestReplenishmentNumber, sheetExpenseTags } from "@/lib/sheets/grid";
 
 // Each operation belongs to one sheet (and one bot); everything below follows from that sheet.
@@ -220,15 +220,17 @@ export async function POST(
           );
         const { grid } = snapshot.data;
         const summary = summarizeLedger(grid);
-        if (
-          !summary ||
-          summary.formula_errors > 0 ||
-          summary.balanced === false
-        )
-          return Response.json(
-            { error: "Ledger snapshot has missing or inconsistent balances" },
-            { status: 422 },
-          );
+        const problem = ledgerProblem(grid, summary);
+        if (problem || !summary) {
+          // say exactly why, here and where the team looks (the workbook's status), instead of only to Grokbot
+          const reason = problem ?? "The snapshot has no readable ledger.";
+          await auth.db
+            .from("sheet_workbooks")
+            .update({ refresh_until: null, sync_error: `Last read of the sheet was not used: ${reason}` })
+            .eq("id", target.book)
+            .eq("refresh_token", String(payload.refresh_token));
+          return Response.json({ error: reason }, { status: 422 });
+        }
         const expenses = parseExpenseRows(
           target.book,
           target.sheet_id,
