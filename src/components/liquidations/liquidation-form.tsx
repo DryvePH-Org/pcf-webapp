@@ -2,7 +2,7 @@
 
 import { formatDate } from "@/lib/dates";
 import { ReceiptAttachment } from "./receipt-attachment";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
@@ -20,6 +20,7 @@ import { openLiquidationReceipt, uploadLiquidationReceipt } from "@/lib/liquidat
 import { FormModeBanner } from "@/components/shared/form-mode-banner";
 import { NaButton } from "@/components/shared/na-button";
 import { parseMoney } from "@/lib/money";
+import { browserStore, clearBackup, normalizeForm, restorable, saveBackup } from "@/lib/liquidation-backup";
 import {
   saveLiquidationSchema,
   submitLiquidationSchema,
@@ -40,6 +41,60 @@ export function LiquidationForm({
   const [form, setForm] = useState(initial);
   const [pending, setPending, isBusy] = usePending();
   const [uploading, setUploading] = useState<string | null>(null);
+  // What is typed here is also saved by itself (to the server, and on this device), because the page can reload
+  // on its own, for example when a phone comes back from the camera.
+  const savedRef = useRef(initial);
+  const hydrated = useRef(false);
+  const [restored, setRestored] = useState(false);
+  const [auto, setAuto] = useState<"idle" | "saving" | "saved" | "kept">("idle");
+  const [autoAt, setAutoAt] = useState("");
+  useEffect(() => {
+    // after the first paint, so the page and the browser agree on what was drawn
+    const timer = setTimeout(() => {
+      const back = restorable(browserStore(), initial);
+      if (back) {
+        setForm(back);
+        setRestored(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+    // only when the form first opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!hydrated.current) {
+      hydrated.current = true;
+      return;
+    }
+    if (normalizeForm(form) === normalizeForm(savedRef.current)) clearBackup(browserStore(), form.id);
+    else saveBackup(browserStore(), form, savedRef.current);
+  }, [form]);
+  useEffect(() => {
+    if (normalizeForm(form) === normalizeForm(savedRef.current)) return;
+    const timer = setTimeout(async () => {
+      if (isBusy() || uploading !== null) return;
+      const parsed = saveLiquidationSchema.safeParse(form);
+      if (!parsed.success) {
+        setAuto("kept");
+        return;
+      }
+      setAuto("saving");
+      try {
+        const result = await saveLiquidation(parsed.data, false, true);
+        if (!result.ok) {
+          setAuto("kept");
+          return;
+        }
+        savedRef.current = form;
+        setAuto("saved");
+        setAutoAt(new Date().toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }));
+        clearBackup(browserStore(), form.id);
+      } catch {
+        setAuto("kept");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [form, uploading, isBusy]);
   const [uploadFailed, setUploadFailed] = useState<Record<string, string>>({});
   const clearFailed = (lineId: string) =>
     setUploadFailed((current) => {
@@ -100,6 +155,8 @@ export function LiquidationForm({
         showError(result.error);
         return;
       }
+      savedRef.current = form;
+      clearBackup(browserStore(), form.id);
       toast.success(
         submit ? "Submitted to the custodian" : "Liquidation draft saved",
       );
@@ -128,6 +185,26 @@ export function LiquidationForm({
         <CardTitle>Requester liquidation</CardTitle>
       </CardHeader>
       <CardContent>
+        {restored ? (
+          <Alert className="mb-5">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+              <span>The page reloaded, so we brought back what you were typing, receipts included.</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setForm(initial);
+                  savedRef.current = initial;
+                  clearBackup(browserStore(), initial.id);
+                  setRestored(false);
+                }}
+              >
+                Start over from the saved version
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <FormModeBanner
           title="Liquidation form"
           hint="Enter what you actually spent. Nothing goes to your custodian until you press Submit for review."
@@ -381,6 +458,15 @@ export function LiquidationForm({
                 </div>
               ))}
             </dl>
+            <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              {auto === "saving"
+                ? "Saving…"
+                : auto === "saved"
+                  ? `Saved automatically at ${autoAt}. You can leave and come back to it.`
+                  : auto === "kept"
+                    ? "Not saved to the server yet (a line is still incomplete). What you typed is kept on this device."
+                    : "Your work is saved automatically as you type."}
+            </p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="submit" variant="outline" disabled={disabled}>
                 {pending ? "Saving…" : "Save draft"}

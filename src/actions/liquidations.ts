@@ -39,7 +39,8 @@ export async function createLiquidationFor(voucherId: string): Promise<{ ok: tru
   if (error) return { ok: false, error: safeDbMessage(error) };
   refresh(); return { ok: true, id: data };
 }
-export async function saveLiquidation(input: LiquidationFormValues, submit: boolean): Promise<ActionResult> {
+// `quiet` is the automatic save while someone types: it stores the draft and leaves every page as it is (no refresh).
+export async function saveLiquidation(input: LiquidationFormValues, submit: boolean, quiet = false): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Sign in first." };
   const parsed = (submit ? submitLiquidationSchema : saveLiquidationSchema).safeParse(input);
@@ -56,7 +57,8 @@ export async function saveLiquidation(input: LiquidationFormValues, submit: bool
     // When someone filed it for the employee, the employee is told (it is a no-op for the employee's own filing).
     queueNotification("liquidation.filed_for_you", () => notifyLiquidation(v.id, "liquidation.filed_for_you", user.id));
   }
-  refresh(); return { ok: true };
+  if (!quiet || submit) refresh();
+  return { ok: true };
 }
 export async function reviewLiquidation(input: z.input<typeof liquidationReviewSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
