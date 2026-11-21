@@ -320,6 +320,19 @@ and voucher preparation belong to custodians/admins.
 Also yours: voucher CSV export and the **Audit Trail** (every change, with who
 and when). Vouchers and replenishment forms can be printed.
 
+## When accounting changes something in the Google Sheet
+
+Grokbot reads the sheet back after every approved liquidation, and an
+administrator can ask for a read at any time (**Read the sheet now** on the
+workbook's settings card). Whatever it reads is always kept; a problem in the
+sheet is shown as a warning on the workbook, never a reason to lose the read.
+The app then compares the sheet with its own records by voucher number, amount
+and particulars. A tag changed by hand in the sheet (for example NCE - MEALS
+to NCE - REPRESENTATION) is copied into the app and listed on the Accounting
+page under **Changes from the Google Sheet**. An amount that matches nothing,
+or a tag the sheet does not list, is listed under **To check** and clears when
+the sheet and the app agree again. Amounts are never changed from the sheet.
+
 ## Following a request from start to finish
 
 The request, voucher and liquidation pages show a **trail** at the very top:

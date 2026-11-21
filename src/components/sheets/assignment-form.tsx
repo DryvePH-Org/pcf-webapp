@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { OptionSelect } from "@/components/shared/option-select";
+import { ReadSheetButton } from "@/components/sheets/read-sheet-button";
 import { CLOSED_BOOK_MESSAGE, isBookOpen } from "@/lib/sheets/open-books";
 import type { Workbook, SheetTab } from "@/lib/sheets/types";
 import { Lock } from "lucide-react";
@@ -29,7 +30,9 @@ export function WorkbookAssignment({
   custodians,
   funds,
   assignments,
+  canReadNow = false,
 }: {
+  canReadNow?: boolean;
   book: Workbook;
   custodians: { id: string; full_name: string }[];
   funds: { id: string; name: string }[];
@@ -228,6 +231,7 @@ export function WorkbookAssignment({
               <AlertDescription>{book.sync_error}</AlertDescription>
             </Alert>
           )}
+          {canReadNow && book.enabled ? <ReadSheetButton book={book.id} /> : null}
         </CardContent>
         <CardFooter className="justify-end">
           <Button type="submit" disabled={pending || (enabled && !ready)}>

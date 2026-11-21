@@ -72,6 +72,7 @@ jobs:
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/approver-fund-scope.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/request-approval-guard.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/liquidation-draft-department.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/sheet-edits.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/extra-receipt-pictures.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/database-only-fund.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/accounting-from-database.sql

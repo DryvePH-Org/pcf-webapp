@@ -26,3 +26,8 @@ export function formatMonth(value: string) {
     "MMMM yyyy",
   );
 }
+
+// The moment `days` days ago, as an ISO timestamp (for "the last 30 days" queries).
+export function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 86400000).toISOString();
+}

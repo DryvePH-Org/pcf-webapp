@@ -48,6 +48,7 @@ type WorkflowFunctions = {
       telegram_redeem_link_code: { Args: { p_code: string; p_chat: number; p_username: string | null }; Returns: { profile_id: string; full_name: string }[] };
       telegram_create_budget_request: { Args: { p_user: string; p_fund: string; p_amount: number; p_purpose: string }; Returns: string };
       accounting_latest_date: { Args: { p_source: string; p_book: string | null; p_tab: number | null; p_custodian: string | null }; Returns: string | null };
+      apply_sheet_edits: { Args: { p_book: string; p_rows: Json }; Returns: { applied: number; flagged: number } };
       set_liquidation_photos: { Args: { p_id: string; p_photos: { item_id: string; path: string }[] }; Returns: undefined };
       set_fund_expense_tags: { Args: { p_fund: string; p_tags: string[] }; Returns: undefined };
       approve_liquidation_without_sheet: { Args: { p_id: string }; Returns: undefined };
@@ -134,6 +135,7 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       telegram_drafts: Table<{ id: string; chat_id: number; profile_id: string; fund_id: string | null; amount: number | null; purpose: string | null; transcript: string | null; status: string; request_id: string | null; message_id: number | null; created_at: string; updated_at: string }>;
       telegram_updates: Table<{ update_id: number; received_at: string }>;
       request_approval_emails: Table<{ request_id: string; created_at: string; emailed_at: string | null }>;
+      sheet_edit_log: Table<{ id: string; book_id: string; fund_id: string | null; liquidation_id: string | null; line_id: string | null; voucher: string; kind: "tag_changed" | "tag_unknown" | "amount_differs"; summary: string; app_value: string; sheet_value: string; sheet_row: number | null; applied: boolean; detected_at: string; resolved_at: string | null }>;
       liquidation_item_photos: Table<{ liquidation_id: string; item_id: string; position: number; path: string; created_at: string }>;
       fund_export_templates: Table<{ fund_id: string; file_name: string; storage_path: string; uploaded_by: string | null; uploaded_at: string }>;
     };

@@ -219,18 +219,10 @@ export async function POST(
             { status: 422 },
           );
         const { grid } = snapshot.data;
+        // What Grokbot read is always kept: a problem in the sheet (a formula error, a total that stops early) is
+        // reported next to the workbook, never a reason to throw the read away.
         const summary = summarizeLedger(grid);
         const problem = ledgerProblem(grid, summary);
-        if (problem || !summary) {
-          // say exactly why, here and where the team looks (the workbook's status), instead of only to Grokbot
-          const reason = problem ?? "The snapshot has no readable ledger.";
-          await auth.db
-            .from("sheet_workbooks")
-            .update({ refresh_until: null, sync_error: `Last read of the sheet was not used: ${reason}` })
-            .eq("id", target.book)
-            .eq("refresh_token", String(payload.refresh_token));
-          return Response.json({ error: reason }, { status: 422 });
-        }
         const expenses = parseExpenseRows(
           target.book,
           target.sheet_id,
@@ -258,6 +250,20 @@ export async function POST(
             },
             { status: 409 },
           );
+        if (problem)
+          await auth.db
+            .from("sheet_workbooks")
+            .update({ sync_error: `The sheet was read and saved, with a warning: ${problem}` })
+            .eq("id", target.book);
+        // what accounting changed by hand in the sheet reaches the app (a changed tag is copied; the rest is listed)
+        try {
+          await (auth.db as unknown as SupabaseClient<WorkflowDatabase>).rpc("apply_sheet_edits", {
+            p_book: target.book,
+            p_rows: expenses as unknown as Json,
+          });
+        } catch {
+          console.error("Sheet edits could not be compared with the app's records.");
+        }
       }
     }
     const saved = await auth.db.rpc("record_grokbot_result", {

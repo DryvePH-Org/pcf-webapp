@@ -1,4 +1,5 @@
 import { PhoneCollapse } from "@/components/shared/phone-collapse";
+import { SheetEditsPanel } from "@/components/accounting/sheet-edits-panel";
 import { SpendingCharts } from "@/components/accounting/spending-charts";
 import Link from "next/link";
 import { Files, FileSpreadsheet, Settings2, ArrowDown } from "lucide-react";
@@ -12,7 +13,7 @@ import { accountingUrl } from "@/lib/accounting";
 import type { Workbook, SheetTab } from "@/lib/sheets/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkflowDatabase } from "@/lib/workflow";
-import { formatDate } from "@/lib/dates";
+import { daysAgoIso, formatDate } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
 import { AccountingFilterForm } from "@/components/accounting/filters";
@@ -50,6 +51,14 @@ export default async function AccountingPage({
   ]);
   if (workbooks.error || profiles.error || databaseFunds.error)
     throw new Error("Could not load the Accounting dashboard.");
+  // hand edits in the sheet that the app followed or could not follow: the last 30 days, and anything still open
+  const sinceEdits = daysAgoIso(30);
+  const sheetEdits = await (db as unknown as SupabaseClient<WorkflowDatabase>)
+    .from("sheet_edit_log")
+    .select("id,kind,summary,applied,detected_at,resolved_at")
+    .or(`and(applied.eq.false,resolved_at.is.null),and(applied.eq.true,detected_at.gte.${sinceEdits})`)
+    .order("detected_at", { ascending: false })
+    .limit(30);
   const { filters, error } = normalized;
   const books = workbooks.data as Workbook[];
   // every place records can belong to: the sheet workbooks, and the database-only funds
@@ -269,6 +278,7 @@ export default async function AccountingPage({
           </AlertDescription>
         </Alert>
       ) : null}
+      <SheetEditsPanel edits={sheetEdits.data ?? []} />
       <PhoneCollapse anchor="breakdowns" title="Spending breakdowns" hint="By workbook, by month and by expense tag">
         <SpendingCharts report={report} books={bookOptions} filters={filters} />
       </PhoneCollapse>
