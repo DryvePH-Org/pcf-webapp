@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,8 @@ export function AccountingFilterForm({
     [to, setTo] = useState(filters.to),
     [book, setBook] = useState(filters.book),
     [tab, setTab] = useState(filters.tab),
-    [source, setSource] = useState(filters.source);
+    [source, setSource] = useState(filters.source),
+    [showAll, setShowAll] = useState(false);
   const selected = books.find((item) => item.id === book);
   const advancedCount = [
     filters.custodian,
@@ -62,6 +63,19 @@ export function AccountingFilterForm({
                 placeholder="Search voucher, receipt, supplier or particulars…"
               />
             </div>
+            <button
+              type="button"
+              aria-expanded={showAll}
+              onClick={() => setShowAll(value => !value)}
+              className="flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 text-sm font-medium sm:hidden"
+            >
+              <span>
+                {showAll ? "Hide filters" : "Filters"}
+                {advancedCount + (filters.book ? 1 : 0) > 0 ? ` · ${advancedCount + (filters.book ? 1 : 0)} active` : ""}
+              </span>
+              <ChevronDown className={`size-4 transition-transform ${showAll ? "rotate-180" : ""}`} aria-hidden />
+            </button>
+            <div className={`${showAll ? "grid" : "hidden"} gap-4 sm:contents`}>
             <div className="min-w-0 space-y-2">
               <Label htmlFor="accounting-source">Records from</Label>
               <OptionSelect
@@ -158,8 +172,9 @@ export function AccountingFilterForm({
                 </div>
               </>
             ) : null}
+            </div>
           </div>
-          <details className="rounded-lg border p-4">
+          <details className={`rounded-lg border p-4 ${showAll ? "" : "max-sm:hidden"}`}>
             <summary className="cursor-pointer font-medium">
               More filters
               {advancedCount > 0 ? ` · ${advancedCount} active` : ""}

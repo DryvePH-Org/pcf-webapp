@@ -1,3 +1,4 @@
+import { PhoneCollapse } from "@/components/shared/phone-collapse";
 import { SpendingCharts } from "@/components/accounting/spending-charts";
 import Link from "next/link";
 import { Files, FileSpreadsheet, Settings2, ArrowDown } from "lucide-react";
@@ -150,12 +151,12 @@ export default async function AccountingPage({
         <AlertDescription>
           {filters.source === "sheet" ? (
             <>
-              These figures come from the copy of the sheet that Grokbot brings back after each approved liquidation, so they can be behind or include rows typed by hand.{" "}
+              <span className="max-sm:hidden">These figures come from the copy of the sheet that Grokbot brings back after each approved liquidation, so they can be behind or include rows typed by hand.{" "}</span>
               <Link className="tap-link underline" href={accountingUrl(filters, { source: "database", tab: "", page: 1 })}>Show the app&apos;s records</Link>
             </>
           ) : (
             <>
-              Every approved liquidation, as soon as it is approved. Nothing waits for the Google Sheet, and funds with no sheet are included. Each entry opens its liquidation.{" "}
+              <span className="max-sm:hidden">Every approved liquidation, as soon as it is approved. Nothing waits for the Google Sheet, and funds with no sheet are included. Each entry opens its liquidation.{" "}</span>
               <Link className="tap-link underline" href={accountingUrl(filters, { source: "sheet", page: 1 })}>Compare with the Google Sheet copy</Link>
             </>
           )}
@@ -186,26 +187,26 @@ export default async function AccountingPage({
           <p className="text-sm text-muted-foreground">{periodLabel}</p>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card className="border-t-4 border-t-blue-500 bg-blue-50/60 dark:bg-blue-950/20">
           <CardHeader>
             <CardDescription>Total recorded spending</CardDescription>
-            <CardTitle className="text-2xl break-words">
+            <CardTitle className="text-lg break-words sm:text-2xl">
               <MoneyText value={report.totals.amount} />
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground max-sm:hidden">
             OUT amounts across every matching entry
           </CardContent>
         </Card>
         <Card className="border-t-4 border-t-violet-500 bg-violet-50/60 dark:bg-violet-950/20">
           <CardHeader>
             <CardDescription>Expense entries</CardDescription>
-            <CardTitle className="text-2xl break-words tabular-nums">
+            <CardTitle className="text-lg break-words tabular-nums sm:text-2xl">
               {report.totals.expense_count.toLocaleString()}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground max-sm:hidden">
             {report.totals.vouchers} voucher references ·{" "}
             {report.totals.suppliers} suppliers
           </CardContent>
@@ -213,22 +214,22 @@ export default async function AccountingPage({
         <Card className="border-t-4 border-t-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20">
           <CardHeader>
             <CardDescription>CE expenses</CardDescription>
-            <CardTitle className="text-2xl break-words">
+            <CardTitle className="text-lg break-words sm:text-2xl">
               <MoneyText value={report.totals.ce_amount} />
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground max-sm:hidden">
             Exact CE tags from the workbooks
           </CardContent>
         </Card>
         <Card className="border-t-4 border-t-amber-500 bg-amber-50/60 dark:bg-amber-950/20">
           <CardHeader>
             <CardDescription>NCE expenses</CardDescription>
-            <CardTitle className="text-2xl break-words">
+            <CardTitle className="text-lg break-words sm:text-2xl">
               <MoneyText value={report.totals.nce_amount} />
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
+          <CardContent className="text-xs text-muted-foreground max-sm:hidden">
             Exact NCE tags from the workbooks
           </CardContent>
         </Card>
@@ -268,10 +269,12 @@ export default async function AccountingPage({
           </AlertDescription>
         </Alert>
       ) : null}
-      <SpendingCharts report={report} books={bookOptions} filters={filters} />
+      <PhoneCollapse anchor="breakdowns" title="Spending breakdowns" hint="By workbook, by month and by expense tag">
+        <SpendingCharts report={report} books={bookOptions} filters={filters} />
+      </PhoneCollapse>
       <nav
         aria-label="Accounting sections"
-        className="flex flex-wrap gap-2 print:hidden"
+        className="flex flex-wrap gap-2 max-sm:hidden print:hidden"
       >
         {[
           ["expenses", "Expense records"],
@@ -509,7 +512,9 @@ export default async function AccountingPage({
         </p>
       </section>
       <section id="workbooks" className="scroll-mt-20">
-        <WorkbookOverview books={scopedBooks} people={people} report={report} />
+        <PhoneCollapse anchor="workbooks" title="Workbook balances" hint="Ledger balance and cash on hand of each workbook">
+          <WorkbookOverview books={scopedBooks} people={people} report={report} />
+        </PhoneCollapse>
       </section>
       {pending.data.length ? (
         <Card>
