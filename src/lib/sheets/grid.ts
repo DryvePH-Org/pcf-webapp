@@ -57,10 +57,16 @@ export function sheetExpenseTags(grid: Cell[][]): string[] {
 
 /** The greatest "REPLENISHMENT #NN" marker on the tab. Buying writes "PCF REPLENISHMENT #01" in
  * column F; DRYVE writes "REPLENISHMENT #14" in column B (and its funding row already says #13),
- * so every one of the leading label columns is checked. */
-export function latestReplenishmentNumber(grid: Cell[][]): number {
+ * so every one of the leading label columns is checked. When `amountColumn` (0-based, the IN column)
+ * is given, a label only counts once its row holds an amount there: staff sometimes type the next
+ * "REPLENISHMENT #13" row in advance, and an unfunded placeholder must not move the numbering. */
+export function latestReplenishmentNumber(grid: Cell[][], amountColumn?: number): number {
   let latest = 0;
   for (const row of grid) {
+    if (amountColumn !== undefined) {
+      const amount = row[amountColumn];
+      if (typeof (amount?.effectiveValue?.numberValue ?? amount?.userEnteredValue?.numberValue) !== "number") continue;
+    }
     for (const cell of row.slice(0, 6)) {
       const label = String(cell?.userEnteredValue?.stringValue ?? cell?.formattedValue ?? "").trim();
       const match = label.match(/^(?:PCF )?REPLENISHMENT #(\d+)(?:\s|$)/i);

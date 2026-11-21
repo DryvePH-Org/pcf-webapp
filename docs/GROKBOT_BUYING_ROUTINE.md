@@ -2,7 +2,7 @@
 
 Paste this whole document into the Grokbot automation's saved instructions, replacing the previous routine and any temporary override. The webhook delivers the operation data and a scoped completion callback. Protocol version is `pcf.grokbot.v1`.
 
-**Routine version: 2026-11-12.2 (staff-friendly placement).** There are no temporary overrides in this version. If an older override or bypass note is still saved above or below this routine, it no longer applies; ignore it.
+**Routine version: 2026-11-23.1 (staff-prepared rows).** There are no temporary overrides in this version. If an older override or bypass note is still saved above or below this routine, it no longer applies; ignore it.
 
 **Working with staff edits.** Office staff edit this sheet by hand: they type entries, fix typos, delete rows, and sometimes tidy the audit tab. Adapt to the sheet as it is now instead of expecting it to match earlier runs. Block only for the real problems listed in section 7.4. Everything else that looks unusual is handled by the rules below and reported as a warning.
 
@@ -174,6 +174,8 @@ Both `accounting_approved_at` and `approver_approved_at` must be present, and th
 
 This continuous tab starts with marker #01. Read the greatest existing replenishment number within this tab and require it to equal `expected_previous_replenishment_number`. The next number must be exactly that value plus one.
 
+For that check count only marker labels whose row holds an IN amount (column M). A label with no amount is a marker staff typed in advance and has not been funded yet; it does not count. If such a row carries this operation's number, write the marker into it instead of adding a second marker row: keep the label exactly where staff typed it (leave the other label column empty), write E (approval date), H (`custodian_name`), M (the amount) and the O balance formula, and apply the green fill across B:O. Otherwise write a new marker row as described above.
+
 Archived worksheet names, expense line numbers in column B, voucher numbers, and the MAD Bank sequence are separate sequences. Starting balances are separate from replenishment markers.
 
 Write one green row.
@@ -207,16 +209,19 @@ Ledger rows run from the first row under the beginning balance (row 7 in the tem
 | --- | --- | --- |
 | **Transaction** | A number in IN (M) or OUT (N), or a replenishment marker label in F | Never change it |
 | **Staff entry in progress** | No IN/OUT amount, but a DATE (E) or a PARTICULAR (F) | Never change it; write around it |
+| **Staff-prepared marker** | A text `REPLENISHMENT #NN` (optionally starting `PCF `, any capitals) in B or F, with no IN (M) or OUT (N) amount. Staff type the next marker in advance | If `NN` equals this operation's `replenishment_number`, this is the marker row: write the marker into it (section 6). For any other number treat it as a Staff entry in progress |
+| **Staff divider** | No values in B:O, but a background color that differs from the ordinary empty ledger rows (a colored strip), or any value in column P or beyond on a row 48 or lower (for example a helper formula such as `=SUM(N8:N76)`) | Never change it, never recolor it; write around it |
 | **Leftover** | No IN/OUT, no DATE, no PARTICULAR, but stray values in C, D, G, H, I, J or K (for example a TIN or receipt number left after someone deleted an entry) | Available. Overwrite or clear its B:K and M:N cells as part of the write |
 | **Empty** | Only template content: prefilled B numbers, O balance formulas, formatting | Available |
 
-Input VAT (column L) never decides a row's class and is never written.
+Input VAT (column L) never decides a row's class and is never written. A row with a staff-typed label or a colored strip is never "Empty": a typed `REPLENISHMENT #NN` in column B is not template content.
 
 ### 7.2 Choose the target rows (no gaps)
 
 1. Find the **last Transaction row** in the ledger. If there is none, start at the first ledger row.
 2. Walk down from the row right after it. Each Leftover or Empty row is the next target row. Skip Staff-entry-in-progress rows and keep going.
 3. Use as many target rows as the operation needs: one per liquidation line, one per replenishment marker.
+3a. A **Staff-prepared marker** row whose number equals this operation's `replenishment_number` is the target row for the replenishment marker, wherever it sits below the last Transaction row. Expense lines never use a Staff-prepared marker row or a Staff divider; they go on the Empty or Leftover rows around them.
 4. Never leave an Empty or Leftover row unused **between** the last Transaction row and the rows you write. New entries always continue directly under the latest transaction.
 5. When writing a Leftover row, clear every stray value in its B:K and M:N cells that your entry does not replace (for example an old TIN in K when the new entry has no TIN). Record the cleared before-values in the audit CHANGES column and in the report, and add a warning naming the cells.
 6. If you skipped a Staff-entry-in-progress row, add a warning naming that row so the custodian can check it.

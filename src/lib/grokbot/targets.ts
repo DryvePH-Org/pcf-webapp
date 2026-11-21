@@ -21,6 +21,8 @@ export type GrokbotTarget = {
     extraChecks: readonly string[];
     // Checks that do not exist on this sheet.
     skippedChecks: readonly string[];
+    // The IN column (0-based) that a replenishment marker row carries its amount in.
+    markerAmountColumn: number;
   };
 };
 
@@ -32,7 +34,7 @@ export const GROKBOT_TARGETS = {
     sheet_title: "PCF REPLENISHMENT - BUYING (NOV-DEC 2026)",
     env: { url: "GROKBOT_WEBHOOK_URL", secret: "GROKBOT_WEBHOOK_SECRET" },
     routine: "docs/GROKBOT_BUYING_ROUTINE.md",
-    layout: { companies: [], extraChecks: ["input_vat_preserved"], skippedChecks: [] },
+    layout: { companies: [], extraChecks: ["input_vat_preserved"], skippedChecks: [], markerAmountColumn: 12 },
   },
   dryve: {
     book: "dryve",
@@ -41,7 +43,7 @@ export const GROKBOT_TARGETS = {
     sheet_title: "DRYVE PCF - NOV TO DEC 2026",
     env: { url: "GROKBOT_DRYVE_WEBHOOK_URL", secret: "GROKBOT_DRYVE_WEBHOOK_SECRET" },
     routine: "docs/GROKBOT_DRYVE_ROUTINE.md",
-    layout: { companies: ["DRYVE", "VENTA"], extraChecks: ["expense_types_valid"], skippedChecks: ["input_vat_preserved"] },
+    layout: { companies: ["DRYVE", "VENTA"], extraChecks: ["expense_types_valid"], skippedChecks: ["input_vat_preserved"], markerAmountColumn: 9 },
   },
 } as const satisfies Record<GrokbotBook, GrokbotTarget>;
 

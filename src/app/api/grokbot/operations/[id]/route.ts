@@ -241,7 +241,7 @@ export async function POST(
           gridProperties: { rowCount: grid.length, columnCount: 30 },
           expenseTags: sheetExpenseTags(grid),
           ledger: summary,
-          replenishmentNumber: latestReplenishmentNumber(grid),
+          replenishmentNumber: latestReplenishmentNumber(grid, target.layout.markerAmountColumn),
         };
         const saved = await (auth.db as unknown as SupabaseClient<WorkflowDatabase>).rpc("apply_grokbot_book_snapshot", {
           p_book: target.book,

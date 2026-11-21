@@ -96,6 +96,13 @@ describe("the DRYVE sheet layout", () => {
     expect(latestReplenishmentNumber(withoutMarker)).toBe(13);
   });
 
+  it("DRYVE: a marker label counts once its row holds an amount in the IN column (J)", () => {
+    expect(latestReplenishmentNumber(grid, 9)).toBe(14);
+    const placeholder = dryveGrid();
+    placeholder[8][9] = {};
+    expect(latestReplenishmentNumber(placeholder, 9)).toBe(13);
+  });
+
   it("reads expense rows with the right columns and skips markers and funding rows", () => {
     const expenses = parseExpenseRows("dryve", 1251133408, "DRYVE PCF - NOV TO DEC 2026", grid);
     expect(expenses).toHaveLength(2);
