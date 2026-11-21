@@ -7,7 +7,7 @@ const id = "11111111-1111-4111-8111-111111111111";
 const line = "22222222-2222-4222-8222-222222222222";
 const server = (patch: Partial<LiquidationFormValues["items"][number]> = {}): LiquidationFormValues => ({
   id, department: "Operations", filing_date: "2026-11-20", unspent_reason: "",
-  items: [{ id: line, particulars: "Supplies", amount: "900.00", receipt_path: "", no_receipt_reason: "", sheet_details: { plate: "" }, ...patch }],
+  items: [{ id: line, particulars: "Supplies", amount: "900.00", receipt_path: "", extra_photos: [], no_receipt_reason: "", sheet_details: { plate: "" }, ...patch }],
 });
 function memory() {
   const data = new Map<string, string>();

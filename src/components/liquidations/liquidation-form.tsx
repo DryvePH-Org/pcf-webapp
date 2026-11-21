@@ -2,6 +2,7 @@
 
 import { formatDate } from "@/lib/dates";
 import { ReceiptAttachment } from "./receipt-attachment";
+import { MAX_EXTRA_PICTURES, MorePictures } from "./more-pictures";
 import { useEffect, useRef, useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
@@ -346,7 +347,9 @@ export function LiquidationForm({
                   }
                   onRemove={() => {
                     clearFailed(item.id);
-                    updateLine(index, { receipt_path: "" });
+                    // the next picture becomes the main one, so nothing else is lost
+                    const [next, ...rest] = item.extra_photos;
+                    updateLine(index, { receipt_path: next ?? "", extra_photos: rest });
                   }}
                   onChoose={async (file) => {
                     setUploading(item.id);
@@ -381,6 +384,51 @@ export function LiquidationForm({
                     }
                   }}
                 />
+                {item.receipt_path ? (
+                  <MorePictures
+                    id={`more-${item.id}`}
+                    paths={item.extra_photos}
+                    busy={uploading === item.id}
+                    disabled={disabled}
+                    onView={(path) =>
+                      void openLiquidationReceipt(path, previews[path]).catch((problem) =>
+                        toast.error(problem instanceof Error ? problem.message : "Could not open the picture."),
+                      )
+                    }
+                    onRemove={(path) =>
+                      updateLine(index, { extra_photos: item.extra_photos.filter((other) => other !== path) })
+                    }
+                    onAdd={async (files) => {
+                      const room = MAX_EXTRA_PICTURES - item.extra_photos.length;
+                      if (files.length > room) toast.message(`Only ${room} more can be added to this line. The rest were skipped.`);
+                      setUploading(item.id);
+                      setError("");
+                      clearFailed(item.id);
+                      const added: string[] = [];
+                      try {
+                        for (const file of files.slice(0, room)) {
+                          const path = await uploadLiquidationReceipt(file, form.id, item.id);
+                          added.push(path);
+                          setPreviews((current) => ({ ...current, [path]: URL.createObjectURL(file) }));
+                        }
+                      } catch (problem) {
+                        const message = problem instanceof Error ? problem.message : "Upload failed.";
+                        setUploadFailed((current) => ({ ...current, [item.id]: message }));
+                        setError(message);
+                      } finally {
+                        // keep whatever did upload, even if a later one failed
+                        if (added.length)
+                          setForm((current) => ({
+                            ...current,
+                            items: current.items.map((line) =>
+                              line.id === item.id ? { ...line, extra_photos: [...line.extra_photos, ...added] } : line,
+                            ),
+                          }));
+                        setUploading(null);
+                      }
+                    }}
+                  />
+                ) : null}
                 {!item.receipt_path && (
                   <div className="space-y-2">
                     <Label htmlFor={`receipt-note-${item.id}`}>
@@ -414,6 +462,7 @@ export function LiquidationForm({
                       particulars: "",
                       amount: "",
                       receipt_path: "",
+                      extra_photos: [],
                       no_receipt_reason: "",
                       sheet_details: { plate: "" },
                     },

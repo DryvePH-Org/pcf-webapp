@@ -53,6 +53,11 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const workflow = db as unknown as SupabaseClient<WorkflowDatabase>;
   const receiptRows = await workflow.from("liquidation_receipt_lines").select("*").eq("liquidation_id", id).order("position");
   if (receiptRows.error) throw new Error(receiptRows.error.message);
+  // up to 5 more pictures per line, kept beside the main one
+  const photoRows = await workflow.from("liquidation_item_photos").select("item_id,path,position").eq("liquidation_id", id).order("position");
+  if (photoRows.error) throw new Error(photoRows.error.message);
+  const extraByItem = new Map<string, string[]>();
+  for (const photo of photoRows.data ?? []) extraByItem.set(photo.item_id, [...(extraByItem.get(photo.item_id) ?? []), photo.path]);
   const flow = l as typeof l & {flow_version:number;receipt_review_revision:number;receipt_reviewed_by:string|null};
   // A custodian may have filed this for the employee. That person can fill it in but never review it.
   const filing = l as typeof l & { filed_by: string | null; filed_by_name: string | null };
@@ -99,6 +104,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   const canSettle = l.status === "approved" && difference.kind !== "none" && !settlement && ((((user.id !== l.owner_id || selfApproval) && ["admin", "custodian"].includes(user.role))) || approverGateway) && !waitingApproval && (difference.kind === "return" || voucher.voucher_status !== "rejected");
   const canApproveReimbursement = l.status === "approved" && waitingApproval && !settlement && user.id !== l.owner_id && ["admin", "approver"].includes(user.role);
   const paths = new Set([...rows, ...(receiptRows.data ?? [])].map(item => item.receipt_path).filter((path): path is string => Boolean(path)));
+  for (const photo of photoRows.data ?? []) paths.add(photo.path);
   for (const r of revisions.data ?? []) for (const line of snapshotItems(r.payload)) if (line.receipt_path) paths.add(line.receipt_path);
   const urls = new Map<string, string>();
   await Promise.all([...paths].map(async path => { const { data, error: linkError } = await db.storage.from("liquidation-receipts").createSignedUrl(path, 600); if (!linkError && data) urls.set(path, data.signedUrl); }));
@@ -125,7 +131,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
   };
   const printLines = rows.map(item => ({
     position: item.position, particulars: item.particulars, amount: Number(item.amount),
-    receipt: item.receipt_path ? "Attached" : item.no_receipt_reason ? `None: ${item.no_receipt_reason}` : "None",
+    receipt: item.receipt_path ? `Attached${(extraByItem.get(item.id) ?? []).length ? ` (+${(extraByItem.get(item.id) ?? []).length} more)` : ""}` : item.no_receipt_reason ? `None: ${item.no_receipt_reason}` : "None",
   }));
   return <div className="space-y-6">
     <LiquidationPrintSheet
@@ -183,6 +189,13 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
             ) : (
               <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-sm text-amber-900 print:bg-white print:text-black"><span className="font-semibold">No receipt:</span> {item.no_receipt_reason || "No attachment provided"}</p>
             )}
+            {(extraByItem.get(item.id) ?? []).length ? (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {(extraByItem.get(item.id) ?? []).map((path, index) => urls.has(path)
+                  ? <a key={path} href={urls.get(path)} target="_blank" rel="noreferrer" className="tap-link inline-flex items-center gap-1.5 font-medium text-emerald-800 underline underline-offset-4"><Paperclip className="size-4" aria-hidden />Picture {index + 2}</a>
+                  : <span key={path} className="font-medium text-destructive">Picture {index + 2} currently unavailable</span>)}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -206,7 +219,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
         </div>
       ) : null}
     </section>
-    {editAccess.data ? <LiquidationForm employeeName={l.employee_name} key={`${l.id}:${l.status}:${flow.receipt_review_revision}`} received={Number(l.amount_received).toFixed(2)} initial={{ id: l.id, department: l.department || lastDepartment, filing_date: l.filing_date, unspent_reason: l.unspent_reason ?? "", items: rows.map(item => ({ id: item.id, sheet_details: {plate:(item.sheet_details as Record<string,string>|null)?.plate??''}, particulars: item.particulars, amount: (l.department || flow.receipt_review_revision > 0) ? Number(item.amount).toFixed(2) : "", category_id: item.category_id, receipt_path: item.receipt_path ?? "", no_receipt_reason: item.no_receipt_reason ?? "" })) }} /> : null}
+    {editAccess.data ? <LiquidationForm employeeName={l.employee_name} key={`${l.id}:${l.status}:${flow.receipt_review_revision}`} received={Number(l.amount_received).toFixed(2)} initial={{ id: l.id, department: l.department || lastDepartment, filing_date: l.filing_date, unspent_reason: l.unspent_reason ?? "", items: rows.map(item => ({ id: item.id, sheet_details: {plate:(item.sheet_details as Record<string,string>|null)?.plate??''}, particulars: item.particulars, amount: (l.department || flow.receipt_review_revision > 0) ? Number(item.amount).toFixed(2) : "", category_id: item.category_id, receipt_path: item.receipt_path ?? "", extra_photos: extraByItem.get(item.id) ?? [], no_receipt_reason: item.no_receipt_reason ?? "" })) }} /> : null}
     {sheetJob && encoding ? (
       <EncodingReport
         title="Google Sheets"

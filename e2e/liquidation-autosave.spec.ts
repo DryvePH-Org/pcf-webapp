@@ -126,4 +126,49 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     await expect(particulars).toHaveValue(typed);
     await context.close();
   });
+
+  test("more than one picture on a line: chosen together, kept after a reload, shown after submitting", async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    await context.addCookies(await cookiesFor("custodian", baseURL!));
+    const page = await context.newPage();
+    await page.goto(formUrl, { waitUntil: "networkidle" });
+    await expect(page.getByLabel("Particulars")).toHaveValue("one two three four five six");
+    const jpeg = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=", "base64");
+    // the first picture is already there; two more are chosen at once
+    await expect(page.getByText("0 of 5 added")).toBeVisible();
+    await page.locator('input[id^="more-"]').setInputFiles([
+      { name: "back.jpg", mimeType: "image/jpeg", buffer: jpeg },
+      { name: "side.jpg", mimeType: "image/jpeg", buffer: jpeg },
+    ]);
+    await expect(page.getByText("2 of 5 added")).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Picture 2", { exact: true })).toBeVisible();
+    await expect(page.getByText("Picture 3", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Saved automatically at/)).toBeVisible({ timeout: 15000 });
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByText("2 of 5 added")).toBeVisible();
+
+    // removing one keeps the other; removing the main picture promotes the next one
+    await page.getByRole("button", { name: "Remove picture 2" }).click();
+    await expect(page.getByText("1 of 5 added")).toBeVisible();
+    await page.locator("div.border-2", { hasText: "Receipt attachment" }).getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("0 of 5 added")).toBeVisible();
+    await expect(page.getByText("Attached", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+
+    // add two again, submit, and the reviewer sees every picture
+    await page.locator('input[id^="more-"]').setInputFiles([
+      { name: "a.jpg", mimeType: "image/jpeg", buffer: jpeg },
+      { name: "b.jpg", mimeType: "image/jpeg", buffer: jpeg },
+    ]);
+    await expect(page.getByText("2 of 5 added")).toBeVisible({ timeout: 20000 });
+    await page.getByRole("button", { name: "Submit for review", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Submit for review" }).click();
+    await expect(page.getByText("Submitted to the custodian")).toBeVisible();
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByRole("link", { name: "Picture 2" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Picture 3" })).toBeVisible();
+    const liquidationId = formUrl.split("/liquidations/")[1].split(/[?#]/)[0];
+    const stored = await adminClient().from("liquidation_item_photos").select("path").eq("liquidation_id", liquidationId);
+    expect(stored.data).toHaveLength(2);
+    await context.close();
+  });
 });

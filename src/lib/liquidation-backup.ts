@@ -23,6 +23,7 @@ export function normalizeForm(values: LiquidationFormValues): string {
         particulars: item.particulars.trim(),
         amount: cents === null ? item.amount.trim() : (cents / 100).toFixed(2),
         receipt_path: item.receipt_path,
+        extra_photos: item.extra_photos ?? [],
         no_receipt_reason: item.no_receipt_reason.trim(),
         plate: (item.sheet_details as { plate?: string } | undefined)?.plate?.trim() ?? "",
       };

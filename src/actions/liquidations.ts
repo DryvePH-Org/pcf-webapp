@@ -48,8 +48,14 @@ export async function saveLiquidation(input: LiquidationFormValues, submit: bool
   const v = parsed.data;
   const db = await createClient();
   const { error } = await db.rpc("save_liquidation", { p_id: v.id, p_department: v.department, p_filing_date: v.filing_date, p_unspent_reason: v.unspent_reason,
-    p_items: v.items.map(item => ({ ...item, amount: toMoneyNumber(item.amount) })) });
+    p_items: v.items.map(({ extra_photos, ...item }) => { void extra_photos; return { ...item, amount: toMoneyNumber(item.amount) }; }) });
   if (error) return { ok: false, error: safeDbMessage(error) };
+  // the extra pictures of each line (the main one travels with the line itself)
+  const more = await (db as unknown as SupabaseClient<WorkflowDatabase>).rpc("set_liquidation_photos", {
+    p_id: v.id,
+    p_photos: v.items.flatMap(item => item.extra_photos.filter(path => path !== item.receipt_path).map(path => ({ item_id: item.id, path }))),
+  });
+  if (more.error) return { ok: false, error: `Draft saved, but the extra pictures were not. ${safeDbMessage(more.error)}` };
   if (submit) {
     const sent = await db.rpc("submit_liquidation", { p_id: v.id });
     if (sent.error) { refresh(); return { ok: false, error: `Draft saved. ${safeDbMessage(sent.error)}` }; }

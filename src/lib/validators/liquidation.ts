@@ -26,6 +26,8 @@ export const liquidationLineSchema = z.object({
     ),
   category_id: z.uuid().optional(),
   receipt_path: z.string().max(300).default(""),
+  // up to 5 more pictures of the same receipt, kept beside the main one
+  extra_photos: z.array(z.string().max(300)).max(5).default([]),
   no_receipt_reason: text({ max: 300 }).default(""),
 });
 export const saveLiquidationSchema = z

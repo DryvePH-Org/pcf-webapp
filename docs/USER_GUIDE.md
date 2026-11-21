@@ -125,6 +125,12 @@ For a voucher created directly, its preparer files liquidation from the PCV page
 2. Replace the initial voucher lines with what was actually spent. Each line has
    particulars, amount, category, and one receipt (JPEG/PNG/WebP/PDF, up to 5 MB),
    or a reason why no receipt is available. Images are compressed before upload.
+   A long receipt, both sides of it or several photos can be added with **Add
+   pictures** under the line (up to 5 more per line, several can be chosen at
+   once). The first picture stays in the receipt box; the others are numbered
+   Picture 2, 3 and so on, and the custodian sees all of them.
+   The form saves itself as you type and keeps a copy on your device, so a page
+   that reloads does not lose your work or your pictures.
 3. Save a draft or submit for custodian review. To report a completely unused
    advance, remove all expense lines and explain why nothing was spent.
 4. A custodian assigned to the fund, or another administrator, approves or flags

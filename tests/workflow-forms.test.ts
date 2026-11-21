@@ -9,7 +9,7 @@ vi.mock("@/actions/custodian-receipts",()=>({saveCustodianReceipts:vi.fn(),extra
 vi.mock("@/actions/sheet-approval",()=>({previewSheetApproval:vi.fn(),confirmSheetApproval:vi.fn()}));
 const id="91000000-0000-4000-8000-000000000001";
 it("locks requester identity and filing date and keeps encoding fields in custodian review",()=>{
- const html=renderToStaticMarkup(createElement(LiquidationForm,{employeeName:"Account Employee",received:"500.00",initial:{id,department:"Operations",filing_date:"2026-11-09",unspent_reason:"",items:[{id,particulars:"Fuel",amount:"450",receipt_path:"",no_receipt_reason:""}]}}));
+ const html=renderToStaticMarkup(createElement(LiquidationForm,{employeeName:"Account Employee",received:"500.00",initial:{id,department:"Operations",filing_date:"2026-11-09",unspent_reason:"",items:[{id,particulars:"Fuel",amount:"450",receipt_path:"",extra_photos:[],no_receipt_reason:""}]}}));
  expect(html).toMatch(/<input(?=[^>]*id="liquidation-name")(?=[^>]*readonly)[^>]*>/i);
  expect(html).toContain("Nov 9, 2026");
  expect(html).not.toContain('type="date"');
