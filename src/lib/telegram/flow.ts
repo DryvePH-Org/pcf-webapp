@@ -5,6 +5,8 @@ import { createBudgetRequestSchema } from "@/lib/validators/budget-request";
 import { cleanText } from "@/lib/validators/text";
 import { guessAmount, type FundChoice, type SpokenRequest } from "@/lib/voice/extract-request";
 
+import { handleLiqCallback, handlePhoto, handleSpoken, handleStart, liqWords, type LiqDeps } from "./liquidation-flow";
+
 // The conversation a requester has with the bot: a voice message becomes a summary, buttons correct it, and
 // Submit makes an ordinary budget request. Every outside thing (Telegram, the database, speech to text) comes
 // in through Deps, so the whole conversation can be tested with stand-ins.
@@ -52,6 +54,7 @@ export type Deps = {
     answer(callbackId: string, text?: string): Promise<void>;
     voice(fileId: string): Promise<Blob>;
   };
+  liq: LiqDeps;
   voice: {
     transcribe(file: Blob, name: string): Promise<string>;
     extract(transcript: string, funds: FundChoice[]): Promise<SpokenRequest>;
@@ -61,22 +64,29 @@ export type Deps = {
   repeat(profileId: string, payload: unknown): Promise<boolean>;
   // tell the reviewers, after the request exists
   afterRequest(requestId: string, profileId: string): void;
+  // tell the custodian, after the liquidation was submitted
+  afterLiquidation(liquidationId: string, profileId: string): void;
 };
 
 const text = z.object({ id: z.number(), type: z.string() });
 const file = z.object({ file_id: z.string(), duration: z.number().optional(), file_size: z.number().optional() });
+const photoSize = z.object({ file_id: z.string(), width: z.number(), height: z.number(), file_size: z.number().optional() });
+const message = z.object({
+  message_id: z.number(),
+  chat: text,
+  from: z.object({ username: z.string().optional() }).optional(),
+  text: z.string().optional(),
+  caption: z.string().max(2000).optional(),
+  voice: file.optional(),
+  audio: file.optional(),
+  photo: z.array(photoSize).max(10).optional(),
+  // a picture sent as a file (not as a photo); the bot asks for it again as a photo
+  document: z.object({ file_id: z.string(), mime_type: z.string().optional() }).optional(),
+});
+export type TgMessage = z.infer<typeof message>;
 export const updateSchema = z.object({
   update_id: z.number(),
-  message: z
-    .object({
-      message_id: z.number(),
-      chat: text,
-      from: z.object({ username: z.string().optional() }).optional(),
-      text: z.string().optional(),
-      voice: file.optional(),
-      audio: file.optional(),
-    })
-    .optional(),
+  message: message.optional(),
   callback_query: z
     .object({
       id: z.string(),
@@ -96,7 +106,7 @@ export const words = {
   linked: (name: string) =>
     `✅ Naka-link ka na, ${name.split(/\s+/)[0] || "kaibigan"}!\n\n🎤 Para humingi ng budget, mag-send ng <b>voice message</b>. Sabihin ang halaga at para saan.\n\nHalimbawa: "Kailangan ko ng dalawang libo para sa gasolina ng service."`,
   badLink: "Hindi gumana ang link na ito. Baka luma na o nagamit na. Hingi ng bago sa admin.",
-  help: "🎤 Mag-send ng <b>voice message</b> para humingi ng budget.\nSabihin ang <b>halaga</b> at <b>para saan</b>.\n\nI-check ang buod na ibabalik ko, pagkatapos pindutin ang ✅ Submit.\n\nPara mag-cancel: /cancel",
+  help: "🎤 Mag-send ng <b>voice message</b> para humingi ng budget.\nSabihin ang <b>halaga</b> at <b>para saan</b>.\n\nI-check ang buod na ibabalik ko, pagkatapos pindutin ang ✅ Submit.\n\nPara mag-liquidate ng advance: mag-send ng 📸 larawan ng resibo, o /liquidate\n\nPara mag-cancel: /cancel",
   working: "⏳ Pinakikinggan ko ang voice message mo...",
   tooLong: "Masyadong mahaba ang voice message. Gawing mas maikli (hanggang 1 minuto) at ulitin.",
   tooBig: "Masyadong malaki ang file. Mag-send ng mas maikling voice message.",
@@ -343,8 +353,9 @@ export async function handleUpdate(update: TgUpdate, deps: Deps): Promise<void> 
   // Telegram resends an update until it is answered; each one counts once.
   if (!(await deps.store.firstSeen(update.update_id))) return;
 
-  const message = update.message;
-  if (message) {
+  const incoming = update.message;
+  if (incoming) {
+    const message = incoming;
     const chatId = message.chat.id;
     // only a private conversation with the person; never a group
     if (message.chat.type !== "private") return;
@@ -368,14 +379,40 @@ export async function handleUpdate(update: TgUpdate, deps: Deps): Promise<void> 
     if (!person) return void (await deps.tg.send(chatId, words.notLinked));
 
     if (said && /^\/cancel(?:@\w+)?$/.test(said)) {
+      const openLiq = await deps.liq.store.openDraft(chatId);
+      if (openLiq) {
+        await deps.liq.store.cancel(openLiq.id);
+        return void (await deps.tg.send(chatId, liqWords.cancelled));
+      }
       const open = await deps.store.openDraft(chatId);
       if (!open) return void (await deps.tg.send(chatId, words.noDraft));
       await deps.store.cancelDraft(open.id);
       return void (await deps.tg.send(chatId, words.cancelled));
     }
+    if (said && /^\/(liquidate|liquidation)(?:@\w+)?$/i.test(said)) return handleStart(deps, person, chatId);
     if (said && /^\/(help|start)(?:@\w+)?$/.test(said)) return void (await deps.tg.send(chatId, words.help));
 
+    if (message.photo?.length || message.document) return handlePhoto(deps, person, message);
+
+    // while the bot waits for an answer about a receipt, what is said or typed is that answer
+    const waiting = await deps.liq.store.openDraft(chatId);
+    const answering = waiting && waiting.status !== "draft" && waiting.status !== "choosing" ? waiting : null;
     const voice = message.voice ?? message.audio;
+    if (answering) {
+      if (said) return handleSpoken(deps, person, answering, said);
+      if (voice) {
+        if (!(await deps.limit(`telegram:voice:${chatId}`, 10, 60))) return void (await deps.tg.send(chatId, words.rate));
+        if ((voice.duration ?? 0) > 90) return void (await deps.tg.send(chatId, words.tooLong));
+        let heard: string;
+        try {
+          heard = await deps.voice.transcribe(await deps.tg.voice(voice.file_id), "voice.ogg");
+        } catch {
+          return void (await deps.tg.send(chatId, words.couldNotRead));
+        }
+        await deps.tg.send(chatId, `👂 “${esc(heard.slice(0, 200))}”`);
+        return handleSpoken(deps, person, answering, heard);
+      }
+    }
     if (voice) return handleVoice(deps, person, chatId, voice);
     if (said) return handleText(deps, person, chatId, said);
     return;
@@ -387,6 +424,7 @@ export async function handleUpdate(update: TgUpdate, deps: Deps): Promise<void> 
     if (!chatId || query.message?.chat.type !== "private") return void (await deps.tg.answer(query.id));
     const person = await deps.store.profileOf(chatId);
     if (!person) return void (await deps.tg.answer(query.id, words.notLinked));
+    if (query.data?.startsWith("lq:")) return handleLiqCallback(deps, person, query);
     await handleCallback(deps, person, query);
   }
 }

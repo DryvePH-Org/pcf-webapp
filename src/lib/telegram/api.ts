@@ -52,11 +52,12 @@ export async function answerCallback(callbackId: string, text?: string): Promise
 }
 
 const MAX_VOICE_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
-export async function downloadVoice(fileId: string): Promise<Blob> {
+async function downloadFile(fileId: string, maxBytes: number, type: string, what: string): Promise<Blob> {
   const info = await call<{ file_path?: string; file_size?: number }>("getFile", { file_id: fileId });
-  if (!info.file_path) throw new Error("Telegram has no file for that voice message");
-  if ((info.file_size ?? 0) > MAX_VOICE_BYTES) throw new Error("That recording is too large");
+  if (!info.file_path) throw new Error(`Telegram has no file for that ${what}`);
+  if ((info.file_size ?? 0) > maxBytes) throw new Error(`That ${what} is too large`);
   let response: Response;
   try {
     response = await fetch(`${base()}/file/bot${token()}/${info.file_path}`, { signal: AbortSignal.timeout(30000) });
@@ -65,9 +66,13 @@ export async function downloadVoice(fileId: string): Promise<Blob> {
   }
   if (!response.ok) throw new Error(`Telegram file download failed: ${response.status}`);
   const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > MAX_VOICE_BYTES) throw new Error("That recording is too large");
-  return new Blob([bytes], { type: "audio/ogg" });
+  if (bytes.byteLength > maxBytes) throw new Error(`That ${what} is too large`);
+  return new Blob([bytes], { type });
 }
+
+export const downloadVoice = (fileId: string): Promise<Blob> => downloadFile(fileId, MAX_VOICE_BYTES, "audio/ogg", "recording");
+// Telegram turns a sent picture into a JPEG of at most about 1280 pixels, so it is already receipt-sized.
+export const downloadPhoto = (fileId: string): Promise<Blob> => downloadFile(fileId, MAX_PHOTO_BYTES, "image/jpeg", "picture");
 
 export async function setWebhook(url: string, secret: string): Promise<void> {
   await call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });

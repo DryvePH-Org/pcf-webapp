@@ -90,6 +90,9 @@ function world(options: { funds?: typeof FUND_A[]; spoken?: { amount: string; pu
     limit: async () => true,
     repeat: async () => state.repeat,
     afterRequest: (id) => void state.notified.push(id),
+    afterLiquidation: () => undefined,
+    // the liquidation side has its own tests; here no liquidation is ever open
+    liq: { store: { openDraft: async () => null } as unknown as Deps["liq"]["store"], files: {} as Deps["liq"]["files"] },
   };
   let n = 1;
   const send = (update: Omit<TgUpdate, "update_id">) => handleUpdate({ update_id: n++, ...update } as TgUpdate, deps);

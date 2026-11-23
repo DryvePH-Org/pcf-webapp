@@ -14,7 +14,7 @@ insert into fund_custodians(fund_id,custodian_id) values
 ('97000000-0000-4000-8000-000000000010','97000000-0000-4000-8000-000000000001');
 
 do $$
-declare sid text; gid bigint; op1 uuid:=gen_random_uuid(); op2 uuid:=gen_random_uuid(); claimed uuid; tok uuid;
+declare sid text; gid int; op1 uuid:=gen_random_uuid(); op2 uuid:=gen_random_uuid(); claimed uuid; tok uuid;
  refused boolean; rid uuid:=gen_random_uuid(); job jsonb;
 begin
  select spreadsheet_id,sheet_id into sid,gid from grokbot_targets() where book='operations';

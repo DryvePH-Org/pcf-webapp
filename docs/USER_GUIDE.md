@@ -238,6 +238,18 @@ fund is chosen, and the summary shows the fund and who will review it.
 
 Nothing is submitted without a tap on **Submit**. A request made this way says "sent by Telegram" on its page.
 
+## Filing a liquidation by Telegram
+
+The same bot files a liquidation for an advance you received.
+
+1. Send a **photo of a receipt** (as a photo, not a file), or type `/liquidate`. With more than one advance the bot asks which one.
+2. Put a few words in the caption, with the amount last: `gasolina 450`. Without a caption the bot asks what it was for, and reads the amount from the receipt. A plate number in the caption is never taken for the amount.
+3. Send one photo per receipt. The bot shows the list, the total, and what you return or what is reimbursed.
+4. Check the card. **Ayusin ang linya** changes or removes a receipt; **Palitan ang department** changes the department (asked once, then remembered).
+5. Tap **Submit**. It becomes your ordinary liquidation and the custodian reviews it as usual, so the custodian still enters the supplier, TIN, tag and plate.
+
+If the bot says the advance was started on the website or sent back by the custodian, finish it on the website. An unfinished Telegram liquidation is dropped after two days.
+
 ## Filing a liquidation for someone who cannot use the website
 
 Only the person who received the cash can normally file their liquidation. When that person cannot use the
