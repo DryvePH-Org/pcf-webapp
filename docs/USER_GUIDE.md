@@ -131,6 +131,13 @@ For a voucher created directly, its preparer files liquidation from the PCV page
    Picture 2, 3 and so on, and the custodian sees all of them.
    The form saves itself as you type and keeps a copy on your device, so a page
    that reloads does not lose your work or your pictures.
+   At the top of the form, **Plate number for all particulars** fills the plate
+   on every particular at once. If one particular has a different plate, change
+   it inside that particular and it keeps its own (tap "Use the plate above" to
+   make it follow again). The **N/A** button next to it marks every particular's
+   plate N/A in one tap. The custodian's receipt review has the same plate
+   field, plus **Mark every empty field N/A** for supplier, TIN, plate and
+   receipt number; it only fills fields that are still empty.
 3. Save a draft or submit for custodian review. To report a completely unused
    advance, remove all expense lines and explain why nothing was spent.
 4. A custodian assigned to the fund, or another administrator, approves or flags

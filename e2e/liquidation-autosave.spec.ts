@@ -76,14 +76,14 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     formUrl = url;
     await page.locator("#liquidation-department").fill("Operations");
     await page.getByLabel("Amount actually spent (₱)").fill("850");
-    await page.getByLabel("Particulars").fill("Printer paper for the office");
+    await page.getByLabel("Particulars", { exact: true }).fill("Printer paper for the office");
     // a photo: it is uploaded at once and only remembered by the page, until the draft is saved
     await page.locator('input[type="file"]').first().setInputFiles({ name: "receipt.jpg", mimeType: "image/jpeg", buffer: Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=", "base64") });
     await expect(page.getByText(/Saved automatically at/)).toBeVisible({ timeout: 15000 });
     await page.reload();
     await expect(page.locator("#liquidation-department")).toHaveValue("Operations");
     await expect(page.getByLabel("Amount actually spent (₱)")).toHaveValue("850.00");
-    await expect(page.getByLabel("Particulars")).toHaveValue("Printer paper for the office");
+    await expect(page.getByLabel("Particulars", { exact: true })).toHaveValue("Printer paper for the office");
     await expect(page.getByText("Attached", { exact: true }).filter({ visible: true }).first()).toBeVisible();
     await expect(page.getByText("No file yet")).toBeHidden();
     expect(page.url()).toBe(url);
@@ -95,12 +95,12 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     await context.addCookies(await cookiesFor("custodian", baseURL!));
     const page = await context.newPage();
     await page.goto(formUrl, { waitUntil: "networkidle" });
-    await expect(page.getByLabel("Particulars")).toHaveValue("Printer paper for the office");
-    await page.getByLabel("Particulars").fill("Taxi to the supplier, amount not typed yet");
+    await expect(page.getByLabel("Particulars", { exact: true })).toHaveValue("Printer paper for the office");
+    await page.getByLabel("Particulars", { exact: true }).fill("Taxi to the supplier, amount not typed yet");
     await page.getByLabel("Amount actually spent (₱)").fill("");
     await expect(page.getByText(/kept on this device/)).toBeVisible({ timeout: 15000 });
     await page.reload();
-    await expect(page.getByLabel("Particulars")).toHaveValue("Taxi to the supplier, amount not typed yet");
+    await expect(page.getByLabel("Particulars", { exact: true })).toHaveValue("Taxi to the supplier, amount not typed yet");
     await expect(page.getByText(/brought back what you were typing/)).toBeVisible();
     await page.getByRole("button", { name: "Start over from the saved version" }).click();
     await expect(page.getByText(/brought back what you were typing/)).toBeHidden();
@@ -112,7 +112,7 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     await context.addCookies(await cookiesFor("custodian", baseURL!));
     const page = await context.newPage();
     await page.goto(formUrl, { waitUntil: "networkidle" });
-    const particulars = page.getByLabel("Particulars");
+    const particulars = page.getByLabel("Particulars", { exact: true });
     await expect(particulars).toHaveValue("Printer paper for the office");
     await page.getByLabel("Amount actually spent (₱)").fill("120");
     let typed = "";
@@ -132,7 +132,7 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     await context.addCookies(await cookiesFor("custodian", baseURL!));
     const page = await context.newPage();
     await page.goto(formUrl, { waitUntil: "networkidle" });
-    await expect(page.getByLabel("Particulars")).toHaveValue("one two three four five six");
+    await expect(page.getByLabel("Particulars", { exact: true })).toHaveValue("one two three four five six");
     const jpeg = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=", "base64");
     // the first picture is already there; two more are chosen at once
     await expect(page.getByText("0 of 5 added")).toBeVisible();

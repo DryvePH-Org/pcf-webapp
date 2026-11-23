@@ -3,6 +3,7 @@
 import { formatDate } from "@/lib/dates";
 import { ReceiptAttachment } from "./receipt-attachment";
 import { MAX_EXTRA_PICTURES, MorePictures } from "./more-pictures";
+import { applyShared, deriveShared, ownAfterEdit, type PlateAccess } from "@/lib/plate-sharing";
 import { useEffect, useRef, useState } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
@@ -29,6 +30,11 @@ import {
   type LiquidationLine,
 } from "@/lib/validators/liquidation";
 
+const plateAccess: PlateAccess<LiquidationLine> = {
+  get: (line) => line.sheet_details?.plate ?? "",
+  set: (line, plate) => ({ ...line, sheet_details: { ...line.sheet_details, plate } }),
+};
+
 export function LiquidationForm({
   initial,
   received,
@@ -44,6 +50,9 @@ export function LiquidationForm({
   const [uploading, setUploading] = useState<string | null>(null);
   // What is typed here is also saved by itself (to the server, and on this device), because the page can reload
   // on its own, for example when a phone comes back from the camera.
+  // One plate number for the whole liquidation, typed once; a particular with a different plate keeps its own.
+  const [sharedPlate, setSharedPlate] = useState(() => deriveShared(initial.items, plateAccess).shared);
+  const [ownPlate, setOwnPlate] = useState<string[]>(() => deriveShared(initial.items, plateAccess).own);
   const savedRef = useRef(initial);
   const hydrated = useRef(false);
   const [restored, setRestored] = useState(false);
@@ -55,6 +64,9 @@ export function LiquidationForm({
       const back = restorable(browserStore(), initial);
       if (back) {
         setForm(back);
+        const again = deriveShared(back.items, plateAccess);
+        setSharedPlate(again.shared);
+        setOwnPlate(again.own);
         setRestored(true);
       }
     }, 0);
@@ -121,6 +133,15 @@ export function LiquidationForm({
         i === index ? { ...item, ...patch } : item,
       ),
     }));
+  }
+  function changeSharedPlate(plate: string) {
+    setSharedPlate(plate);
+    setForm((current) => ({ ...current, items: applyShared(current.items, plate, ownPlate, plateAccess) }));
+  }
+  function changeLinePlate(index: number, plate: string) {
+    const id = form.items[index].id;
+    setOwnPlate((current) => ownAfterEdit(current, id, plate, sharedPlate));
+    updateLine(index, { sheet_details: { plate } });
   }
   // The buttons are at the bottom of a long form and the message used to appear at the top, out of sight, so
   // the buttons looked dead. Say it in a toast, put it beside the field, and bring it into view.
@@ -196,6 +217,9 @@ export function LiquidationForm({
                 variant="outline"
                 onClick={() => {
                   setForm(initial);
+                  const again = deriveShared(initial.items, plateAccess);
+                  setSharedPlate(again.shared);
+                  setOwnPlate(again.own);
                   savedRef.current = initial;
                   clearBackup(browserStore(), initial.id);
                   setRestored(false);
@@ -259,6 +283,25 @@ export function LiquidationForm({
                 ) : null}
               </div>
             </div>
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4 sm:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="liquidation-plate">Plate number for all particulars <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <NaButton value={sharedPlate} onChange={changeSharedPlate} />
+              </div>
+              <Input
+                id="liquidation-plate"
+                maxLength={300}
+                value={sharedPlate}
+                onChange={(event) => changeSharedPlate(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {form.items.length === 0
+                  ? "Type it once and it is filled in on every particular."
+                  : ownPlate.length
+                    ? `Filled in on ${form.items.length - ownPlate.length} of ${form.items.length} particulars. ${ownPlate.length === 1 ? "One has its own plate" : `${ownPlate.length} have their own plates`}. Change a plate inside a particular when it is different.`
+                    : `Filled in on all ${form.items.length} particulars. If one particular has a different plate, change it there and it keeps its own.`}
+              </p>
+            </div>
             {form.items.map((item, index) => (
               <div key={item.id} className="space-y-4 rounded-lg border p-4">
                 <div className="flex justify-between gap-2">
@@ -311,21 +354,24 @@ export function LiquidationForm({
                       </Label>
                       <NaButton
                         value={item.sheet_details?.plate ?? ""}
-                        onChange={(plate) =>
-                          updateLine(index, { sheet_details: { plate } })
-                        }
+                        onChange={(plate) => changeLinePlate(index, plate)}
                       />
                     </div>
                     <Input
                       id={`plate-${item.id}`}
                       maxLength={300}
                       value={item.sheet_details?.plate ?? ""}
-                      onChange={(event) =>
-                        updateLine(index, {
-                          sheet_details: { plate: event.target.value },
-                        })
-                      }
+                      onChange={(event) => changeLinePlate(index, event.target.value)}
                     />
+                    {ownPlate.includes(item.id) && sharedPlate.trim() ? (
+                      <button
+                        type="button"
+                        className="tap-link text-xs underline underline-offset-4"
+                        onClick={() => changeLinePlate(index, sharedPlate)}
+                      >
+                        Use the plate above ({sharedPlate})
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <ReceiptAttachment
@@ -464,7 +510,7 @@ export function LiquidationForm({
                       receipt_path: "",
                       extra_photos: [],
                       no_receipt_reason: "",
-                      sheet_details: { plate: "" },
+                      sheet_details: { plate: sharedPlate },
                     },
                   ],
                 })

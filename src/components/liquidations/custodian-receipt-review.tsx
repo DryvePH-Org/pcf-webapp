@@ -15,6 +15,7 @@ import { uploadLiquidationReceipt } from "@/lib/liquidation-receipts";
 import { parseMoney } from "@/lib/money";
 import type { CustodianReceipt } from "@/lib/validators/custodian-receipts";
 import { NaButton } from "@/components/shared/na-button";
+import { applyShared, deriveShared, fillEmptyNa, ownAfterEdit, type PlateAccess } from "@/lib/plate-sharing";
 import { SheetApprovalControl } from "@/components/sheets/approval-control";
 import { DatabaseApprovalControl } from "@/components/liquidations/database-approval-control";
 import { MoneyText } from "@/components/shared/money-text";
@@ -31,6 +32,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+const plateAccess: PlateAccess<CustodianReceipt> = {
+  get: (line) => line.plate,
+  set: (line, plate) => ({ ...line, plate }),
+};
 
 export function CustodianReceiptReview({
   id,
@@ -63,6 +69,9 @@ export function CustodianReceiptReview({
 }) {
   const router = useRouter();
   const [lines, setLines] = useState(initial);
+  // One plate number for every entry, typed once; an entry with a different plate keeps its own.
+  const [sharedPlate, setSharedPlate] = useState(() => deriveShared(initial, plateAccess).shared);
+  const [ownPlate, setOwnPlate] = useState<string[]>(() => deriveShared(initial, plateAccess).own);
   const [customTags, setCustomTags] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [busy, setBusy, isBusy] = usePending();
@@ -80,6 +89,29 @@ export function CustodianReceiptReview({
     );
     setDirty(true);
     setNotice("");
+  }
+  function changeSharedPlate(plate: string) {
+    setSharedPlate(plate);
+    setLines((current) => applyShared(current, plate, ownPlate, plateAccess));
+    setDirty(true);
+    setNotice("");
+  }
+  function changeLinePlate(index: number, plate: string) {
+    const id = lines[index].id;
+    setOwnPlate((current) => ownAfterEdit(current, id, plate, sharedPlate));
+    update(index, { plate });
+  }
+  // N/A in every empty field that can take it (supplier, TIN, plate, receipt number), never over what is typed.
+  function fillAllNa() {
+    const { lines: next, filled } = fillEmptyNa(lines, ["supplier", "tin", "plate", "receipt_number"] as const);
+    if (!filled) {
+      setNotice("There is no empty field left to mark N/A.");
+      return;
+    }
+    setLines(next);
+    setOwnPlate(deriveShared(next, plateAccess).own);
+    setDirty(true);
+    setNotice(`N/A filled in ${filled} empty ${filled === 1 ? "field" : "fields"} (supplier, TIN, plate and receipt number). Check them, and type over any that are not N/A.`);
   }
   async function extract(index: number, path: string) {
     if (isBusy()) return;
@@ -207,6 +239,31 @@ export function CustodianReceiptReview({
           </Alert>
         ) : null}
         <fieldset disabled={busy} className="min-w-0 space-y-5">
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="review-plate">Plate number for all entries <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <span className="flex items-center gap-2">
+                <NaButton value={sharedPlate} onChange={changeSharedPlate} />
+              </span>
+            </div>
+            <Input
+              id="review-plate"
+              maxLength={300}
+              value={sharedPlate}
+              onChange={(event) => changeSharedPlate(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {ownPlate.length
+                ? `Filled in on ${lines.length - ownPlate.length} of ${lines.length} entries. ${ownPlate.length === 1 ? "One has its own plate" : `${ownPlate.length} have their own plates`}.`
+                : "Type it once and it is filled in on every entry. An entry with a different plate keeps its own."}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+              <Button type="button" variant="outline" onClick={fillAllNa}>
+                Mark every empty field N/A
+              </Button>
+              <p className="text-xs text-muted-foreground">Fills supplier, TIN, plate and receipt number on every entry that is still empty. Nothing you typed is changed.</p>
+            </div>
+          </div>
           {lines.map((line, index) => (
             <div key={line.id} className="space-y-4 rounded-lg border p-4">
               <div className="flex flex-wrap justify-between gap-2">
@@ -313,7 +370,7 @@ export function CustodianReceiptReview({
                       key === "receipt_number" ? (
                         <NaButton
                           value={line[key]}
-                          onChange={(next) => update(index, { [key]: next })}
+                          onChange={(next) => (key === "plate" ? changeLinePlate(index, next) : update(index, { [key]: next }))}
                         />
                       ) : null}
                     </div>
@@ -326,9 +383,20 @@ export function CustodianReceiptReview({
                       }
                       value={line[key]}
                       onChange={(event) =>
-                        update(index, { [key]: event.target.value })
+                        key === "plate"
+                          ? changeLinePlate(index, event.target.value)
+                          : update(index, { [key]: event.target.value })
                       }
                     />
+                    {key === "plate" && ownPlate.includes(line.id) && sharedPlate.trim() ? (
+                      <button
+                        type="button"
+                        className="tap-link text-xs underline underline-offset-4"
+                        onClick={() => changeLinePlate(index, sharedPlate)}
+                      >
+                        Use the plate above ({sharedPlate})
+                      </button>
+                    ) : null}
                   </div>
                 ))}
                 {companies.length > 0 ? (
@@ -419,7 +487,7 @@ export function CustodianReceiptReview({
                   tin: "",
                   tag: "",
                   expense_date: filingDate,
-                  plate: "",
+                  plate: sharedPlate,
                   receipt_number: "",
                   company: companies[0] ?? "",
                   receipt_path: "",
