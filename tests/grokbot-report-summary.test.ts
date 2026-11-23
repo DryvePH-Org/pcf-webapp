@@ -46,7 +46,7 @@ describe('summarizeReport', () => {
 
 describe('open workbooks', () => {
   it('opens only the workbooks that have their own Grokbot (MAD Buying and DRYVE)', () => {
-    for (const id of ['buying', 'dryve']) expect(isBookOpen(id)).toBe(true);
-    for (const id of ['operations', 'selling', 'lmr', '']) expect(isBookOpen(id)).toBe(false);
+    for (const id of ['buying', 'dryve', 'operations']) expect(isBookOpen(id)).toBe(true);
+    for (const id of ['selling', 'lmr', '']) expect(isBookOpen(id)).toBe(false);
   });
 });

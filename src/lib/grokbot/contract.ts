@@ -49,7 +49,7 @@ const common = {
   protocol_version: z.literal("pcf.grokbot.v1"),
   operation_id: z.uuid(),
   // Only the allowed sheets (see targets.ts) can be named.
-  target: z.union([targetObject(GROKBOT_TARGETS.buying), targetObject(GROKBOT_TARGETS.dryve)]),
+  target: z.union([targetObject(GROKBOT_TARGETS.buying), targetObject(GROKBOT_TARGETS.dryve), targetObject(GROKBOT_TARGETS.operations)]),
 };
 export const grokbotFinancialEvent = z
   .discriminatedUnion("event", [

@@ -21,7 +21,7 @@ declare op1 uuid:=gen_random_uuid(); op2 uuid:=gen_random_uuid(); op3 uuid:=gen_
  job jsonb; title text;
 begin
  -- 1. The allowlist and the seeded DRYVE workbook.
- assert (select count(*) from grokbot_targets())=2,'two allowed sheets';
+ assert (select count(*) from grokbot_targets())=3,'three allowed sheets';
  assert grokbot_destination_ok('1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ',1251133408),'DRYVE is allowed';
  assert not grokbot_destination_ok('1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ',1042918180),'a mixed-up pair is refused';
  assert (select spreadsheet_id from sheet_workbooks where id='dryve')='1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ','dryve points at the new sheet';

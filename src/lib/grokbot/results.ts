@@ -23,7 +23,7 @@ export const snapshotSchemaFor = (target: GrokbotTarget) => z.object({
         )
         .max(30),
     )
-    .min(89)
+    .min(target.layout.minSnapshotRows)
     .max(1000),
 });
 export const buyingSnapshotSchema = snapshotSchemaFor(GROKBOT_TARGETS.buying);

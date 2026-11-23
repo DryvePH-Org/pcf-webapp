@@ -2,7 +2,7 @@
 // spreadsheet: every bot has its own webhook URL and secret (server settings),
 // and the database enforces the same list (grokbot_target in migration phase 42).
 // Adding a sheet means adding it here AND in that SQL function, on purpose.
-export type GrokbotBook = "buying" | "dryve";
+export type GrokbotBook = "buying" | "dryve" | "operations";
 
 export type GrokbotTarget = {
   book: GrokbotBook;
@@ -23,6 +23,8 @@ export type GrokbotTarget = {
     skippedChecks: readonly string[];
     // The IN column (0-based) that a replenishment marker row carries its amount in.
     markerAmountColumn: number;
+    // The fewest rows a refresh snapshot may have (it must cover every used ledger, summary and sign-off row).
+    minSnapshotRows: number;
   };
 };
 
@@ -34,7 +36,7 @@ export const GROKBOT_TARGETS = {
     sheet_title: "PCF REPLENISHMENT - BUYING (NOV-DEC 2026)",
     env: { url: "GROKBOT_WEBHOOK_URL", secret: "GROKBOT_WEBHOOK_SECRET" },
     routine: "docs/GROKBOT_BUYING_ROUTINE.md",
-    layout: { companies: [], extraChecks: ["input_vat_preserved"], skippedChecks: [], markerAmountColumn: 12 },
+    layout: { companies: [], extraChecks: ["input_vat_preserved"], skippedChecks: [], markerAmountColumn: 12, minSnapshotRows: 89 },
   },
   dryve: {
     book: "dryve",
@@ -43,7 +45,17 @@ export const GROKBOT_TARGETS = {
     sheet_title: "DRYVE PCF - NOV TO DEC 2026",
     env: { url: "GROKBOT_DRYVE_WEBHOOK_URL", secret: "GROKBOT_DRYVE_WEBHOOK_SECRET" },
     routine: "docs/GROKBOT_DRYVE_ROUTINE.md",
-    layout: { companies: ["DRYVE", "VENTA"], extraChecks: ["expense_types_valid"], skippedChecks: ["input_vat_preserved"], markerAmountColumn: 9 },
+    layout: { companies: ["DRYVE", "VENTA"], extraChecks: ["expense_types_valid"], skippedChecks: ["input_vat_preserved"], markerAmountColumn: 9, minSnapshotRows: 89 },
+  },
+  // Operations Parts & Repairs PCF. The spreadsheet and tab IDs are the real ones once the sheet link is known.
+  operations: {
+    book: "operations",
+    spreadsheet_id: "1uG_1IEvMSnKl2WcQFbRA0mCWs6vudCCPlVVDifkjiak",
+    sheet_id: 180635821,
+    sheet_title: "PCF REPLENISHMENT #1 (NEW)",
+    env: { url: "GROKBOT_OPERATIONS_WEBHOOK_URL", secret: "GROKBOT_OPERATIONS_WEBHOOK_SECRET" },
+    routine: "docs/GROKBOT_OPERATIONS_ROUTINE.md",
+    layout: { companies: [], extraChecks: ["input_vat_preserved"], skippedChecks: [], markerAmountColumn: 12, minSnapshotRows: 60 },
   },
 } as const satisfies Record<GrokbotBook, GrokbotTarget>;
 
