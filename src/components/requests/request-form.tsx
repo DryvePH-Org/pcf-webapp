@@ -82,7 +82,7 @@ export function RequestForm({
       router.push(`/requests/${result.id}`);
       router.refresh();
     } catch {
-      setError("Could not submit the request. Try again.");
+      setError("Could not submit the request. If the app was updated while this page was open, reload the page and try again.");
     } finally {
       if (!leaving) setPending(false);
     }
@@ -224,7 +224,14 @@ export function RequestForm({
 
             {error ? (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  {error}
+                  {error.includes("reload the page") ? (
+                    <button type="button" className="tap-link mt-1 block font-medium underline underline-offset-4" onClick={() => window.location.reload()}>
+                      Reload this page
+                    </button>
+                  ) : null}
+                </AlertDescription>
               </Alert>
             ) : null}
             <div className="flex justify-end border-t pt-4">

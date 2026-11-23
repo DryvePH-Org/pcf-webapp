@@ -186,7 +186,7 @@ export function LiquidationForm({
       router.refresh();
     } catch {
       setConfirm(false);
-      setError("Could not save the liquidation. Try again.");
+      setError("Could not save the liquidation. If the app was updated while this page was open, reload the page: what you typed is kept on this device. Then try again.");
     } finally {
       setPending(false);
     }
