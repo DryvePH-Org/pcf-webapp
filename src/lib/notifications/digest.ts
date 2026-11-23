@@ -119,75 +119,81 @@ export function digestItemsFor(role: Role, stats: DigestStats): Item[] {
   return items;
 }
 
-async function loadStats(): Promise<DigestStats> {
+export const emptyStats = (): DigestStats => ({
+  awaitingApproval: 0,
+  readyToRelease: 0,
+  pendingReviews: 0,
+  oldestReviewHours: null,
+  flagged: 0,
+  drafts: 0,
+  submittedRequests: 0,
+  approvedRequests: 0,
+  lowFunds: [],
+});
+
+// The counts of several funds added together (a person's own funds, or all of them).
+export function mergeStats(list: DigestStats[]): DigestStats {
+  const total = emptyStats();
+  for (const stats of list) {
+    total.awaitingApproval += stats.awaitingApproval;
+    total.readyToRelease += stats.readyToRelease;
+    total.pendingReviews += stats.pendingReviews;
+    total.flagged += stats.flagged;
+    total.drafts += stats.drafts;
+    total.submittedRequests += stats.submittedRequests;
+    total.approvedRequests += stats.approvedRequests;
+    if (stats.oldestReviewHours !== null) total.oldestReviewHours = Math.max(total.oldestReviewHours ?? 0, stats.oldestReviewHours);
+    total.lowFunds.push(...stats.lowFunds);
+  }
+  return total;
+}
+
+// Which funds a person's summary covers: a custodian's and an approver's own funds only; accounting and
+// administrators oversee every fund.
+export function fundsInScope(role: Role, userId: string, funds: Map<string, { custodians: string[]; approvers: string[] }>): string[] | "all" {
+  if (role === "accounting" || role === "admin") return "all";
+  const mine = [...funds.entries()]
+    .filter(([, info]) => (role === "custodian" ? info.custodians : role === "approver" ? info.approvers : []).includes(userId))
+    .map(([fundId]) => fundId);
+  return mine;
+}
+
+async function loadStats(): Promise<Map<string, DigestStats>> {
   const admin = createAdminClient();
-  const vouchersWith = async (status: "submitted" | "released" | "rejected" | "draft") => {
-    const { count } = await admin
-      .from("vouchers")
-      .select("id", { count: "exact", head: true })
-      .eq("status", status);
-    return count ?? 0;
+  const byFund = new Map<string, DigestStats>();
+  const of = (fundId: string) => {
+    let stats = byFund.get(fundId);
+    if (!stats) byFund.set(fundId, (stats = emptyStats()));
+    return stats;
   };
-  const requestsWith = async (status: "submitted" | "approved") => {
-    const { count } = await admin
-      .from("replenishments")
-      .select("id", { count: "exact", head: true })
-      .eq("status", status);
-    return count ?? 0;
-  };
-
-  const [
-    awaitingApproval,
-    readyToRelease,
-    pendingReviews,
-    flagged,
-    drafts,
-    submittedRequests,
-    approvedRequests,
-  ] = await Promise.all([
-      vouchersWith("submitted"),
-      admin
-        .from("vouchers")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "approved")
-        .is("released_at", null)
-        .then(({ count }) => count ?? 0),
-      vouchersWith("released"),
-      vouchersWith("rejected"),
-      vouchersWith("draft"),
-      requestsWith("submitted"),
-      requestsWith("approved"),
-    ]);
-
-  const { data: oldest } = await admin
-    .from("vouchers")
-    .select("released_at")
-    .eq("status", "released")
-    .order("released_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: low } = await admin
-    .from("fund_balance_v")
-    .select("name, expected_cash")
-    .eq("is_low", true);
-
-  return {
-    awaitingApproval,
-    readyToRelease,
-    pendingReviews,
-    oldestReviewHours: oldest?.released_at
-      ? (Date.now() - new Date(oldest.released_at).getTime()) / 3_600_000
-      : null,
-    flagged,
-    drafts,
-    submittedRequests,
-    approvedRequests,
-    lowFunds: (low ?? []).map((fund) => ({
-      name: fund.name ?? "Fund",
-      expectedCash: fund.expected_cash ?? 0,
-    })),
-  };
+  const [vouchers, replenishments, low] = await Promise.all([
+    admin.from("vouchers").select("fund_id, status, released_at").in("status", ["submitted", "approved", "released", "rejected", "draft"]),
+    admin.from("replenishments").select("fund_id, status").in("status", ["submitted", "approved"]),
+    admin.from("fund_balance_v").select("fund_id, name, expected_cash").eq("is_low", true),
+  ]);
+  const now = Date.now();
+  for (const voucher of vouchers.data ?? []) {
+    const stats = of(voucher.fund_id);
+    if (voucher.status === "submitted") stats.awaitingApproval += 1;
+    else if (voucher.status === "approved" && !voucher.released_at) stats.readyToRelease += 1;
+    else if (voucher.status === "released") {
+      stats.pendingReviews += 1;
+      if (voucher.released_at) {
+        const hours = (now - new Date(voucher.released_at).getTime()) / 3_600_000;
+        stats.oldestReviewHours = Math.max(stats.oldestReviewHours ?? 0, hours);
+      }
+    } else if (voucher.status === "rejected") stats.flagged += 1;
+    else if (voucher.status === "draft") stats.drafts += 1;
+  }
+  for (const request of replenishments.data ?? []) {
+    const stats = of(request.fund_id);
+    if (request.status === "submitted") stats.submittedRequests += 1;
+    else stats.approvedRequests += 1;
+  }
+  for (const fund of low.data ?? []) {
+    if (fund.fund_id) of(fund.fund_id).lowFunds.push({ name: fund.name ?? "Fund", expectedCash: fund.expected_cash ?? 0 });
+  }
+  return byFund;
 }
 
 const ROLES: Role[] = ["approver", "custodian", "accounting", "admin", "requester"];
@@ -246,13 +252,17 @@ export function personalItems(userId: string, role: Role, data: Personal): Item[
 }
 
 export async function sendDailyDigest() {
-  const [stats, personal] = await Promise.all([loadStats(), loadPersonal()]);
+  const [byFund, personal] = await Promise.all([loadStats(), loadPersonal()]);
+  const stats = mergeStats([...byFund.values()]);
   let recipients = 0;
 
   for (const role of ROLES) {
     const people = await recipientsByRole([role]);
     for (const person of people) {
-      const items = [...(role === "requester" ? [] : digestItemsFor(role, stats)), ...(person.id ? personalItems(person.id, role, personal) : [])];
+      // only the funds this person is involved in (accounting and administrators oversee all of them)
+      const scope = person.id ? fundsInScope(role, person.id, personal.fund) : [];
+      const own = scope === "all" ? stats : mergeStats(scope.map((fundId) => byFund.get(fundId)).filter((value): value is DigestStats => Boolean(value)));
+      const items = [...(role === "requester" ? [] : digestItemsFor(role, own)), ...(person.id ? personalItems(person.id, role, personal) : [])];
       if (items.length === 0) continue;
       recipients += 1;
       await notify({

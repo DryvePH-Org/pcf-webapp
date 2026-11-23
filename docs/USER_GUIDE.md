@@ -333,6 +333,25 @@ page under **Changes from the Google Sheet**. An amount that matches nothing,
 or a tag the sheet does not list, is listed under **To check** and clears when
 the sheet and the app agree again. Amounts are never changed from the sheet.
 
+## Reading a replenishment report
+
+A replenishment report holds only the vouchers that were bundled into it when it
+was prepared. The box **What this report covers** at the top says how many
+expenses and vouchers that is, their numbers and dates, the day it was
+prepared, and the amount it replaces. Expenses recorded after that are not in
+it; the box shows how many are waiting for the next replenishment. The Google
+Sheet and the Accounting page count everything on the ledger, so their totals
+can be higher than the report. The same box is printed on the paper copy.
+
+## Who gets notified
+
+A notification goes to the people involved with that fund and that record: the
+fund's custodians and approvers, the person who made it, and accounting for
+replenishments. It never goes to everyone with a role. An administrator is told
+only when nobody else is assigned to act (for example a fund with no approver),
+and for the self-approval audit alerts. The daily summary email counts only a
+custodian's or approver's own funds; accounting and administrators see all.
+
 ## Following a request from start to finish
 
 The request, voucher and liquidation pages show a **trail** at the very top:

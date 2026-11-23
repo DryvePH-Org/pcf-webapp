@@ -29,6 +29,7 @@ export function ReplenishmentPrint({
   reviewedByName,
   reviewedAt,
   reviewNote,
+  scope,
 }: {
   requestNo: string;
   fundName: string;
@@ -41,6 +42,7 @@ export function ReplenishmentPrint({
   reviewedByName: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
+  scope: string[];
 }) {
   return (
     <div className="mx-auto max-w-3xl bg-white p-2 text-black">
@@ -126,6 +128,15 @@ export function ReplenishmentPrint({
             </tr>
           </tfoot>
         </table>
+
+        <div className="mt-4 border border-black p-2 text-xs">
+          <p className="text-[10px] font-semibold tracking-[0.15em] uppercase">
+            What this report covers
+          </p>
+          {scope.map((line) => (
+            <p key={line} className="mt-1">{line}</p>
+          ))}
+        </div>
 
         <div className="mt-4">
           <p className="text-[10px] font-semibold tracking-[0.15em] uppercase">

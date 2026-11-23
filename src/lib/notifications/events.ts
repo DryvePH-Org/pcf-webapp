@@ -3,6 +3,7 @@ import { formatPHP } from "@/lib/money";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { audienceFor, fundPeople, type AudienceKind } from "./routing";
 import {
   notify,
   recipientById,
@@ -11,6 +12,12 @@ import {
 } from "./deliver";
 
 type Row = { label: string; value: string };
+
+// The people involved with this fund for this kind of notification (see audienceFor).
+async function recipientsFor(kind: AudienceKind, fundId: string, involved: (string | null | undefined)[], skip: string[]) {
+  const audience = audienceFor(kind, await fundPeople(fundId), involved);
+  return recipientsByRole(audience.roles, { include: audience.include, exclude: skip });
+}
 
 async function nameOf(userId: string | null | undefined) {
   if (!userId) return "Someone";
@@ -101,10 +108,8 @@ export async function notifyVoucherSubmitted(voucherId: string, actorId: string)
     event: "voucher.submitted",
     entityType: "vouchers",
     entityId: voucherId,
-    // Admins can approve too, which matters when the only approver is the preparer.
-    recipients: await recipientsByRole(["approver", "admin"], {
-      exclude: exclude(actorId, voucher.prepared_by),
-    }),
+    // The fund's approvers; an administrator only when the fund has none.
+    recipients: await recipientsFor("needs_approval", voucher.fund_id, [], exclude(actorId, voucher.prepared_by)),
     subject: `Approval needed before release: ${voucher.pcv_number} · ${formatPHP(voucher.amount)} to ${voucher.payee}`,
     content: () => ({
       tone: "action",
@@ -202,9 +207,7 @@ export async function notifyVoucherReleased(voucherId: string, actorId: string) 
     event: "voucher.released",
     entityType: "vouchers",
     entityId: voucherId,
-    recipients: await recipientsByRole(["approver"], {
-      exclude: exclude(actorId, voucher.prepared_by),
-    }),
+    recipients: await recipientsFor("voucher_released", voucher.fund_id, [], exclude(actorId, voucher.prepared_by)),
     subject: `Review needed: ${voucher.pcv_number} · ${formatPHP(voucher.amount)} to ${voucher.payee}`,
     content: () => ({
       tone: "action",
@@ -247,10 +250,7 @@ export async function notifyVoucherFlagged(voucherId: string, actorId: string) {
     event: "voucher.flagged",
     entityType: "vouchers",
     entityId: voucherId,
-    recipients: await recipientsByRole(["admin"], {
-      include: [voucher.prepared_by],
-      exclude: exclude(actorId),
-    }),
+    recipients: await recipientsFor("stopped", voucher.fund_id, [voucher.prepared_by], exclude(actorId)),
     subject: `Flagged: ${voucher.pcv_number} needs attention`,
     content: () => ({
       tone: "alert",
@@ -271,10 +271,7 @@ export async function notifyVoucherVoided(voucherId: string, actorId: string) {
     event: "voucher.voided",
     entityType: "vouchers",
     entityId: voucherId,
-    recipients: await recipientsByRole(["admin"], {
-      include: [voucher.prepared_by],
-      exclude: exclude(actorId),
-    }),
+    recipients: await recipientsFor("stopped", voucher.fund_id, [voucher.prepared_by], exclude(actorId)),
     subject: `Voided: ${voucher.pcv_number}`,
     content: () => ({
       tone: "alert",
@@ -319,10 +316,9 @@ export async function notifyReplenishmentApproved(id: string, actorId: string) {
     event: "replenishment.approved",
     entityType: "replenishments",
     entityId: id,
-    recipients: await recipientsByRole(awaitingApprover ? ["approver"] : ["accounting"], {
-      include: [request.requested_by],
-      exclude: exclude(actorId),
-    }),
+    recipients: awaitingApprover
+      ? await recipientsFor("replenishment_awaits_approver", request.fund_id, [request.requested_by], exclude(actorId))
+      : await recipientsByRole(["accounting"], { include: [request.requested_by], exclude: exclude(actorId) }),
     subject: `${awaitingApprover ? "Awaiting approver" : "Approved for cash handover"}: ${request.request_no}`,
     content: () => ({
       tone: "info",
@@ -343,10 +339,7 @@ export async function notifyReplenishmentRejected(id: string, actorId: string) {
     event: "replenishment.rejected",
     entityType: "replenishments",
     entityId: id,
-    recipients: await recipientsByRole(["admin"], {
-      include: [request.requested_by],
-      exclude: exclude(actorId),
-    }),
+    recipients: await recipientsFor("replenishment_stopped", request.fund_id, [request.requested_by], exclude(actorId)),
     subject: `Rejected: ${request.request_no} — vouchers returned`,
     content: () => ({
       tone: "alert",
@@ -367,10 +360,7 @@ export async function notifyReplenishmentClosed(id: string, actorId: string) {
     event: "replenishment.closed",
     entityType: "replenishments",
     entityId: id,
-    recipients: await recipientsByRole(["admin"], {
-      include: [request.requested_by],
-      exclude: exclude(actorId),
-    }),
+    recipients: await recipientsFor("replenishment_stopped", request.fund_id, [request.requested_by], exclude(actorId)),
     subject: `Fund restored: ${request.request_no} is closed`,
     content: () => ({
       tone: "info",
@@ -402,19 +392,12 @@ export async function notifyLowBalance(fundId: string) {
   ]);
   if (!fund || !balance) return;
 
-  const { data: custodians } = await admin
-    .from("fund_custodians")
-    .select("custodian_id")
-    .eq("fund_id", fundId);
-
   const threshold = (fund.amount * fund.low_balance_pct) / 100;
   await notify({
     event: "fund.low_balance",
     entityType: "funds",
     entityId: fundId,
-    recipients: await recipientsByRole(["admin", "accounting"], {
-      include: (custodians ?? []).map((row) => row.custodian_id),
-    }),
+    recipients: await recipientsFor("low_balance", fundId, [], []),
     subject: `Low balance: ${fund.name} has ${formatPHP(balance.expected_cash ?? 0)} left`,
     content: () => ({
       tone: "alert",

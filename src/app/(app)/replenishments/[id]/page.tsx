@@ -30,6 +30,7 @@ import { EncodingReport } from "@/components/sheets/encoding-report";
 import { replenishmentEncoding, unencodedLiquidations } from "@/lib/sheets/encoding";
 import { requireUser } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { describeScope } from "@/lib/replenishment-scope";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
 import { createClient } from "@/lib/supabase/server";
 
@@ -158,6 +159,25 @@ export default async function ReplenishmentDetailPage({
   });
 
   const categoryTotals = buildCategoryTotals(vouchers);
+  // What this report covers, and what was recorded after it (those expenses count toward the next replenishment)
+  const sortedPcv = vouchers.map((voucher) => voucher.pcv_number).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const sortedDates = vouchers.map((voucher) => voucher.voucher_date).sort();
+  const openVouchers = await supabase.from("vouchers").select("id").eq("fund_id", replenishment.fund_id).is("replenishment_id", null);
+  const openIds = (openVouchers.data ?? []).map((row) => row.id);
+  const laterLiquidations = openIds.length
+    ? await supabase.from("liquidations").select("total_spent").eq("status", "approved").gt("reviewed_at", replenishment.created_at).in("voucher_id", openIds)
+    : { data: [] as { total_spent: number }[] };
+  const scope = describeScope({
+    voucherCount: vouchers.length,
+    entryCount: vouchers.reduce((count, voucher) => count + Math.max(1, voucher.lines.length), 0),
+    firstPcv: sortedPcv[0] ?? null,
+    lastPcv: sortedPcv[sortedPcv.length - 1] ?? null,
+    firstDate: sortedDates[0] ?? null,
+    lastDate: sortedDates[sortedDates.length - 1] ?? null,
+    preparedOn: replenishment.created_at,
+    total: String(replenishment.total),
+    later: { count: (laterLiquidations.data ?? []).length, amount: String((laterLiquidations.data ?? []).reduce((sum, row) => sum + Number(row.total_spent), 0).toFixed(2)) },
+  });
   const fundName = fundResult.data?.name ?? "—";
   const requestedByName = replenishment.requested_by
     ? (profileNames.get(replenishment.requested_by) ?? "—")
@@ -267,6 +287,15 @@ export default async function ReplenishmentDetailPage({
           </Alert>
         ) : null}
 
+        {vouchers.length > 0 ? (
+          <Callout tone="info" title="What this report covers">
+            <span className="block">{scope.covers}</span>
+            <span className="mt-1 block font-medium">{scope.total}</span>
+            {scope.later ? <span className="mt-1 block">{scope.later}</span> : null}
+            <span className="mt-1 block text-muted-foreground">{scope.note}</span>
+          </Callout>
+        ) : null}
+
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
           <div className="space-y-6">
             <Card>
@@ -327,7 +356,7 @@ export default async function ReplenishmentDetailPage({
               <CardHeader>
                 <CardTitle>Totals by category</CardTitle>
                 <CardDescription>
-                  Every voucher in this request, grouped by category.
+                  Only the expenses in this replenishment, grouped by category. Anything recorded after it was prepared is not counted here.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -346,7 +375,7 @@ export default async function ReplenishmentDetailPage({
                           {category.name}
                           <span className="ml-2 text-xs text-muted-foreground">
                             {category.count}{" "}
-                            {category.count === 1 ? "voucher" : "vouchers"}
+                            {category.count === 1 ? "expense" : "expenses"}
                           </span>
                         </dt>
                         <dd>
@@ -470,6 +499,7 @@ export default async function ReplenishmentDetailPage({
           reviewedByName={reviewedByName}
           reviewedAt={replenishment.reviewed_at}
           reviewNote={replenishment.review_note}
+          scope={[scope.covers, scope.total, ...(scope.later ? [scope.later] : []), scope.note]}
         />
       </div>
     </>

@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPHP } from "@/lib/money";
 import { LIQUIDATION_LABELS } from "@/lib/liquidation";
 import { notify, recipientsByRole } from "./deliver";
-import { reviewersFor } from "./routing";
+import { audienceFor, fundPeople, reviewersFor } from "./routing";
 import { tellPerson } from "@/lib/telegram/notify";
 
 export type LiquidationEvent = "liquidation.submitted" | "liquidation.filed_for_you" | "liquidation.reviewed" | "liquidation.settled" | "liquidation.reimbursement_approved";
@@ -65,7 +65,10 @@ export async function notifyLiquidation(id: string, event: LiquidationEvent, act
     if (needsApprover) {
       await notify({
         event: "liquidation.needs_approver", entityType: "liquidations", entityId: id,
-        recipients: await recipientsByRole(["approver", "admin"], { exclude: [actor, l.owner_id] }),
+        recipients: await (async () => {
+          const audience = audienceFor("needs_approval", await fundPeople(l.fund_id));
+          return recipientsByRole(audience.roles, { include: audience.include, exclude: [actor, l.owner_id] });
+        })(),
         subject: `${l.pcv_number}: extra reimbursement needs approval`,
         content: () => ({ tone: "action", heading: `${l.pcv_number} needs an additional reimbursement approval`,
           paragraphs: ["Spending was above the cash received. An approver must approve before the custodian pays it."], rows, cta }),
