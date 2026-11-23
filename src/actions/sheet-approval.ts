@@ -61,27 +61,29 @@ export async function previewSheetApproval(id: string) {
         "Only submitted liquidations or pending sheet updates can be reviewed.",
     };
   try {
+    // The fund's workbook: an assigned approver uses the filing custodian's; an administrator or a custodian of the
+    // fund uses the workbook that is switched on for the fund (their own first, if the fund has more than one).
+    const mayUseFundBook = user.role === "admin" || user.role === "custodian";
     let configs = admin.from("sheet_workbooks").select("*");
     configs = existing.data
       ? configs.eq("id", existing.data.book_id)
-      : configs
-          // The workbook belongs to the custodian who owns the liquidation; an assigned approver
-          // reviewing it uses that custodian's workbook.
-          .eq("custodian_id", user.role === "approver" ? l.data.owner_id : user.id)
-          .eq("fund_id", l.data.fund_id)
-          .eq("enabled", true);
-    const w = await configs.single();
+      : configs.eq("fund_id", l.data.fund_id).eq("enabled", true);
+    if (!existing.data && user.role === "approver") configs = configs.eq("custodian_id", l.data.owner_id);
+    const found = await configs;
+    const books = found.data ?? [];
+    const picked = books.find((book) => book.custodian_id === user.id) ?? (books.length === 1 ? books[0] : null);
     if (
-      w.error ||
-      !w.data ||
-      w.data.custodian_id !== (user.role === "approver" ? l.data.owner_id : user.id) ||
-      w.data.fund_id !== l.data.fund_id ||
-      !w.data.enabled ||
-      w.data.active_sheet_id === null
+      found.error ||
+      !picked ||
+      (!mayUseFundBook && picked.custodian_id !== (user.role === "approver" ? l.data.owner_id : user.id)) ||
+      picked.fund_id !== l.data.fund_id ||
+      !picked.enabled ||
+      picked.active_sheet_id === null
     )
       throw new Error(
-        "Ask Accounting to enable a workbook for your custodian, fund, and active worksheet.",
+        "Ask Accounting to enable a workbook for this fund and its active worksheet.",
       );
+    const w = { data: picked };
     if (!isGrokbotBook(w.data.id))
       throw new Error(
         "This workbook is not connected to a Grokbot yet. Configure it before approving this sheet update.",
@@ -352,7 +354,7 @@ export async function confirmSheetApproval(previewId: string) {
     if (
       w.error ||
       owner.error ||
-      w.data.custodian_id !== (user.role === "approver" ? owner.data.owner_id : user.id) ||
+      (user.role !== "admin" && user.role !== "custodian" && w.data.custodian_id !== owner.data.owner_id) ||
       w.data.config_version !== p.data.config_version ||
       job.data.book_id !== p.data.book_id
     )
