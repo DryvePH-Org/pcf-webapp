@@ -245,8 +245,10 @@ The same bot files a liquidation for an advance you received.
 1. Send a **photo of a receipt** (as a photo, not a file), or type `/liquidate`. With more than one advance the bot asks which one.
 2. Put a few words in the caption, with the amount last: `gasolina 450`. Without a caption the bot asks what it was for, and reads the amount from the receipt. A plate number in the caption is never taken for the amount.
 3. Send one photo per receipt. The bot shows the list, the total, and what you return or what is reimbursed.
-4. Check the card. **Ayusin ang linya** changes or removes a receipt; **Palitan ang department** changes the department (asked once, then remembered).
-5. Tap **Submit**. It becomes your ordinary liquidation and the custodian reviews it as usual, so the custodian still enters the supplier, TIN, tag and plate.
+4. **More pictures of one receipt** (a long receipt, or both sides): send the extra photo with the caption `+`, or tap **Ayusin ang linya** -> the receipt -> **Dagdag na larawan**. Up to 5 more per receipt.
+   **One receipt with several particulars**: **Ayusin ang linya** -> the receipt -> **Hatiin ang resibo**, then type one part per line with its amount last (`bolt 120`, then `hose 300`). The parts must add up to the receipt amount.
+5. Check the card. **Ayusin ang linya** changes, splits or removes a receipt; **Palitan ang department** changes the department (asked once, then remembered).
+6. Tap **Submit**. It becomes your ordinary liquidation and the custodian reviews it as usual, so the custodian still enters the supplier, TIN, tag and plate.
 
 If the bot says the advance was started on the website or sent back by the custodian, finish it on the website. An unfinished Telegram liquidation is dropped after two days.
 

@@ -8,7 +8,7 @@ import type { Deps, Markup, Person, TgMessage } from "./flow";
 // It becomes the person's ordinary liquidation (same functions and checks as the website), and the custodian
 // reviews it as usual. Everything outside (database, picture storage, receipt reading) comes in through LiqDeps.
 
-export type LiqStatus = "choosing" | "draft" | "editing_particulars" | "editing_amount" | "editing_department";
+export type LiqStatus = "choosing" | "draft" | "editing_particulars" | "editing_amount" | "editing_department" | "adding_photo" | "splitting";
 export type LiqDraft = {
   id: string;
   chat_id: number;
@@ -23,7 +23,7 @@ export type LiqDraft = {
   pending_caption: string | null;
 };
 export type LiqDraftPatch = Partial<{ department: string; status: LiqStatus; edit_line: string | null; message_id: number | null }>;
-export type LiqLine = { id: string; particulars: string; amount: number | null; receipt_path: string | null; read_amount: number | null; reading: boolean };
+export type LiqLine = { id: string; particulars: string; amount: number | null; receipt_path: string | null; read_amount: number | null; reading: boolean; extra_photos: string[] };
 // An advance the person still has to liquidate.
 export type Outstanding = {
   voucher_id: string;
@@ -47,6 +47,10 @@ export type LiqDeps = {
     addLine(input: { draftId: string; id: string; particulars: string; amount: number | null; receiptPath: string; reading: boolean }): Promise<LiqLine>;
     updateLine(id: string, patch: Partial<{ particulars: string; amount: number | null }>): Promise<void>;
     removeLine(id: string): Promise<void>;
+    // another picture of the same receipt line
+    addPhoto(lineId: string, path: string): Promise<void>;
+    // the line becomes these parts: the first keeps the line's id and extra pictures, the others have their own id and picture copy
+    splitLine(lineId: string, parts: { id: string; particulars: string; amount: number; receiptPath: string }[]): Promise<void>;
     // what reading the picture suggested; fills the amount only if nobody typed one meanwhile
     setRead(id: string, amount: number | null): Promise<void>;
     claimSubmit(id: string): Promise<boolean>;
@@ -59,6 +63,8 @@ export type LiqDeps = {
     photo(fileId: string): Promise<Blob>;
     // keeps the picture with the liquidation; returns where
     upload(liquidationId: string, lineId: string, picture: Blob): Promise<string>;
+    // a copy of a picture in another line's own folder (the database wants each line's picture in its own folder)
+    copy(liquidationId: string, fromPath: string, lineId: string): Promise<string>;
     // the amount printed on the receipt, "" when it cannot be read
     read(picture: Blob): Promise<string>;
   };
@@ -79,6 +85,15 @@ export const liqWords = {
   needDepartment: "🏢 Anong <b>department</b> mo? Isang beses lang ito itatanong.",
   badAmount: "Hindi ko makita ang halaga. Numero lang po, hal. 450",
   tooMany: "Hanggang 20 resibo lang sa isang liquidation. Pindutin ang ✅ Submit, tapos gumawa ng bago para sa iba.",
+  tooManyPhotos: "Hanggang 5 pang larawan lang sa isang resibo.",
+  addPhoto: "📸 Mag-send ng <b>dagdag na larawan</b> ng resibong ito (halimbawa ang kabilang bahagi).",
+  photoAdded: "✅ Naidagdag ang larawan.",
+  needFirst: "Mag-send muna ng larawan ng resibo, saka mo lagyan ng dagdag na larawan.",
+  split: (total: number | null) => `✂️ Isulat ang <b>bawat bahagi</b> ng resibo, isang linya bawat isa, na may halaga sa dulo:\n<i>bolt 120\nhose 300</i>${total ? `\n\nDapat umabot sa <b>${formatPHP(total)}</b> ang kabuuan.` : ""}`,
+  splitFew: "Kailangan ng hindi bababa sa 2 bahagi, isa-isang linya (may halaga sa dulo).",
+  splitNoAmount: (part: string) => `Walang halaga ang "${part}". Ilagay ang halaga sa dulo, hal. ${part} 120`,
+  splitOff: (sum: number, total: number) => `Ang kabuuan ng mga bahagi ay ${formatPHP(sum)}, pero ${formatPHP(total)} ang resibo. Ayusin at i-send ulit.`,
+  waitPhoto: "📸 Larawan ang hinihintay ko. Mag-send ng larawan, o /cancel para ihinto ang liquidation.",
   asFile: "I-send ang resibo bilang <b>larawan</b> (photo), hindi bilang file.",
   noPhoto: "Hindi ko ma-download ang larawan. Subukan ulit.",
   sendPhoto: "📸 Mag-send ng larawan ng resibo para magdagdag.",
@@ -115,6 +130,22 @@ export function splitCaption(raw: string): { particulars: string; amount: number
   return { particulars: said.slice(0, 300), amount: null };
 }
 
+// One receipt, several particulars: one per line (or separated by ;), the amount last on each.
+export function parseParts(raw: string, expected: number | null): { parts: { particulars: string; amount: number }[] } | { error: string } {
+  const segments = raw.split(/[\n;]+/).map((part) => part.trim()).filter(Boolean);
+  const parts: { particulars: string; amount: number }[] = [];
+  for (const segment of segments) {
+    const said = splitCaption(segment);
+    if (!said.particulars || !said.amount) return { error: liqWords.splitNoAmount(cleanText(segment).slice(0, 60)) };
+    parts.push({ particulars: said.particulars, amount: said.amount });
+  }
+  if (parts.length < 2) return { error: liqWords.splitFew };
+  if (parts.length > 20) return { error: liqWords.tooMany };
+  const sum = parts.reduce((total, part) => total + cents(part.amount), 0);
+  if (expected && sum !== cents(expected)) return { error: liqWords.splitOff(sum / 100, expected) };
+  return { parts };
+}
+
 // The largest picture Telegram offers that is still receipt-sized.
 export function pickPhoto(sizes: { file_id: string; width: number; height: number; file_size?: number }[]) {
   const fits = sizes.filter((size) => Math.max(size.width, size.height) <= 1600);
@@ -130,7 +161,8 @@ export function liqCard(draft: LiqDraft, lines: LiqLine[], context: { pcv: strin
   const rows = lines.map((line, index) => {
     const warn = line.read_amount && line.amount && cents(line.read_amount) !== cents(line.amount) ? ` ⚠️ <i>nabasa sa resibo: ${formatPHP(line.read_amount)}</i>` : "";
     const reading = line.reading ? " ⏳" : "";
-    return `${index + 1}. ${line.particulars ? esc(line.particulars) : "❓ <i>kulang ang paliwanag</i>"} — ${line.amount ? `<b>${formatPHP(line.amount)}</b>` : "❓ <i>kulang ang halaga</i>"}${reading}${warn}`;
+    const more = line.extra_photos.length ? ` 📎+${line.extra_photos.length}` : "";
+    return `${index + 1}. ${line.particulars ? esc(line.particulars) : "❓ <i>kulang ang paliwanag</i>"} — ${line.amount ? `<b>${formatPHP(line.amount)}</b>` : "❓ <i>kulang ang halaga</i>"}${reading}${more}${warn}`;
   });
   const text = [
     "🧾 <b>Liquidation mo</b>",
@@ -281,6 +313,13 @@ export async function handlePhoto(deps: Deps, person: Person, message: TgMessage
   if (!(await deps.limit(`telegram:photo:${chatId}`, 12, 60))) return void (await deps.tg.send(chatId, liqWords.rate));
   const caption = message.caption ?? "";
   let draft = await deps.liq.store.openDraft(chatId);
+  // another picture of a receipt already in the list: "+" as the caption, or after tapping Dagdag na larawan
+  if (draft?.liquidation_id && draft.status !== "choosing") {
+    const lines = await deps.liq.store.lines(draft.id);
+    const target = draft.status === "adding_photo" ? lines.find((line) => line.id === draft!.edit_line) : caption.trim() === "+" ? lines.at(-1) : undefined;
+    if (target) return attachPhoto(deps, person, draft, target, photo.file_id);
+    if (caption.trim() === "+") return void (await deps.tg.send(chatId, liqWords.needFirst));
+  } else if (caption.trim() === "+") return void (await deps.tg.send(chatId, liqWords.needFirst));
   if (!draft) {
     try {
       draft = await open(deps, person, chatId, { file: photo.file_id, caption });
@@ -292,7 +331,27 @@ export async function handlePhoto(deps: Deps, person: Person, message: TgMessage
     return startWithPhoto(deps, person, draft, photo.file_id, caption);
   }
   if (draft.status === "choosing") return void (await deps.tg.send(chatId, liqWords.choosing));
+  // a new receipt ends a half-done "add a picture" or "split"
+  if (draft.status === "adding_photo" || draft.status === "splitting") draft = await deps.liq.store.updateDraft(draft.id, { status: "draft", edit_line: null });
   await addReceipt(deps, person, draft, photo.file_id, caption);
+}
+
+async function attachPhoto(deps: Deps, person: Person, draft: LiqDraft, line: LiqLine, fileId: string) {
+  if (!draft.liquidation_id) return;
+  const settle = () => (draft.status === "adding_photo" ? deps.liq.store.updateDraft(draft.id, { status: "draft", edit_line: null }) : Promise.resolve(draft));
+  if (line.extra_photos.length >= 5) {
+    await showCard(deps, person, await settle());
+    return void (await deps.tg.send(draft.chat_id, liqWords.tooManyPhotos));
+  }
+  const picture = await deps.liq.files.photo(fileId).catch(() => null);
+  if (!picture) return void (await deps.tg.send(draft.chat_id, liqWords.noPhoto));
+  try {
+    // the picture sits in the line's own folder, as the database requires
+    await deps.liq.store.addPhoto(line.id, await deps.liq.files.upload(draft.liquidation_id, line.id, picture));
+  } catch (error) {
+    return void (await deps.tg.send(draft.chat_id, failure(error)));
+  }
+  await showCard(deps, person, await settle());
 }
 
 async function startWithPhoto(deps: Deps, person: Person, draft: LiqDraft, fileId: string, caption: string) {
@@ -324,6 +383,24 @@ export async function handleStart(deps: Deps, person: Person, chatId: number) {
 async function applyEdit(deps: Deps, person: Person, draft: LiqDraft, said: string) {
   const lines = await deps.liq.store.lines(draft.id);
   const line = lines.find((item) => item.id === draft.edit_line);
+  if (draft.status === "adding_photo") return void (await deps.tg.send(draft.chat_id, liqWords.waitPhoto));
+  if (draft.status === "splitting" && line) {
+    const parsed = parseParts(said, line.amount ?? line.read_amount);
+    if ("error" in parsed) return void (await deps.tg.send(draft.chat_id, `⚠️ ${esc(parsed.error)}`));
+    if (!draft.liquidation_id || !line.receipt_path) return;
+    const parts = [{ ...parsed.parts[0], id: line.id, receiptPath: line.receipt_path }];
+    try {
+      // every part needs its own copy of the picture, in its own folder
+      for (const part of parsed.parts.slice(1)) {
+        const id = globalThis.crypto.randomUUID();
+        parts.push({ ...part, id, receiptPath: await deps.liq.files.copy(draft.liquidation_id, line.receipt_path, id) });
+      }
+      await deps.liq.store.splitLine(line.id, parts);
+    } catch (error) {
+      return void (await deps.tg.send(draft.chat_id, failure(error)));
+    }
+    return showCard(deps, person, await deps.liq.store.updateDraft(draft.id, { status: "draft", edit_line: null }));
+  }
   if (draft.status === "editing_department") {
     const department = cleanText(said).slice(0, 100);
     if (!department) return void (await deps.tg.send(draft.chat_id, liqWords.needDepartment));
@@ -452,6 +529,8 @@ export async function handleLiqCallback(deps: Deps, person: Person, query: { id:
     case "line":
     case "lpar":
     case "lamt":
+    case "lpho":
+    case "lspl":
     case "ldel": {
       const lines = await deps.liq.store.lines(draft.id);
       const target = lines.find((line) => line.id.startsWith(extra ?? "\u0000")) ?? lines.find((line) => line.id === draft.edit_line);
@@ -460,7 +539,7 @@ export async function handleLiqCallback(deps: Deps, person: Person, query: { id:
       const l = target.id.slice(0, 8);
       if (action === "line") {
         const body = `✏️ <b>${esc(target.particulars || "Resibo")}</b> — ${target.amount ? formatPHP(target.amount) : "❓"}`;
-        const markup: Markup = { inline_keyboard: [[{ text: "📌 Palitan ang paliwanag", callback_data: `lq:lpar:${k}:${l}` }], [{ text: "💰 Palitan ang halaga", callback_data: `lq:lamt:${k}:${l}` }], [{ text: "🗑 Tanggalin ang resibo", callback_data: `lq:ldel:${k}:${l}` }], [{ text: "⬅️ Bumalik", callback_data: `lq:lines:${k}` }]] };
+        const markup: Markup = { inline_keyboard: [[{ text: "📌 Palitan ang paliwanag", callback_data: `lq:lpar:${k}:${l}` }], [{ text: "💰 Palitan ang halaga", callback_data: `lq:lamt:${k}:${l}` }], [{ text: "📎 Dagdag na larawan", callback_data: `lq:lpho:${k}:${l}` }], [{ text: "✂️ Hatiin ang resibo", callback_data: `lq:lspl:${k}:${l}` }], [{ text: "🗑 Tanggalin ang resibo", callback_data: `lq:ldel:${k}:${l}` }], [{ text: "⬅️ Bumalik", callback_data: `lq:lines:${k}` }]] };
         if (draft.message_id) await deps.tg.edit(chatId, draft.message_id, body, markup);
         return;
       }
@@ -468,9 +547,10 @@ export async function handleLiqCallback(deps: Deps, person: Person, query: { id:
         await deps.liq.store.removeLine(target.id);
         return showCard(deps, person, await deps.liq.store.updateDraft(draft.id, { status: "draft", edit_line: null }));
       }
-      const status = action === "lpar" ? "editing_particulars" : "editing_amount";
+      const status = { lpar: "editing_particulars", lamt: "editing_amount", lpho: "adding_photo", lspl: "splitting" }[action] as LiqStatus;
       await deps.liq.store.updateDraft(draft.id, { status, edit_line: target.id });
-      return void (await deps.tg.send(chatId, action === "lpar" ? liqWords.needParticulars : liqWords.needAmount));
+      const prompt = { lpar: liqWords.needParticulars, lamt: liqWords.needAmount, lpho: liqWords.addPhoto, lspl: liqWords.split(target.amount ?? target.read_amount) }[action];
+      return void (await deps.tg.send(chatId, prompt));
     }
   }
 }

@@ -14,7 +14,7 @@ insert into fund_custodians(fund_id,custodian_id) values
 ('98000000-0000-4000-8000-000000000010','98000000-0000-4000-8000-000000000002');
 
 do $$
-declare req uuid; voucher uuid; liq uuid; again uuid; refused boolean; l public.liquidations; line uuid:=gen_random_uuid();
+declare req uuid; voucher uuid; liq uuid; again uuid; refused boolean; l public.liquidations; line uuid:=gen_random_uuid(); more text;
 begin
  -- an advance released to the employee (made as the employee, the way the bot makes a request)
  req:=telegram_create_budget_request('98000000-0000-4000-8000-000000000001','98000000-0000-4000-8000-000000000010',1000,'Tele supplies');
@@ -55,6 +55,17 @@ begin
    jsonb_build_array(jsonb_build_object('id',line,'particulars','Gasolina','amount',450,'receipt_path',liq::text||'/'||line::text||'/a.jpg','no_receipt_reason','')));
  assert (select count(*) from liquidation_items where liquidation_id=liq)=1,'the bot replaced the advance lines with the receipts';
  assert (select total_spent from liquidations where id=liq)=450,'the total follows the lines';
+ -- the extra pictures of a line, in the line's own folder
+ more:=liq::text||'/'||line::text||'/b.jpg';
+ insert into storage.objects(bucket_id,name,owner) values('liquidation-receipts',more,null) on conflict do nothing;
+ perform telegram_set_liquidation_photos('98000000-0000-4000-8000-000000000001',liq,jsonb_build_array(jsonb_build_object('item_id',line,'path',more)));
+ assert (select count(*) from liquidation_item_photos where liquidation_id=liq and item_id=line)=1,'the extra picture is saved with the line';
+ refused:=false;
+ begin perform telegram_set_liquidation_photos('98000000-0000-4000-8000-000000000001',liq,jsonb_build_array(jsonb_build_object('item_id',line,'path',liq::text||'/'||gen_random_uuid()::text||'/c.jpg'))); exception when others then refused:=true; end;
+ assert refused,'a picture outside the line''s folder is refused';
+ refused:=false;
+ begin perform telegram_set_liquidation_photos('98000000-0000-4000-8000-000000000003',liq,'[]'::jsonb); exception when others then refused:=true; end;
+ assert refused,'another person cannot change the pictures';
  perform telegram_submit_liquidation('98000000-0000-4000-8000-000000000001',liq);
  assert (select status from liquidations where id=liq)='submitted','it is submitted for the custodian to review';
 

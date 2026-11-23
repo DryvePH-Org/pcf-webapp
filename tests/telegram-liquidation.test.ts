@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { handleUpdate, type Deps, type Markup, type Person, type TgUpdate } from "@/lib/telegram/flow";
-import { liqWords, pickPhoto, splitCaption, type LiqDraft, type LiqLine, type Outstanding } from "@/lib/telegram/liquidation-flow";
+import { liqWords, parseParts, pickPhoto, splitCaption, type LiqDraft, type LiqLine, type Outstanding } from "@/lib/telegram/liquidation-flow";
 
 const CHAT = 2002;
 const PERSON: Person = { id: "22222222-0000-4000-8000-000000000001", name: "Pedro Reyes" };
@@ -73,11 +73,19 @@ function world(options: { outstanding?: Outstanding[]; department?: string; read
         updateDraft: async (_id, patch) => patchDraft(patch),
         lines: async () => state.lines,
         addLine: async (input) => {
-          const line: LiqLine = { id: input.id, particulars: input.particulars, amount: input.amount, receipt_path: input.receiptPath, read_amount: null, reading: input.reading };
+          const line: LiqLine = { id: input.id, particulars: input.particulars, amount: input.amount, receipt_path: input.receiptPath, read_amount: null, reading: input.reading, extra_photos: [] };
           state.lines.push(line);
           return line;
         },
         updateLine: async (id, patch) => void Object.assign(state.lines.find((l) => l.id === id)!, patch),
+        addPhoto: async (id, path) => void state.lines.find((l) => l.id === id)!.extra_photos.push(path),
+        splitLine: async (id, parts) => {
+          const at = state.lines.findIndex((l) => l.id === id);
+          const original = state.lines[at];
+          const rest = parts.slice(1).map((part) => ({ ...original, id: part.id, receipt_path: part.receiptPath, particulars: part.particulars, amount: part.amount, extra_photos: [] }));
+          Object.assign(original, { particulars: parts[0].particulars, amount: parts[0].amount });
+          state.lines.splice(at + 1, 0, ...rest);
+        },
         removeLine: async (id) => void (state.lines = state.lines.filter((l) => l.id !== id)),
         setRead: async (id, amount) => {
           const line = state.lines.find((l) => l.id === id)!;
@@ -104,6 +112,7 @@ function world(options: { outstanding?: Outstanding[]; department?: string; read
           state.uploads.push({ liquidation, line });
           return `${liquidation}/${line}/x.jpg`;
         },
+        copy: async (liquidation, _from, line) => `${liquidation}/${line}/copy.jpg`,
         read: async () => state.read,
       },
     },
@@ -282,3 +291,88 @@ describe("filing a liquidation in the chat", () => {
     expect(w.last().text).toBe(liqWords.first);
   });
 });
+
+describe("parts of one receipt", () => {
+  it("reads one part per line, or separated by semicolons, and checks the total", () => {
+    expect(parseParts("bolt 120\nhose 300", 420)).toEqual({ parts: [{ particulars: "bolt", amount: 120 }, { particulars: "hose", amount: 300 }] });
+    expect(parseParts("bolt 120; hose 300; gasket ₱80", null)).toMatchObject({ parts: [{ amount: 120 }, { amount: 300 }, { amount: 80 }] });
+    expect(parseParts("bolt 120\nhose 300", 500)).toHaveProperty("error");
+    expect(parseParts("bolt 120", null)).toHaveProperty("error");
+    expect(parseParts("bolt\nhose 300", null)).toHaveProperty("error");
+  });
+});
+
+describe("more pictures and split receipts in the chat", () => {
+  it("a photo captioned + joins the last receipt instead of making a new line", async () => {
+    const w = world();
+    await w.photo("gasolina 450");
+    await w.photo("+");
+    expect(w.state.lines).toHaveLength(1);
+    expect(w.state.lines[0].extra_photos).toHaveLength(1);
+    expect(w.state.uploads).toHaveLength(2);
+    // stored in the line's own folder
+    expect(w.state.uploads[1].line).toBe(w.state.lines[0].id);
+    expect(w.lastCard().text).toContain("📎+1");
+  });
+
+  it("Dagdag na larawan asks for the picture and the next photo joins that line", async () => {
+    const w = world();
+    await w.photo("gasolina 450");
+    await w.photo("pagkain 200");
+    const first = w.state.lines[0];
+    await w.press("lq:lpho:dddddddd:" + first.id.slice(0, 8));
+    expect(w.state.draft!.status).toBe("adding_photo");
+    expect(w.last().text).toBe(liqWords.addPhoto);
+    await w.text("hello");
+    expect(w.last().text).toBe(liqWords.waitPhoto);
+    await w.photo();
+    expect(w.state.lines).toHaveLength(2);
+    expect(first.extra_photos).toHaveLength(1);
+    expect(w.state.draft!.status).toBe("draft");
+  });
+
+  it("allows at most five more pictures on one receipt, and + with nothing to join asks for a receipt first", async () => {
+    const none = world();
+    await none.photo("+");
+    expect(none.last().text).toBe(liqWords.needFirst);
+    const w = world();
+    await w.photo("gasolina 450");
+    for (let i = 0; i < 6; i++) await w.photo("+");
+    expect(w.state.lines[0].extra_photos).toHaveLength(5);
+    expect(w.state.sent.map((m) => m.text)).toContain(liqWords.tooManyPhotos);
+  });
+
+  it("splits one receipt into its particulars, each with a copy of the picture, when the parts add up", async () => {
+    const w = world();
+    await w.photo("hardware 420");
+    const line = w.state.lines[0];
+    await w.press("lq:lspl:dddddddd:" + line.id.slice(0, 8));
+    expect(w.state.draft!.status).toBe("splitting");
+    await w.text("bolt 120\nhose 300");
+    expect(w.state.lines.map((l) => [l.particulars, l.amount])).toEqual([["bolt", 120], ["hose", 300]]);
+    // each part has its own copy of the picture, in its own folder
+    expect(w.state.lines[1].receipt_path).toBe(`eeeeeeee-0000-4000-8000-000000000001/${w.state.lines[1].id}/copy.jpg`);
+    expect(w.state.lines[0].receipt_path).toBe(line.receipt_path);
+    expect(w.state.draft!.status).toBe("draft");
+    expect(w.lastCard().text).toContain("₱420.00");
+  });
+
+  it("refuses a split that does not add up and keeps waiting", async () => {
+    const w = world();
+    await w.photo("hardware 420");
+    await w.press("lq:lspl:dddddddd:" + w.state.lines[0].id.slice(0, 8));
+    await w.text("bolt 120\nhose 200");
+    expect(w.last().text).toContain("kabuuan");
+    expect(w.state.lines).toHaveLength(1);
+    expect(w.state.draft!.status).toBe("splitting");
+  });
+
+  it("the extra pictures go with the line when it is submitted", async () => {
+    const w = world();
+    await w.photo("gasolina 450");
+    await w.photo("+");
+    await w.press("lq:submit:dddddddd");
+    expect(w.state.submitted[0].lines[0].extra_photos).toHaveLength(1);
+  });
+});
+

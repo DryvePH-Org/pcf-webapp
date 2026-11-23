@@ -9,7 +9,7 @@ import type { LiqDeps, LiqDraft, LiqLine, Outstanding } from "./liquidation-flow
 
 // The tables here are private to the server and are not in the generated types.
 const db = () => createAdminClient() as unknown as SupabaseClient;
-const OPEN = ["choosing", "draft", "editing_particulars", "editing_amount", "editing_department"];
+const OPEN = ["choosing", "draft", "editing_particulars", "editing_amount", "editing_department", "adding_photo", "splitting"];
 // a half-finished liquidation left in a chat is dropped after two days instead of catching tomorrow's photos
 const STALE_MS = 2 * 86400000;
 
@@ -33,6 +33,7 @@ const toLine = (row: Record<string, unknown>): LiqLine => ({
   receipt_path: (row.receipt_path as string | null) ?? null,
   read_amount: row.read_amount === null ? null : Number(row.read_amount),
   reading: Boolean(row.reading),
+  extra_photos: (row.extra_photos as string[] | null) ?? [],
 });
 
 async function lastDepartment(profileId: string): Promise<string> {
@@ -113,7 +114,7 @@ export const telegramLiquidationStore: LiqDeps["store"] = {
   },
 
   async lines(draftId) {
-    const { data, error } = await db().from("telegram_liq_lines").select("*").eq("draft_id", draftId).order("created_at", { ascending: true }).order("id", { ascending: true });
+    const { data, error } = await db().from("telegram_liq_lines").select("*").eq("draft_id", draftId).order("created_at", { ascending: true }).order("part", { ascending: true }).order("id", { ascending: true });
     if (error) throw new Error("Could not read the receipts.");
     return (data ?? []).map(toLine);
   },
@@ -133,13 +134,36 @@ export const telegramLiquidationStore: LiqDeps["store"] = {
     await db().from("telegram_liq_lines").delete().eq("id", id);
   },
 
+  async addPhoto(lineId, path) {
+    const { data, error } = await db().from("telegram_liq_lines").select("extra_photos").eq("id", lineId).single();
+    if (error || !data) throw new Error("Could not read the receipt.");
+    const photos = [...((data.extra_photos as string[] | null) ?? []), path];
+    if (photos.length > 5) throw new Error("Hanggang 5 pang larawan lang sa isang resibo.");
+    const saved = await db().from("telegram_liq_lines").update({ extra_photos: photos }).eq("id", lineId);
+    if (saved.error) throw new Error("Could not save the picture.");
+  },
+
+  async splitLine(lineId, parts) {
+    const { data, error } = await db().from("telegram_liq_lines").select("*").eq("id", lineId).single();
+    if (error || !data) throw new Error("Could not read the receipt.");
+    const [first, ...rest] = parts;
+    const base = { draft_id: data.draft_id, created_at: data.created_at, reading: false };
+    // the parts share the time of the line they came from, ordered by `part`
+    if (rest.length) {
+      const added = await db().from("telegram_liq_lines").insert(rest.map((part, index) => ({ ...base, id: part.id, receipt_path: part.receiptPath, particulars: part.particulars, amount: part.amount, part: index + 1 })));
+      if (added.error) throw new Error("Could not split the receipt.");
+    }
+    const kept = await db().from("telegram_liq_lines").update({ particulars: first.particulars, amount: first.amount, part: 0, reading: false }).eq("id", lineId);
+    if (kept.error) throw new Error("Could not split the receipt.");
+  },
+
   async setRead(id, amount) {
     await db().from("telegram_liq_lines").update({ read_amount: amount, reading: false }).eq("id", id);
     if (amount) await db().from("telegram_liq_lines").update({ amount }).eq("id", id).is("amount", null);
   },
 
   async claimSubmit(id) {
-    const { data, error } = await db().from("telegram_liq_drafts").update({ status: "submitted", updated_at: new Date().toISOString() }).eq("id", id).in("status", ["draft", "editing_particulars", "editing_amount", "editing_department"]).select("id");
+    const { data, error } = await db().from("telegram_liq_drafts").update({ status: "submitted", updated_at: new Date().toISOString() }).eq("id", id).in("status", ["draft", "editing_particulars", "editing_amount", "editing_department", "adding_photo", "splitting"]).select("id");
     if (error) throw new Error("Could not claim the liquidation.");
     return (data ?? []).length === 1;
   },
@@ -153,6 +177,9 @@ export const telegramLiquidationStore: LiqDeps["store"] = {
     const items = lines.map((line) => ({ id: line.id, particulars: line.particulars, amount: line.amount, receipt_path: line.receipt_path, no_receipt_reason: "" }));
     const saved = await db().rpc("telegram_save_liquidation", { p_user: draft.profile_id, p_id: draft.liquidation_id, p_department: draft.department, p_items: items });
     if (saved.error) throw new Error(safeDbMessage(saved.error));
+    const photos = lines.flatMap((line) => line.extra_photos.map((path) => ({ item_id: line.id, path })));
+    const more = await db().rpc("telegram_set_liquidation_photos", { p_user: draft.profile_id, p_id: draft.liquidation_id, p_photos: photos });
+    if (more.error) throw new Error(safeDbMessage(more.error));
     const sent = await db().rpc("telegram_submit_liquidation", { p_user: draft.profile_id, p_id: draft.liquidation_id });
     if (sent.error) throw new Error(safeDbMessage(sent.error));
   },
@@ -177,6 +204,12 @@ export const telegramLiquidationFiles: LiqDeps["files"] = {
     const path = `${liquidationId}/${lineId}/${crypto.randomUUID()}.jpg`;
     const { error } = await createAdminClient().storage.from("liquidation-receipts").upload(path, picture, { contentType: "image/jpeg", upsert: false });
     if (error) throw new Error("Hindi na-save ang larawan ng resibo. Subukan ulit.");
+    return path;
+  },
+  async copy(liquidationId, fromPath, lineId) {
+    const path = `${liquidationId}/${lineId}/${crypto.randomUUID()}.jpg`;
+    const { error } = await createAdminClient().storage.from("liquidation-receipts").copy(fromPath, path);
+    if (error) throw new Error("Hindi nakopya ang larawan ng resibo. Subukan ulit.");
     return path;
   },
   read: (picture) => inLine(async () => (await extractPhilippineReceipt(picture, [])).suggestion.amount),
