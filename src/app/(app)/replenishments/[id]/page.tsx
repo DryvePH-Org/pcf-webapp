@@ -29,8 +29,13 @@ import { Callout } from "@/components/shared/callout";
 import { EncodingReport } from "@/components/sheets/encoding-report";
 import { replenishmentEncoding, unencodedLiquidations } from "@/lib/sheets/encoding";
 import { requireUser } from "@/lib/auth";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime, todayInAppTz } from "@/lib/dates";
+import { formatPHP } from "@/lib/money";
 import { describeScope } from "@/lib/replenishment-scope";
+import { buildReplenishmentTimeline } from "@/lib/replenishment-timeline";
+import { ReplenishmentTimeline } from "@/components/replenishments/replenishment-timeline";
+import { MoneyTrailPanel } from "@/components/dashboard/money-trail-panel";
+import { loadMoneyTrails } from "@/lib/money-trail-load";
 import { isReplenishmentStatus } from "@/lib/replenishment-status";
 import { createClient } from "@/lib/supabase/server";
 
@@ -66,7 +71,7 @@ export default async function ReplenishmentDetailPage({
   const workflow = supabase as unknown as SupabaseClient<WorkflowDatabase>;
   const receipts = await workflow.from("liquidation_receipt_lines").select("*").in("liquidation_id",liquidationIds);
   if (receipts.error) throw new Error(receipts.error.message);
-  const stages = replenishment as typeof replenishment & {approver_id:string|null;approver_approved_at:string|null;paid_by:string|null;paid_at:string|null};
+  const stages = replenishment as typeof replenishment & {approver_id:string|null;approver_approved_at:string|null;paid_by:string|null;paid_at:string|null;handed_over_on:string|null;handed_over_amount:number|null;handover_note:string|null};
   const profileIds = [
     stages.approver_id,
     stages.paid_by,
@@ -82,7 +87,7 @@ export default async function ReplenishmentDetailPage({
   ] = await Promise.all([
     supabase
       .from("funds")
-      .select("name")
+      .select("name, amount")
       .eq("id", replenishment.fund_id)
       .maybeSingle(),
     supabase
@@ -186,6 +191,26 @@ export default async function ReplenishmentDetailPage({
     ? (profileNames.get(replenishment.reviewed_by) ?? "—")
     : null;
   const markerEncoding = await replenishmentEncoding(id);
+  const timeline = buildReplenishmentTimeline({
+    status: replenishment.status,
+    total: String(replenishment.total),
+    preparedBy: replenishment.requested_by ? (profileNames.get(replenishment.requested_by) ?? "—") : "—",
+    preparedAt: replenishment.created_at,
+    reviewedBy: replenishment.reviewed_by ? (profileNames.get(replenishment.reviewed_by) ?? "—") : null,
+    reviewedAt: replenishment.reviewed_at,
+    reviewNote: replenishment.review_note,
+    approvedBy: stages.approver_id ? (profileNames.get(stages.approver_id) ?? "—") : null,
+    approvedAt: stages.approver_approved_at,
+    marker: markerEncoding
+      ? { state: markerEncoding.state, number: markerEncoding.summary.replenishmentNumber, at: markerEncoding.updatedAt, error: markerEncoding.error }
+      : null,
+    handedOverOn: stages.handed_over_on,
+    handedOverAmount: stages.handed_over_amount === null ? null : String(stages.handed_over_amount),
+    handoverNote: stages.handover_note,
+    recordedBy: stages.paid_by ? (profileNames.get(stages.paid_by) ?? "Accounting") : null,
+    recordedAt: stages.paid_at,
+  });
+  const moneyTrail = (await loadMoneyTrails([{ id: replenishment.fund_id, amount: Number(fundResult.data?.amount ?? 0) }])).get(replenishment.fund_id) ?? null;
   const unencoded = ["submitted", "accounting_approved"].includes(replenishment.status)
     ? await unencodedLiquidations(id)
     : [];
@@ -312,6 +337,16 @@ export default async function ReplenishmentDetailPage({
             {scope.later ? <span className="mt-1 block">{scope.later}</span> : null}
             <span className="mt-1 block text-muted-foreground">{scope.note}</span>
           </Callout>
+        ) : null}
+
+        <ReplenishmentTimeline steps={timeline} />
+
+        {moneyTrail ? (
+          <Card className="print:hidden">
+            <CardContent>
+              <MoneyTrailPanel trail={moneyTrail} />
+            </CardContent>
+          </Card>
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
@@ -486,7 +521,10 @@ export default async function ReplenishmentDetailPage({
                 requested_by: replenishment.requested_by,
                 reviewed_by: replenishment.reviewed_by,
                 approver_id: stages.approver_id,
+                total: String(replenishment.total),
+                created_at: replenishment.created_at,
               }}
+              today={todayInAppTz()}
               viewer={{ id: user.id, role: user.role }}
             />
           </div>
@@ -494,7 +532,7 @@ export default async function ReplenishmentDetailPage({
       </div>
 
       <div className="hidden print:block">
-        <div className="hidden print:block text-sm">Approver {stages.approver_id?profileNames.get(stages.approver_id):replenishment.status==='closed'?'Not recorded':'Pending'} · Cash handed over {stages.paid_at?formatDateTime(stages.paid_at):'Not recorded'}</div>
+        <div className="hidden print:block text-sm">Approver {stages.approver_id?profileNames.get(stages.approver_id):replenishment.status==='closed'?'Not recorded':'Pending'} · Cash handed over {stages.handed_over_on?`${formatDate(stages.handed_over_on)} · ${formatPHP(stages.handed_over_amount??replenishment.total)} (recorded ${stages.paid_at?formatDateTime(stages.paid_at):''})`:stages.paid_at?formatDateTime(stages.paid_at):'Not recorded'}</div>
         <ReplenishmentPrint
           requestNo={replenishment.request_no}
           fundName={fundName}

@@ -12,6 +12,7 @@ import {
   reviewReplenishment,
   submitReplenishment,
 } from "@/actions/replenishments";
+import { HandoverDialog } from "@/components/replenishments/handover-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ReasonDialog } from "@/components/shared/reason-dialog";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ type DialogKind = "submit" | "approve" | "reject" | "close";
 
 export function ReplenishmentActions({
   replenishment,
+  today,
   viewer,
 }: {
   replenishment: {
@@ -38,7 +40,11 @@ export function ReplenishmentActions({
     requested_by: string | null;
     reviewed_by?: string | null;
     approver_id?: string | null;
+    total: string;
+    created_at: string;
   };
+  // today in Manila, worked out on the server (the handover day cannot be later than this)
+  today: string;
   viewer: { id: string; role: Role };
 }) {
   const router = useRouter();
@@ -230,18 +236,18 @@ export function ReplenishmentActions({
       ) : null}
 
       {dialog === "close" ? (
-        <ConfirmDialog
+        <HandoverDialog
           open
           onOpenChange={(open) => {
             if (!open) close();
           }}
-          title="Confirm actual cash handover?"
-          description="The included vouchers become closed and expected cash returns to the full fund amount. This cannot be undone. Grokbot records the green replenishment marker after Accounting and Approver approval. Pending encoding appears on the Accounting sheets dashboard."
-          confirmLabel="Confirm cash handed over"
+          total={replenishment.total}
+          today={today}
+          prepared={replenishment.created_at.slice(0, 10)}
           pending={pending}
-          onConfirm={() =>
+          onSubmit={(input) =>
             run(
-              () => closeReplenishment(replenishment.id),
+              () => closeReplenishment(replenishment.id, input),
               "Replenishment closed. The fund is restored.",
             )
           }

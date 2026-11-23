@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRequestTrail, type TrailInput } from "@/lib/request-trail";
+import { buildRequestTrail, stageLabel, type TrailInput } from "@/lib/request-trail";
 
 const base: TrailInput = {
   request: { id: "r1", ref: "BR-1C76EED3", status: "voucher_created" },
@@ -67,5 +67,15 @@ describe("the request trail", () => {
     expect(void_[1]).toMatchObject({ state: "stopped", detail: "Void" });
     const cancelled = buildRequestTrail({ request: { id: "r1", ref: "BR-1", status: "cancelled" }, voucher: null, liquidation: null, settlement: null }, "request");
     expect(cancelled[0]).toMatchObject({ state: "stopped", detail: "Cancelled" });
+  });
+});
+
+describe("the stage of a whole trail, in one line for a list", () => {
+  it("names the first step that is not done yet", () => {
+    expect(stageLabel(buildRequestTrail({ request: { id: "r1", ref: "BR-1", status: "submitted" }, voucher: null, liquidation: null, settlement: null }, "request"))).toBe("Budget request: Awaiting review");
+    expect(stageLabel(buildRequestTrail({ ...base, liquidation: null }, "voucher"))).toBe("Liquidation: Not filed yet");
+    expect(stageLabel(buildRequestTrail({ ...base, liquidation: { id: "l1", status: "submitted", received: "900.00", spent: "900.00" } }, "liquidation"))).toBe("Liquidation: Awaiting custodian review");
+    expect(stageLabel(buildRequestTrail(base, "liquidation"))).toBe("Settlement: Cash to return ₱129.50");
+    expect(stageLabel(buildRequestTrail({ ...base, settlement: { kind: "return", amount: "129.50" } }, "settlement"))).toBe("Everything settled");
   });
 });

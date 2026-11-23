@@ -119,4 +119,18 @@ test.describe("a custodian files the liquidation for an employee (desktop)", () 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await context.close();
   });
+
+  test("the lists say where each item stands in the whole trail", async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await context.addCookies(await cookiesFor("custodian", baseURL!));
+    const page = await context.newPage();
+    // the first test filed a liquidation, still a draft
+    await page.goto("/requests", { waitUntil: "networkidle" });
+    await expect(page.getByText("Liquidation: Draft, not submitted").filter({ visible: true }).first()).toBeVisible();
+    await page.goto("/vouchers", { waitUntil: "networkidle" });
+    await expect(page.getByText("Liquidation: Draft, not submitted").filter({ visible: true }).first()).toBeVisible();
+    await page.goto("/liquidations", { waitUntil: "networkidle" });
+    await expect(page.getByText("Liquidation: Draft, not submitted").filter({ visible: true }).first()).toBeVisible();
+    await context.close();
+  });
 });

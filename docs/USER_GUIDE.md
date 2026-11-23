@@ -350,6 +350,25 @@ it; the box shows how many are waiting for the next replenishment. The Google
 Sheet and the Accounting page count everything on the ledger, so their totals
 can be higher than the report. The same box is printed on the paper copy.
 
+## The replenishment timeline and the cash handover
+
+Every replenishment page has a **Timeline**: prepared, Accounting approved,
+approver approved, the sheet marker (with its number, for example
+REPLENISHMENT #13), cash handed to the custodian, and the fund's budget
+restored in the app, each with who did it and when. When Accounting presses
+**Confirm cash handed to custodian** she enters the **day the cash really
+changed hands** (today by default; choose an earlier day if the cash went out
+before the approvals were recorded) and the **amount handed over** (the approved
+amount by default). If the amount is different, a note explaining why is
+required. Both are kept and shown in the timeline and on the paper copy. The
+page also shows **Where is the money?**: the fund, minus what was spent, minus
+cash still out, so the app's expected cash and the sheet's balance can be
+compared.
+
+The Requests, Vouchers and Liquidations lists show a short line under the
+status, such as "Liquidation: Awaiting custodian review" or "Settlement: Cash to
+return ₱129.50": where that item stands in the whole trail.
+
 ## Who gets notified
 
 A notification goes to the people involved with that fund and that record: the

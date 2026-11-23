@@ -1,3 +1,4 @@
+import { loadStageLabels } from "@/lib/request-trail-data";
 import Link from "next/link";
 import { ReceiptText, Search } from "lucide-react";
 
@@ -134,6 +135,7 @@ export default async function VouchersPage({
       : voucher.status,
   ]);
 
+  const stage = await loadStageLabels(supabase, "voucher", data.map((voucher) => voucher.id));
   const rows: VoucherListRow[] = data.map((voucher) => ({
     id: voucher.id,
     pcv_number: voucher.pcv_number,
@@ -201,7 +203,12 @@ export default async function VouchersPage({
     {
       key: "status",
       header: "Status",
-      cell: (voucher) => <StatusBadge status={voucher.status} />,
+      cell: (voucher) => (
+        <>
+          <StatusBadge status={voucher.status} />
+          <span className="mt-1 block text-xs text-muted-foreground">{stage.get(voucher.id)}</span>
+        </>
+      ),
     },
     {
       key: "actions",
@@ -355,6 +362,7 @@ export default async function VouchersPage({
                 </div>
                 <StatusBadge status={voucher.status} />
               </div>
+              {stage.get(voucher.id) ? <p className="text-xs text-muted-foreground">{stage.get(voucher.id)}</p> : null}
               <div className="flex items-end justify-between gap-3 text-sm">
                 <div className="text-muted-foreground">
                   <p>{formatDate(voucher.voucher_date)}</p>

@@ -114,10 +114,30 @@ test.describe("a replenishment report says what it covers (desktop)", () => {
     const before = await adminClient().from("fund_balance_v").select("expected_cash, fund_amount").eq("fund_id", fundId).single();
     expect(Number(before.data!.expected_cash)).toBeLessThan(Number(before.data!.fund_amount));
 
-    // the handover is confirmed: the first batch's cash is back (the second batch is still out)
-    expect((await accounting.rpc("close_replenishment", { p_id: replenishmentId })).error).toBeNull();
+    // Accounting confirms the handover in the app: the day and the amount, and a different amount needs a reason
+    await page.getByRole("button", { name: "Confirm cash handed to custodian" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel("Day the cash was handed over")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+    await expect(dialog.getByLabel("Amount handed over (₱)")).toHaveValue("700.00");
+    await dialog.getByLabel("Amount handed over (₱)").fill("650");
+    await expect(dialog.getByText("Why is it different from ₱700.00?")).toBeVisible();
+    await dialog.getByRole("button", { name: "Confirm cash handed over" }).click();
+    await expect(dialog.getByText("Explain why the amount is different from the approved amount.")).toBeVisible();
+    await dialog.getByLabel(/Why is it different/).fill("PHP 50 kept for the bank fee");
+    await dialog.getByRole("button", { name: "Confirm cash handed over" }).click();
+    await expect(page.getByText("Replenishment closed. The fund is restored.")).toBeVisible();
+
+    // the first batch's cash is back (the second batch is still out), and the timeline says what happened
     const after = await adminClient().from("fund_balance_v").select("expected_cash").eq("fund_id", fundId).single();
     expect(Number(after.data!.expected_cash)).toBeGreaterThan(Number(before.data!.expected_cash));
+    const row = await adminClient().from("replenishments").select("status, handed_over_amount, handover_note, handed_over_on").eq("id", replenishmentId).single();
+    expect(row.data).toMatchObject({ status: "closed", handed_over_amount: 650, handover_note: "PHP 50 kept for the bank fee" });
+    await page.reload({ waitUntil: "networkidle" });
+    const timeline = page.getByRole("list", { name: "Replenishment timeline" });
+    await expect(timeline.getByText("Cash handed to the custodian")).toBeVisible();
+    await expect(timeline.getByText(/₱650.00 \(approved ₱700.00: PHP 50 kept for the bank fee\)/)).toBeVisible();
+    await expect(timeline.getByText("Fund budget restored in the app")).toBeVisible();
+    await expect(page.getByText("Where is the money?")).toBeVisible();
     await context.close();
   });
 });

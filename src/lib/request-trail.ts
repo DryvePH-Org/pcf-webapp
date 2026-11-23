@@ -107,3 +107,9 @@ export function buildRequestTrail(input: TrailInput, here: TrailKey): TrailStep[
   }
   return steps;
 }
+
+// Where the whole trail stands, in one short line for a list: the first step that is not done yet.
+export function stageLabel(steps: TrailStep[]): string {
+  const next = steps.find((step) => step.state !== "done");
+  return next ? `${next.label}: ${next.detail}` : "Everything settled";
+}

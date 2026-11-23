@@ -1,3 +1,4 @@
+import { loadStageLabels } from "@/lib/request-trail-data";
 import { OutstandingLiquidationNotice } from "@/components/liquidations/outstanding-notice";
 import { OptionSelect } from "@/components/shared/option-select";
 import { ResponsiveList } from "@/components/shared/responsive-list";
@@ -31,6 +32,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   if (mine) query = query.eq("requester_id", user.id);
   const { data, error, count } = await query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (error) throw new Error(error.message);
+  const stage = await loadStageLabels(supabase, "request", data.map(r => r.id));
   function href(next: number) {
     const q = new URLSearchParams({ page: String(next) });
     if (status) q.set("status", status);
@@ -85,7 +87,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
           { key: "request", header: "Request", className: "whitespace-nowrap", cell: r => <Link className="font-mono font-semibold underline underline-offset-4" href={`/requests/${r.id}`}>{shortRef(r.request_no)}</Link> },
           { key: "person", header: "Requester and purpose", className: "max-w-sm whitespace-normal", cell: r => <><span className="font-medium">{r.requester_name}</span><span className="text-muted-foreground"> · {r.fund_name}</span><p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{r.purpose}</p></> },
           { key: "amount", header: "Budget", headerClassName: "text-right", className: "text-right font-semibold whitespace-nowrap", cell: r => <MoneyText value={r.amount} /> },
-          { key: "status", header: "Status", cell: r => <RequestStatusPill status={r.status} /> },
+          { key: "status", header: "Status", cell: r => <><RequestStatusPill status={r.status} /><span className="mt-1 block text-xs text-muted-foreground">{stage.get(r.id)}</span></> },
           { key: "date", header: "Submitted", className: "whitespace-nowrap text-muted-foreground", cell: r => formatDate(r.created_at) },
         ]}
         renderCard={r => (
@@ -97,6 +99,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
                   <MoneyText value={r.amount} className="text-lg font-semibold whitespace-nowrap" />
                 </div>
                 <p className="line-clamp-2 font-medium">{r.purpose}</p>
+                {stage.get(r.id) ? <p className="text-xs text-muted-foreground">{stage.get(r.id)}</p> : null}
                 <p className="flex flex-wrap justify-between gap-x-3 text-sm text-muted-foreground">
                   <span>{r.requester_name} · {r.fund_name}</span>
                   <span className="font-mono">{shortRef(r.request_no)} · {formatDate(r.created_at)}</span>

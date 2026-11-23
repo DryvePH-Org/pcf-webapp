@@ -17,6 +17,8 @@ import {
   notifyReplenishmentSubmitted,
 } from "@/lib/notifications/events";
 import { canPerform } from "@/lib/permissions";
+import { isPositiveMoney, toMoneyNumber } from "@/lib/money";
+import { text } from "@/lib/validators/text";
 import { createClient } from "@/lib/supabase/server";
 import {
   createReplenishmentSchema,
@@ -153,7 +155,14 @@ export async function reviewReplenishment(
   return { ok: true };
 }
 
-export async function closeReplenishment(id: string): Promise<ActionResult> {
+const handoverSchema = z.object({
+  handedOverOn: z.iso.date("Choose the day the cash was handed over."),
+  amount: z.string().trim().refine(isPositiveMoney, "Enter the amount handed over, greater than zero with at most two decimals."),
+  note: text({ max: 300 }),
+});
+
+// Accounting confirms the cash really changed hands: the day it did, and how much.
+export async function closeReplenishment(id: string, input: z.input<typeof handoverSchema>): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return actionError("Sign in to close replenishments.");
   if (!canPerform(user.role, "replenishment.close")) {
@@ -162,10 +171,15 @@ export async function closeReplenishment(id: string): Promise<ActionResult> {
 
   const parsedId = replenishmentIdSchema.safeParse(id);
   if (!parsedId.success) return actionError("Replenishment not found.");
+  const parsed = handoverSchema.safeParse(input);
+  if (!parsed.success) return actionError(parsed.error.issues[0]?.message ?? "Check the handover details.");
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("close_replenishment", {
+  const supabase = (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  const { error } = await supabase.rpc("close_replenishment_with_handover", {
     p_id: parsedId.data,
+    p_on: parsed.data.handedOverOn,
+    p_amount: toMoneyNumber(parsed.data.amount),
+    p_note: parsed.data.note || null,
   });
   if (error) return actionError(safeDbMessage(error));
 
