@@ -369,6 +369,14 @@ The Requests, Vouchers and Liquidations lists show a short line under the
 status, such as "Liquidation: Awaiting custodian review" or "Settlement: Cash to
 return ₱129.50": where that item stands in the whole trail.
 
+## "A new version of the app is ready"
+
+When the app is updated while a page is open, a blue notice appears at the
+bottom: **A new version of the app is ready.** Finish what you are typing, then
+press **Reload now** (or **Later** to hide it for a few minutes). Without a
+reload, a page left open across an update can fail with "Could not submit the
+request". Liquidation drafts save themselves, so a reload loses nothing there.
+
 ## Who gets notified
 
 A notification goes to the people involved with that fund and that record: the
