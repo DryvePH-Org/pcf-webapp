@@ -258,6 +258,24 @@ export default async function ReplenishmentDetailPage({
           }
         />
 
+        {status === "submitted" ? (
+          <Callout tone="info" title="Waiting for Accounting&apos;s review">
+            The fund&apos;s budget does not change yet. Nothing moves until the cash is handed over.
+          </Callout>
+        ) : null}
+
+        {status === "accounting_approved" ? (
+          <Callout tone="info" title="Accounting approved. Waiting for the approver">
+            After the approver approves, Accounting hands the cash to the custodian. The fund&apos;s budget does not change yet.
+          </Callout>
+        ) : null}
+
+        {status === "approved" ? (
+          <Callout tone="warning" title="Approved. Next: confirm the cash was handed to the custodian">
+            The fund&apos;s budget in the app comes back only when Accounting presses <strong>Confirm cash handed to custodian</strong>. Until then the app still counts the vouchers in this replenishment as cash out. The Google Sheet marker is written when the approver approves; the app waits for this confirmation because it follows the real cash.
+          </Callout>
+        ) : null}
+
         {unencoded.length > 0 ? (
           <Callout tone="warning" title="Waiting for Grokbot to write these liquidations to Google Sheets">
             {unencoded.map(item => item.pcv_number).join(", ")}. The green replenishment marker has to come after these entries in the sheet, so approval is paused until Grokbot has written them. They are listed on each liquidation page, where the custodian can retry.

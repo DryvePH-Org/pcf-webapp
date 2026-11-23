@@ -91,4 +91,33 @@ test.describe("a replenishment report says what it covers (desktop)", () => {
     await expect(page.getByText("1 expense", { exact: true }).filter({ visible: true }).first()).toBeVisible();
     await context.close();
   });
+
+  test("after the approver approves, the page says the budget comes back at the cash handover, and it does", async ({ browser, baseURL }) => {
+    const custodian = await clientFor("custodian");
+    const accounting = await clientFor("accounting");
+    const admin = await clientFor("admin");
+    expect((await custodian.rpc("submit_replenishment", { p_id: replenishmentId })).error).toBeNull();
+    const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+    await context.addCookies(await cookiesFor("admin", baseURL!));
+    const page = await context.newPage();
+    await page.goto(`/replenishments/${replenishmentId}`, { waitUntil: "networkidle" });
+    await expect(page.getByText("Waiting for Accounting's review")).toBeVisible();
+
+    expect((await accounting.rpc("review_replenishment", { p_id: replenishmentId, p_approve: true })).error).toBeNull();
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByText("Accounting approved. Waiting for the approver")).toBeVisible();
+
+    expect((await admin.rpc("approve_replenishment", { p_id: replenishmentId, p_approve: true, p_note: null })).error).toBeNull();
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByText("Approved. Next: confirm the cash was handed to the custodian")).toBeVisible();
+    // approved, but the budget has not come back yet
+    const before = await adminClient().from("fund_balance_v").select("expected_cash, fund_amount").eq("fund_id", fundId).single();
+    expect(Number(before.data!.expected_cash)).toBeLessThan(Number(before.data!.fund_amount));
+
+    // the handover is confirmed: the first batch's cash is back (the second batch is still out)
+    expect((await accounting.rpc("close_replenishment", { p_id: replenishmentId })).error).toBeNull();
+    const after = await adminClient().from("fund_balance_v").select("expected_cash").eq("fund_id", fundId).single();
+    expect(Number(after.data!.expected_cash)).toBeGreaterThan(Number(before.data!.expected_cash));
+    await context.close();
+  });
 });

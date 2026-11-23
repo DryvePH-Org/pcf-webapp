@@ -2,7 +2,7 @@
 
 Paste this whole document into the Grokbot automation's saved instructions, replacing the previous routine and any temporary override. The webhook delivers the operation data and a scoped completion callback. Protocol version is `pcf.grokbot.v1`.
 
-**Routine version: 2026-11-23.1 (staff-prepared rows).** There are no temporary overrides in this version. If an older override or bypass note is still saved above or below this routine, it no longer applies; ignore it.
+**Routine version: 2026-11-24.1 (staff-prepared rows, audit rows never overwritten).** There are no temporary overrides in this version. If an older override or bypass note is still saved above or below this routine, it no longer applies; ignore it.
 
 **Working with staff edits.** Office staff edit this sheet by hand: they type entries, fix typos, delete rows, and sometimes tidy the audit tab. Adapt to the sheet as it is now instead of expecting it to match earlier runs. Block only for the real problems listed in section 7.4. Everything else that looks unusual is handled by the rules below and reported as a warning.
 
@@ -340,6 +340,7 @@ Maintain a visible tab named `GROKBOT EDIT AUDIT` in the same Buying spreadsheet
 Staff may still edit or clear it. Adapt instead of blocking:
 
 - Append each new audit row directly under the **last non-empty row** of the tab, whatever its numbering or completeness. Never leave blank rows between audit records.
+- **Never overwrite an audit row.** Find the last non-empty row by reading the whole used range of the tab (every column) and taking the greatest row number that holds any value in any cell. Do not use the first blank row, column A alone, a row count, or a row number remembered from an earlier run: staff blank rows by hand, so the first blank row can be in the middle. Before writing, read the exact target range and confirm every cell in it is empty; if any cell has a value, stop, recompute the last non-empty row and try again. After writing, read the tab again: the number of non-empty rows must have grown by exactly the number of records written and no row above them may have changed. If that is not true, report `failed` with the row numbers; never "fix" it by writing over other rows.
 - If row 1 no longer holds the headers below, write the headers into row 1 only when row 1 is empty; otherwise leave it and add a warning.
 - Rows that staff blanked or partly deleted stay as they are. Add one warning such as `audit rows 2-3 were edited by hand` and continue.
 - If the tab is missing, create it with the headers below, use its new numeric sheet ID, and add a warning. Report the actual `audit_tab_id`.
