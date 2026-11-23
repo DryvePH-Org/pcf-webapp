@@ -2,7 +2,7 @@
 
 import { ReceiptAttachment } from "./receipt-attachment";
 import { canExtractLiquidationAttachment } from "@/lib/liquidation-attachment";
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePending } from "@/lib/use-single-flight";
 import { useRouter } from "next/navigation";
 import { Plus, Sparkles, Trash2 } from "lucide-react";
@@ -33,12 +33,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const reviewStorageKey = (id: string, revision: number) => `pcf:receipt-review:${id}:${revision}`;
+const subscribeNothing = () => () => undefined;
+
 const plateAccess: PlateAccess<CustodianReceipt> = {
   get: (line) => line.plate,
   set: (line, plate) => ({ ...line, plate }),
 };
 
-export function CustodianReceiptReview({
+function ReceiptReviewForm({
   id,
   revision,
   initial,
@@ -51,6 +54,9 @@ export function CustodianReceiptReview({
   reviewSaved,
   companies = [],
   databaseOnly = false,
+  requested = [],
+  restored = false,
+  reviewedByOther = false,
 }: {
   id: string;
   revision: number;
@@ -66,6 +72,12 @@ export function CustodianReceiptReview({
   companies?: readonly string[];
   // The fund keeps its ledger in the app only: approval needs no sheet update.
   databaseOnly?: boolean;
+  // What the requester reported, line by line, to show where the review differs
+  requested?: { particulars: string; amount: string }[];
+  // the lines came back from this device after a refresh
+  restored?: boolean;
+  // a review that matches was saved, but by someone else
+  reviewedByOther?: boolean;
 }) {
   const router = useRouter();
   const [lines, setLines] = useState(initial);
@@ -76,9 +88,19 @@ export function CustodianReceiptReview({
   const [uploading, setUploading] = useState<string | null>(null);
   const [busy, setBusy, isBusy] = usePending();
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(restored ? "Your unsaved entries were restored from this device. Check them, then save." : "");
   const [extractionWarnings, setExtractionWarnings] = useState<string[]>([]);
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(restored);
+  // What is typed here survives a refresh: it is kept on this device until the review is saved.
+  const storageKey = reviewStorageKey(id, revision);
+  useEffect(() => {
+    if (!dirty) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({ lines }));
+    } catch {
+      // not worth stopping the review for
+    }
+  }, [lines, dirty, storageKey]);
   const sum = lines.reduce(
     (amount, line) => amount + (parseMoney(line.amount) ?? 0),
     0,
@@ -155,6 +177,11 @@ export function CustodianReceiptReview({
           ? "Receipt review saved. Prepare the Google Sheets preview next."
           : "Review saved. Reconcile the reviewed total with the reported spending before approval.",
       );
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        // nothing to clean up
+      }
       setDirty(false);
       router.refresh();
     } catch {
@@ -512,7 +539,35 @@ export function CustodianReceiptReview({
               requester’s actual spending before approval.
             </p>
           )}
+          {sum !== Math.round(total * 100) && requested.length > 0 && (
+            <div role="status" className="rounded-lg border p-3 text-muted-foreground">
+              <p className="font-medium text-foreground">
+                Requester reported <MoneyText value={total} /> in {requested.length} {requested.length === 1 ? "line" : "lines"}.
+              </p>
+              {lines.length !== requested.length ? (
+                <p>This review has {lines.length} {lines.length === 1 ? "entry" : "entries"}, the requester reported {requested.length}.</p>
+              ) : (
+                lines.map((line, index) => {
+                  const mine = parseMoney(line.amount) ?? 0;
+                  const theirs = parseMoney(requested[index].amount) ?? 0;
+                  return mine === theirs ? null : (
+                    <p key={line.id}>
+                      Line {index + 1}: requester reported <MoneyText value={theirs / 100} />, this review has <MoneyText value={mine / 100} />.
+                    </p>
+                  );
+                })
+              )}
+              <p>
+                Approval needs the two totals to match. If the receipts are right and the requester’s figures are wrong, send it back to the requester to correct.
+              </p>
+            </div>
+          )}
         </div>
+        {reviewedByOther && !dirty ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            A matching review was saved by someone else. Only the person who saved a review can approve it, so save your own review here to get the approval button.
+          </p>
+        ) : null}
         {dirty ? (
           <p role="status" className="text-sm text-muted-foreground">
             Unsaved receipt changes. Save them before preparing the approval
@@ -528,4 +583,30 @@ export function CustodianReceiptReview({
       </CardFooter>
     </Card>
   );
+}
+
+// Reads what was typed before a refresh (the server renders without it; the browser puts it back).
+export function CustodianReceiptReview(props: React.ComponentProps<typeof ReceiptReviewForm>) {
+  const key = reviewStorageKey(props.id, props.revision);
+  const raw = useSyncExternalStore(
+    subscribeNothing,
+    () => {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    () => null,
+  );
+  let saved: CustodianReceipt[] | null = null;
+  if (raw) {
+    try {
+      const parsed = (JSON.parse(raw) as { lines?: CustodianReceipt[] }).lines;
+      if (Array.isArray(parsed) && parsed.length && JSON.stringify(parsed) !== JSON.stringify(props.initial)) saved = parsed;
+    } catch {
+      saved = null;
+    }
+  }
+  return <ReceiptReviewForm key={saved ? "restored" : "fresh"} {...props} initial={saved ?? props.initial} restored={Boolean(saved)} />;
 }
