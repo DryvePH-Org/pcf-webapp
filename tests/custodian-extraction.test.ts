@@ -86,11 +86,8 @@ it("returns editable suggestions, keeps VAT out, and does not persist an approva
   const result = await extractCustodianReceipt(id, `${id}/line/test.jpg`);
   expect(result.ok).toBe(true);
   if (result.ok)
-    expect(result.suggestion).toMatchObject({
-      supplier: "Test supplier",
-      tag: "",
-      tin: "",
-    });
+    // only the supplier and TIN reach the review: never the amount (500.00 was read), date, tag, plate or receipt number
+    expect(result.suggestion).toEqual({ supplier: "Test supplier", tin: "" });
   const request = JSON.parse(
     (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]
       .body as string,
@@ -121,4 +118,14 @@ it("reports the missing provider connection", async () => {
   const result = await extractCustodianReceipt(id, `${id}/line/test.jpg`);
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toContain("not configured");
+});
+
+it("keeps only the warnings about the supplier and TIN", async () => {
+  const { supplierAndTinOnly } = await import("@/lib/receipt-extraction");
+  const kept = supplierAndTinOnly({
+    suggestion: { supplier: "A", tin: "123-456-789-000", amount: "99.00", expense_date: "2026-11-09", tag: "CE - FUEL" },
+    warnings: ["Check the supplier TIN and branch code manually.", "Check the final amount paid manually.", "Check the receipt date manually.", "Select the exact CE/NCE workbook tag manually."],
+  });
+  expect(kept.suggestion).toEqual({ supplier: "A", tin: "123-456-789-000" });
+  expect(kept.warnings).toEqual(["Check the supplier TIN and branch code manually."]);
 });

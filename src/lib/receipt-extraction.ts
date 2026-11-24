@@ -206,3 +206,13 @@ function retryAfterSeconds(response: Response): number {
   const header = Number(response.headers.get("retry-after"));
   return Number.isFinite(header) && header > 0 ? header : 20;
 }
+
+// The custodian's review takes only the supplier and TIN from the picture. The amount spent, the date, the tag, the
+// plate and the receipt number stay exactly as the requester and the custodian entered them; a misread picture must
+// never change what was actually spent.
+export function supplierAndTinOnly(extracted: { suggestion: Record<string, string>; warnings: string[] }) {
+  return {
+    suggestion: { supplier: extracted.suggestion.supplier ?? "", tin: extracted.suggestion.tin ?? "" },
+    warnings: extracted.warnings.filter((warning) => /\bsupplier\b|\btin\b/i.test(warning)),
+  };
+}

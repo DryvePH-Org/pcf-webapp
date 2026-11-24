@@ -1,7 +1,7 @@
 "use server";
 
 import { mayReviewOwner } from "@/lib/self-approval";
-import { extractPhilippineReceipt } from "@/lib/receipt-extraction";
+import { extractPhilippineReceipt, supplierAndTinOnly } from "@/lib/receipt-extraction";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -105,7 +105,7 @@ export async function extractCustodianReceipt(id: string, path: string) {
     return { ok: false as const, error: "Use a receipt image up to 5 MB." };
   try {
     const extracted = await extractPhilippineReceipt(file, tags.data ?? []);
-    return { ok: true as const, ...extracted };
+    return { ok: true as const, ...supplierAndTinOnly(extracted) };
   } catch (error) {
     return {
       ok: false as const,

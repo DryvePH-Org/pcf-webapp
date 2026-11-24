@@ -482,9 +482,10 @@ Use **Retry pending file cleanup** if a prior removal was interrupted.
    entries. Entries may split or combine receipt amounts, but their sum must match
    the requester total. Enter the supplier, TIN or NON VAT, exact CE/NCE workbook
    tag, transaction or liquidation date, plate, and optional invoice number.
-5. Extraction can suggest details from the requester picture or a new photograph
-   of the physical receipt. Edit suggestions and confirm each physical receipt,
-   then save the review. The Google Sheets preview is available after this step.
+5. **Read supplier and TIN** (also done by itself when a receipt photo is attached) fills in
+   only the **supplier and TIN** from the picture. It never changes the amount, the date, the
+   tag, the plate or the receipt number, so a misread picture cannot change what was spent.
+   Check the two fields, confirm each physical receipt, then save the review. The Google Sheets preview is available after this step.
    Confirming approval queues the reviewed receipt entries for the assigned
    workbook. Input VAT remains excluded.
 

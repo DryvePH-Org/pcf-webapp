@@ -147,12 +147,17 @@ function ReceiptReviewForm({
         return;
       }
       setExtractionWarnings(result.warnings);
+      // only the supplier and the TIN come from the picture; the amount, date and the rest are never touched
       const populated = Object.fromEntries(
-        Object.entries(result.suggestion).filter(([, value]) => value !== ""),
+        Object.entries(result.suggestion).filter(([key, value]) => (key === "supplier" || key === "tin") && value !== ""),
       );
+      if (Object.keys(populated).length === 0) {
+        setNotice("The picture did not show a clear supplier or TIN. Enter them yourself. The amount and date were not changed.");
+        return;
+      }
       update(index, { ...populated, physical_checked: false });
       setNotice(
-        "AI suggestions filled available fields. Check every value against the physical receipt and edit any errors.",
+        "The supplier and TIN were filled in from the picture. The amount, date and other fields were not changed. Check them against the physical receipt.",
       );
     } catch {
       setError(
@@ -320,11 +325,11 @@ function ReceiptReviewForm({
                   onClick={() => void extract(index, line.receipt_path)}
                 >
                   <Sparkles />
-                  Extract and autofill
+                  Read supplier and TIN
                 </Button>
                 {!line.receipt_path && aiReady && (
                   <p className="self-center text-xs text-muted-foreground">
-                    Attach a receipt photo below and its details fill in by themselves.
+                    Attach a receipt photo below and its supplier and TIN fill in by themselves. The amount and date are never changed.
                   </p>
                 )}
                 {line.receipt_path &&
