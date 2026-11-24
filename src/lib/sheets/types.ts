@@ -16,7 +16,6 @@ export type SheetsDatabase = Omit<Database,'public'> & {public:Omit<Database['pu
  Functions:Omit<Database['public']['Functions'],keyof SheetFunctions> & SheetFunctions;
 }};
 export type Cell = { userEnteredValue?: { stringValue?: string; numberValue?: number; formulaValue?: string }; effectiveValue?: {stringValue?:string;numberValue?:number}; formattedValue?: string };
-export type Grid = { startRow?: number; startColumn?: number; rowData?: {values?: Cell[]}[] };
 export type SheetPreview = {id:string;liquidation_id:string;reviewer_id:string;revision:number;book_id:string;config_version:number;sheet_id:number;sheet_name:string;operation_id:string;requests:Json;google_token:string;summary:Json;expires_at:string;created_at:string};
 export type SheetJob = {id:string;liquidation_id:string;preview_id:string;book_id:string;operation_id:string;status:string;report:Json|null;error:string|null;attempts:number;updated_at:string};
 

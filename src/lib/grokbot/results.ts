@@ -26,7 +26,6 @@ export const snapshotSchemaFor = (target: GrokbotTarget) => z.object({
     .min(target.layout.minSnapshotRows)
     .max(1000),
 });
-export const buyingSnapshotSchema = snapshotSchemaFor(GROKBOT_TARGETS.buying);
 
 export function validateFinancialResult(
   payload: Record<string, unknown>,

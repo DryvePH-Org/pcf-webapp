@@ -2,7 +2,6 @@ import imageCompression from "browser-image-compression";
 
 import { createClient } from "@/lib/supabase/client";
 
-export const RECEIPT_TARGET_BYTES = 200 * 1024;
 
 export async function compressReceipt(file: File) {
   return imageCompression(file, {

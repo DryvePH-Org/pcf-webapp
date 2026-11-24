@@ -6,8 +6,6 @@ import { grokbotFinancialEvent } from "./contract";
 import { recoverStalledJobs } from "./recovery";
 import { targetForBook, targetForSpreadsheet, type GrokbotBook } from "./targets";
 
-export const GROKBOT_EDITOR = "admin.manilaautodisplay@gmail.com";
-export const GROKBOT_AUDIT_SHEET_ID = 2133354940;
 
 // Each sheet has its own bot, with its own webhook URL and secret.
 function configuration(book: GrokbotBook = "buying") {
