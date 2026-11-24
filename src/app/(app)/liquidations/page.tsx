@@ -1,3 +1,4 @@
+import { StageLine } from "@/components/shared/stage-line";
 import { loadStageLabels } from "@/lib/request-trail-data";
 import { LiquidationDeadline } from "@/components/liquidations/deadline-indicator";
 import { OptionSelect } from "@/components/shared/option-select";
@@ -32,7 +33,7 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
   if (error) throw new Error(error.message);
   const outstanding = await db.rpc("my_outstanding_liquidations");
   if (outstanding.error) throw new Error("Could not load liquidation deadlines.");
-  const stage = await loadStageLabels(db, "liquidation", data.map(l => l.id));
+  const stage = loadStageLabels(db, "liquidation", data.map(l => l.id));
   const releasedByVoucher = new Map(outstanding.data.map(item => [item.voucher_id,item.released_at]));
 
   const pageLink = (next: number) => `/liquidations?${new URLSearchParams({ page: String(next), ...(status ? { status } : {}), ...(mine ? { mine: "1" } : {}) })}`;
@@ -82,7 +83,7 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
           { key: "received", header: "Received", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <MoneyText value={l.amount_received} /> },
           { key: "spent", header: "Spent", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <MoneyText value={l.total_spent} /> },
           { key: "result", header: "Result", headerClassName: "text-right", className: "text-right whitespace-nowrap", cell: l => <Result l={l} /> },
-          { key: "status", header: "Status", cell: l => <div className="space-y-2"><LiquidationStatusPill status={l.status} /><span className="block text-xs text-muted-foreground">{stage.get(l.id)}</span><LiquidationDeadline releasedAt={l.vouchers?.released_at ?? releasedByVoucher.get(l.voucher_id) ?? null} status={l.status}/></div> },
+          { key: "status", header: "Status", cell: l => <div className="space-y-2"><LiquidationStatusPill status={l.status} /><StageLine labels={stage} id={l.id} /><LiquidationDeadline releasedAt={l.vouchers?.released_at ?? releasedByVoucher.get(l.voucher_id) ?? null} status={l.status}/></div> },
           { key: "date", header: "Filed", className: "whitespace-nowrap text-muted-foreground", cell: l => formatDate(l.filing_date) },
         ]}
         renderCard={l => (
@@ -94,7 +95,7 @@ export default async function LiquidationsPage({ searchParams }: { searchParams:
                   <span className="font-mono text-sm font-semibold">{l.pcv_number}</span>
                 </div>
                 <p className="font-medium">{l.employee_name} <span className="font-normal text-muted-foreground">· {l.fund_name}</span></p>
-                {stage.get(l.id) ? <p className="text-xs text-muted-foreground">{stage.get(l.id)}</p> : null}
+                <StageLine labels={stage} id={l.id} />
                 <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/60 p-3 text-sm">
                   <div><p className="text-xs text-muted-foreground">Received</p><MoneyText value={l.amount_received} className="font-semibold" /></div>
                   <div><p className="text-xs text-muted-foreground">Spent</p><MoneyText value={l.total_spent} className="font-semibold" /></div>

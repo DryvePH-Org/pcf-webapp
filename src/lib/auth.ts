@@ -16,15 +16,16 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   await connection();
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // The signed-in person comes from the token, checked locally against the project's signing keys (no network
+  // call). The profile is read on every page, so a deactivated account loses access at once.
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+  if (!userId) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, role, is_active")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (!profile || !profile.is_active) return null;

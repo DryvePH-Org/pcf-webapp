@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { CircleCheck, Info, TriangleAlert, Wallet } from "lucide-react";
 
 import { MoneyTrailPanel } from "@/components/dashboard/money-trail-panel";
@@ -49,7 +50,16 @@ function Verdict({ trail, pending }: { trail?: MoneyTrail; pending: boolean }) {
   );
 }
 
-export function BalanceCard({ fund, trail }: { fund: BalanceFund; trail?: MoneyTrail }) {
+// The money trail takes several reads, so the card appears first and the trail-based parts fill in when it arrives.
+async function VerdictSlot({ trail, pending }: { trail: Promise<MoneyTrail | undefined>; pending: boolean }) {
+  return <Verdict trail={await trail} pending={pending} />;
+}
+async function PanelSlot({ trail }: { trail: Promise<MoneyTrail | undefined> }) {
+  const resolved = await trail;
+  return resolved ? <MoneyTrailPanel trail={resolved} /> : null;
+}
+
+export function BalanceCard({ fund, trail }: { fund: BalanceFund; trail: Promise<MoneyTrail | undefined> }) {
   const releasedPct = fund.fund_amount > 0 ? Math.min(100, Math.max(0, (fund.released_vouchers_total / fund.fund_amount) * 100)) : 0;
   const cash = cashAfterSettlements(fund);
 
@@ -81,7 +91,9 @@ export function BalanceCard({ fund, trail }: { fund: BalanceFund; trail?: MoneyT
           <div className={cn("h-full rounded-full transition-[width]", fund.is_low ? "bg-destructive" : "bg-primary")} style={{ width: `${releasedPct}%` }} />
         </div>
 
-        <Verdict trail={trail} pending={cash.pending} />
+        <Suspense fallback={<Verdict pending={cash.pending} />}>
+          <VerdictSlot trail={trail} pending={cash.pending} />
+        </Suspense>
 
         {fund.is_low ? (
           <p className="flex items-start gap-2 text-sm text-destructive">
@@ -133,7 +145,9 @@ export function BalanceCard({ fund, trail }: { fund: BalanceFund; trail?: MoneyT
                 </div>
               </dl>
 
-              {trail ? <MoneyTrailPanel trail={trail} /> : null}
+              <Suspense fallback={<p className="text-sm text-muted-foreground">Working out where the money is…</p>}>
+                <PanelSlot trail={trail} />
+              </Suspense>
             </div>
           </DialogContent>
         </Dialog>

@@ -14,10 +14,12 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const settlements = await settlementBadgeCount();
+  // Not awaited: the page and the menu appear at once, and the badge fills in when its count is ready. It used to
+  // hold up every page until the count (several database round trips) was done.
+  const badges = settlementBadgeCount().then((settlements): Record<string, number> => (settlements > 0 ? { "/settlements": settlements } : {}));
   return (
     <>
-      <AppShell user={user} badges={settlements > 0 ? { "/settlements": settlements } : {}}>
+      <AppShell user={user} badges={badges}>
         {children}
       </AppShell>
       <UpdateBanner loadedId={currentBuildId()} />

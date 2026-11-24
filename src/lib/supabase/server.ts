@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import type { Database } from "@/lib/database.types";
 
@@ -14,7 +15,10 @@ function getConfig() {
   return { url, key };
 }
 
-export async function createClient() {
+// One client per request. Every new client checks the signed-in user with the auth server before its first query
+// (a network round trip), and a page asks for a client in dozens of places, so a page used to wait on that check
+// many times over. Within one request they all share this one.
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
   const { url, key } = getConfig();
 
@@ -34,4 +38,4 @@ export async function createClient() {
       },
     },
   });
-}
+});

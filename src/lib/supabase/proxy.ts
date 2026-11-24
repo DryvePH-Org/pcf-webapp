@@ -35,9 +35,12 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The token is checked here against the project's public signing keys, with no call to the auth server (which
+  // used to cost one network round trip for every page and every prefetched link). If the token has expired it is
+  // refreshed first, and a person whose token is invalid or missing goes to the login page. Whether the account
+  // is still active is checked against the profile on every page (see getCurrentUser).
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
 
   const { pathname } = request.nextUrl;
   if (!user && pathname !== "/login") {

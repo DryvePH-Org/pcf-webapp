@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -12,13 +13,24 @@ import type { Role } from "@/lib/permissions";
 
 export function AppShell({
   user,
-  badges = {},
+  badges: pendingBadges,
   children,
 }: {
   user: { full_name: string; role: Role };
-  badges?: Record<string, number>;
+  // arrives after the page has started to show; empty until then
+  badges?: Promise<Record<string, number>>;
   children: React.ReactNode;
 }) {
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let live = true;
+    pendingBadges?.then((value) => {
+      if (live) setBadges(value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [pendingBadges]);
   const groups = navGroupsFor(user.role);
   const { primary, overflow } = mobileNavFor(user.role);
 

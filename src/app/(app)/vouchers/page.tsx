@@ -1,9 +1,10 @@
+import { StageLine } from "@/components/shared/stage-line";
+import { applyVoucherFilters } from "@/lib/voucher-filters";
 import { loadStageLabels } from "@/lib/request-trail-data";
 import Link from "next/link";
-import { ReceiptText, Search } from "lucide-react";
+import { ReceiptText, Search, Download } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
-import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyText } from "@/components/shared/money-text";
 import {
@@ -63,55 +64,25 @@ export default async function VouchersPage({
   const offset = (page - 1) * PAGE_SIZE;
 
   const supabase = await createClient();
-  let query = supabase
-    .from("vouchers")
-    .select(
-      "id, pcv_number, voucher_date, payee, particulars, amount, status, category_id, fund_id",
-      { count: "exact" },
-    );
+  const filters = { status, q, from, to };
+  const query = applyVoucherFilters(
+    supabase
+      .from("vouchers")
+      .select("id, pcv_number, voucher_date, payee, particulars, amount, status, category_id, fund_id", { count: "exact" }),
+    filters,
+  );
 
-  if (status) query = query.eq("status", status);
-  if (q) {
-    const safe = q.replace(/[,%()"\\]/g, " ").trim();
-    if (safe) {
-      query = query.or(
-        `pcv_number.ilike.%${safe}%,payee.ilike.%${safe}%`,
-      );
-    }
-  }
-  if (from) query = query.gte("voucher_date", from);
-  if (to) query = query.lte("voucher_date", to);
-
-  const { data, error, count } = await query
-    .order("voucher_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
-
-  if (error) throw new Error(error.message);
-
-  let csvQuery = supabase
-    .from("vouchers")
-    .select(
-      "pcv_number, voucher_date, payee, particulars, amount, status, category_id, fund_id",
-    );
-  if (status) csvQuery = csvQuery.eq("status", status);
-  if (q) {
-    const safe = q.replace(/[,%()"\\]/g, " ").trim();
-    if (safe) {
-      csvQuery = csvQuery.or(`pcv_number.ilike.%${safe}%,payee.ilike.%${safe}%`);
-    }
-  }
-  if (from) csvQuery = csvQuery.gte("voucher_date", from);
-  if (to) csvQuery = csvQuery.lte("voucher_date", to);
-  const { data: csvData, error: csvError } = await csvQuery
-    .order("voucher_date", { ascending: false })
-    .limit(5000);
-  if (csvError) throw new Error(csvError.message);
-
-  const [categoriesResult, fundsResult] = await Promise.all([
+  // the list and the two name lists are read together
+  const [listResult, categoriesResult, fundsResult] = await Promise.all([
+    query
+      .order("voucher_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1),
     supabase.from("categories").select("id, name"),
     supabase.from("funds").select("id, name"),
   ]);
+  const { data, error, count } = listResult;
+  if (error) throw new Error(error.message);
   if (categoriesResult.error) throw new Error(categoriesResult.error.message);
   if (fundsResult.error) throw new Error(fundsResult.error.message);
 
@@ -122,20 +93,8 @@ export default async function VouchersPage({
     fundsResult.data.map((fund) => [fund.id, fund.name]),
   );
 
-  const csvRows = csvData.map((voucher) => [
-    voucher.pcv_number,
-    voucher.voucher_date,
-    voucher.payee,
-    voucher.particulars,
-    categoryNames.get(voucher.category_id) ?? "—",
-    fundNames.get(voucher.fund_id) ?? "—",
-    voucher.amount,
-    isVoucherStatus(voucher.status)
-      ? VOUCHER_STATUS_LABELS[voucher.status]
-      : voucher.status,
-  ]);
-
-  const stage = await loadStageLabels(supabase, "voucher", data.map((voucher) => voucher.id));
+  // not awaited: the stage lines fill in after the list is on screen
+  const stage = loadStageLabels(supabase, "voucher", data.map((voucher) => voucher.id));
   const rows: VoucherListRow[] = data.map((voucher) => ({
     id: voucher.id,
     pcv_number: voucher.pcv_number,
@@ -206,7 +165,7 @@ export default async function VouchersPage({
       cell: (voucher) => (
         <>
           <StatusBadge status={voucher.status} />
-          <span className="mt-1 block text-xs text-muted-foreground">{stage.get(voucher.id)}</span>
+          <StageLine labels={stage} id={voucher.id} className="mt-1 block text-xs text-muted-foreground" />
         </>
       ),
     },
@@ -235,21 +194,15 @@ export default async function VouchersPage({
         description="Every petty cash voucher, newest first."
         actions={
           <>
-            <CsvExportButton
-              filename="vouchers.csv"
-              header={[
-                "PCV Number",
-                "Date",
-                "Payee",
-                "Particulars",
-                "Category",
-                "Fund",
-                "Amount",
-                "Status",
-              ]}
-              rows={csvRows}
-              label="Export CSV"
-            />
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<a href={`/api/vouchers/export?${new URLSearchParams(Object.entries(filters).filter(([, value]) => value) as [string, string][]).toString()}`} download="vouchers.csv" />}
+            >
+              <Download />
+              Export CSV
+            </Button>
             {canPerform(user.role, "voucher.create") ? (
               <>
                 <Button nativeButton={false} render={<Link href="/vouchers/new" />}>
@@ -362,7 +315,7 @@ export default async function VouchersPage({
                 </div>
                 <StatusBadge status={voucher.status} />
               </div>
-              {stage.get(voucher.id) ? <p className="text-xs text-muted-foreground">{stage.get(voucher.id)}</p> : null}
+              <StageLine labels={stage} id={voucher.id} className="block text-xs text-muted-foreground" />
               <div className="flex items-end justify-between gap-3 text-sm">
                 <div className="text-muted-foreground">
                   <p>{formatDate(voucher.voucher_date)}</p>

@@ -32,11 +32,12 @@ export const loadSettlementsDue = cache(async (): Promise<SettlementItem[]> => {
   if (settled.error) throw new Error("Could not read the settlements.");
 
   // Who may record each one: the same rule the database enforces.
-  const allowed = new Map<string, boolean>();
-  for (const row of liquidations) {
-    const key = `${row.fund_id}:${row.owner_id}`;
-    if (!allowed.has(key)) allowed.set(key, await mayReviewOwner(db, user, row.fund_id, row.owner_id));
-  }
+  // one check per fund and owner, all at once (they used to run one after another)
+  const pairs = new Map<string, { fund_id: string; owner_id: string }>();
+  for (const row of liquidations) pairs.set(`${row.fund_id}:${row.owner_id}`, { fund_id: row.fund_id, owner_id: row.owner_id });
+  const allowed = new Map<string, boolean>(
+    await Promise.all([...pairs.entries()].map(async ([key, pair]) => [key, await mayReviewOwner(db, user, pair.fund_id, pair.owner_id)] as const)),
+  );
 
   const pending = await db.from("advance_cancellations").select("voucher_id, fund_id, amount, cancelled_at").is("returned_on", null);
   if (pending.error) throw new Error("Could not read the cancelled advances.");
@@ -51,21 +52,24 @@ export const loadSettlementsDue = cache(async (): Promise<SettlementItem[]> => {
   const voucherOf = new Map((vouchers.data ?? []).map((row) => [row.id, row]));
   const fundName = new Map((funds.data ?? []).map((row) => [row.id, row.name]));
 
-  const cancelled: CancelledAdvance[] = [];
-  for (const row of pending.data ?? []) {
-    const voucher = voucherOf.get(row.voucher_id);
-    if (!voucher) continue;
-    const state = await db.rpc("advance_cancellation_state", { p_voucher: row.voucher_id });
-    cancelled.push({
-      voucher_id: row.voucher_id,
-      pcv_number: voucher.pcv_number,
-      payee: voucher.payee,
-      fund_name: fundName.get(row.fund_id) ?? "Fund",
-      amount: Number(row.amount),
-      cancelled_at: row.cancelled_at,
-      canAct: state.data?.[0]?.can_record_return === true,
-    });
-  }
+  const cancelled: CancelledAdvance[] = (
+    await Promise.all(
+      (pending.data ?? []).map(async (row) => {
+        const voucher = voucherOf.get(row.voucher_id);
+        if (!voucher) return null;
+        const state = await db.rpc("advance_cancellation_state", { p_voucher: row.voucher_id });
+        return {
+          voucher_id: row.voucher_id,
+          pcv_number: voucher.pcv_number,
+          payee: voucher.payee,
+          fund_name: fundName.get(row.fund_id) ?? "Fund",
+          amount: Number(row.amount),
+          cancelled_at: row.cancelled_at,
+          canAct: state.data?.[0]?.can_record_return === true,
+        } satisfies CancelledAdvance;
+      }),
+    )
+  ).filter((item): item is CancelledAdvance => item !== null);
 
   return buildSettlementItems({
     liquidations,
