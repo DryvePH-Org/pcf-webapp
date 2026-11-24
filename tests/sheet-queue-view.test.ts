@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { friendlyError, positionsInLine, queueState } from "@/lib/grokbot/queue-view";
+import { friendlyError, positionsInLine, queueState, reportStatus } from "@/lib/grokbot/queue-view";
 
 const NOW = Date.parse("2026-11-24T10:00:00Z");
 const op = (patch: Partial<Parameters<typeof queueState>[0]>) => ({ status: "queued", runner_id: null, not_before: null, error: null, ...patch });
@@ -34,4 +34,23 @@ it("numbers only the jobs still waiting, oldest first", () => {
   ];
   const place = positionsInLine(ops);
   expect([place.get("a"), place.get("b"), place.get("c"), place.has("r")]).toEqual([1, 2, 3, false]);
+});
+
+const started = new Date(NOW - 5 * 60000).toISOString();
+const done = "2026-11-24T09:50:00Z";
+const job = (patch = {}) => ({ status: "running", runner_id: "r", started_at: started, updated_at: started, ...patch });
+
+it("says whether the bot has reported back, so a row in the sheet but not in the app is explained", () => {
+  expect(reportStatus(job(), undefined, NOW)).toMatchObject({ key: "not_reported", detail: expect.stringContaining("5 minutes ago") });
+  expect(reportStatus(job({ started_at: new Date(NOW - 60000).toISOString() }), undefined, NOW)?.detail).toContain("as soon as the bot reports back");
+  expect(reportStatus({ ...job({ status: "queued" }) }, undefined, NOW)).toBeNull();
+  expect(reportStatus(job({ status: "failed" }), undefined, NOW)).toBeNull();
+});
+
+it("after the report, shows whether the app has read the sheet", () => {
+  const completed = job({ status: "completed", updated_at: done });
+  expect(reportStatus(completed, { last_synced_at: "2026-11-24T09:40:00Z", sync_error: null }, NOW)?.key).toBe("reading");
+  expect(reportStatus(completed, undefined, NOW)?.key).toBe("reading");
+  expect(reportStatus(completed, { last_synced_at: "2026-11-24T09:55:00Z", sync_error: null }, NOW)?.key).toBe("synced");
+  expect(reportStatus(completed, { last_synced_at: "2026-11-24T09:40:00Z", sync_error: "Refresh failed." }, NOW)?.key).toBe("read_failed");
 });

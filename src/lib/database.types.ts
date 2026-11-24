@@ -444,6 +444,7 @@ export type Database = {
         Row: {
           amount: number
           approval_threshold: number
+          code: string
           created_at: string
           id: string
           is_active: boolean
@@ -454,6 +455,7 @@ export type Database = {
         Insert: {
           amount: number
           approval_threshold?: number
+          code?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -464,6 +466,7 @@ export type Database = {
         Update: {
           amount?: number
           approval_threshold?: number
+          code?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -1660,6 +1663,7 @@ export type Database = {
           particulars: string
           payee: string
           pcv_number: string
+          previous_number: string | null
           prepared_by: string
           receipt_drive_url: string | null
           receipt_path: string | null
@@ -1690,6 +1694,7 @@ export type Database = {
           particulars: string
           payee: string
           pcv_number: string
+          previous_number?: string | null
           prepared_by: string
           receipt_drive_url?: string | null
           receipt_path?: string | null
@@ -1720,6 +1725,7 @@ export type Database = {
           particulars?: string
           payee?: string
           pcv_number?: string
+          previous_number?: string | null
           prepared_by?: string
           receipt_drive_url?: string | null
           receipt_path?: string | null

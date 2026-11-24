@@ -69,8 +69,9 @@ export function VoucherForm({
       budget_request_id: request?.id,
       voucher_date: edit?.voucher_date ?? todayInAppTz(),
       payee: edit?.payee ?? request?.name ?? "",
-      number_mode: edit ? (edit.paper_pcv_number ? "manual" : "none") : "auto",
-      number_value: edit?.paper_pcv_number ?? "",
+      // the voucher number is made by the database, so the form never sends one
+      number_mode: "none",
+      number_value: "",
       items: edit?.items ?? [
         { particulars: request?.purpose ?? "", amount: request?.amount ?? "" },
       ],
@@ -78,8 +79,6 @@ export function VoucherForm({
   });
   const fields = useFieldArray({ control: form.control, name: "items" });
   const fundId = useWatch({ control: form.control, name: "fund_id" });
-  const mode =
-    useWatch({ control: form.control, name: "number_mode" }) ?? "auto";
   const items = useWatch({ control: form.control, name: "items" });
   const total = (items ?? []).reduce(
     (sum, item) => sum + (parseMoney(item.amount) ?? 0),
@@ -91,7 +90,7 @@ export function VoucherForm({
     total >= (parseMoney(selectedFund?.approval_threshold ?? "") ?? Infinity);
   useEffect(() => {
     let active = true;
-    if (fundId && mode === "auto")
+    if (fundId && !edit)
       void suggestVoucherNumber(fundId)
         .then((result) => {
           if (active)
@@ -110,7 +109,7 @@ export function VoucherForm({
     return () => {
       active = false;
     };
-  }, [fundId, mode]);
+  }, [fundId, edit]);
 
   async function save(advance: boolean) {
     await run(() => saveNow(advance));
@@ -185,45 +184,20 @@ export function VoucherForm({
           <fieldset disabled={pending} className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="voucher-number-mode">
-                  Receipt / voucher number
-                </Label>
-                <OptionSelect
-                  id="voucher-number-mode"
-                  value={mode}
-                  onValueChange={(value) =>
-                    form.setValue(
-                      "number_mode",
-                      value as "auto" | "manual" | "none",
-                    )
-                  }
-                  disabled={pending}
-                  options={[
-                    { value: "auto", label: "Automatic next number" },
-                    { value: "manual", label: "Enter number manually" },
-                    { value: "none", label: "No receipt / voucher number" },
-                  ]}
-                />
-                {mode === "auto" ? (
-                  <p role="status" className="text-sm text-muted-foreground">
-                    Next suggested number{" "}
-                    {suggestion.fund === fundId ? suggestion.value : "Loading…"}
-                    . The final number is assigned when saved.
+                <Label>Voucher number</Label>
+                <p role="status" className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+                  {edit
+                    ? (edit.paper_pcv_number ?? "")
+                    : suggestion.fund === fundId
+                      ? suggestion.value
+                      : "Loading…"}
+                </p>
+                {edit ? null : (
+                  <p className="text-xs text-muted-foreground">
+                    The next number of this fund. Write it on the paper voucher; the same number goes in the Google Sheet.
                   </p>
-                ) : null}
+                )}
               </div>
-              {mode === "manual" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="voucher-number">
-                    Receipt / voucher number
-                  </Label>
-                  <Input
-                    id="voucher-number"
-                    maxLength={30}
-                    {...form.register("number_value")}
-                  />
-                </div>
-              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="voucher-fund">Fund</Label>
                 <OptionSelect

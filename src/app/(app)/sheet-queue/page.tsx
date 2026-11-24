@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/dates";
 import { loadSheetQueue, type QueueRow } from "@/lib/grokbot/queue-data";
-import type { QueueStateKey } from "@/lib/grokbot/queue-view";
+import type { QueueStateKey, ReportKey } from "@/lib/grokbot/queue-view";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,13 @@ const BADGE: Record<QueueStateKey, "default" | "secondary" | "destructive" | "ou
   attention: "destructive",
 };
 
+const REPORT_BADGE: Record<ReportKey, "default" | "secondary" | "destructive" | "outline"> = {
+  not_reported: "outline",
+  reading: "secondary",
+  synced: "default",
+  read_failed: "destructive",
+};
+
 function StateCell({ row }: { row: QueueRow }) {
   return (
     <div className="max-w-sm space-y-1">
@@ -32,6 +39,12 @@ function StateCell({ row }: { row: QueueRow }) {
         {row.state === "retry_wait" && row.notBefore ? `Next try ${formatDateTime(row.notBefore)}. ` : ""}
         {row.detail}
       </p>
+      {row.report ? (
+        <div className="space-y-1 pt-1">
+          <Badge variant={REPORT_BADGE[row.report.key]}>{row.report.label}</Badge>
+          <p className="text-xs text-muted-foreground whitespace-normal">{row.report.detail}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

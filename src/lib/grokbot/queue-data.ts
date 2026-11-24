@@ -2,7 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { positionsInLine, queueState, type QueueStateKey } from "./queue-view";
+import { positionsInLine, queueState, reportStatus, type QueueStateKey, type ReportKey } from "./queue-view";
 
 export type QueueRow = {
   id: string;
@@ -15,6 +15,7 @@ export type QueueRow = {
   state: QueueStateKey;
   label: string;
   detail: string;
+  report: { key: ReportKey; label: string; detail: string } | null;
   position: number | null;
   notBefore: string | null;
   attempts: number;
@@ -30,7 +31,7 @@ const FINANCIAL = ["liquidation_approved", "replenishment_approved"];
 // Every job that moves money to a sheet, for the funds this person may see (an administrator sees them all).
 export async function loadSheetQueue(user: { id: string; role: string }): Promise<{ rows: QueueRow[]; health: QueueHealth[] }> {
   const db = createAdminClient();
-  const columns = "id, kind, status, runner_id, not_before, error, attempts, created_at, updated_at, spreadsheet_id, liquidation_id, replenishment_id";
+  const columns = "id, kind, status, runner_id, started_at, not_before, error, attempts, created_at, updated_at, spreadsheet_id, liquidation_id, replenishment_id";
   const [recent, open] = await Promise.all([
     db.from("grokbot_operations").select(columns).in("kind", FINANCIAL).order("created_at", { ascending: false }).limit(60),
     db.from("grokbot_operations").select(columns).in("kind", FINANCIAL).in("status", ["queued", "running", "blocked", "failed"]).limit(100),
@@ -44,7 +45,7 @@ export async function loadSheetQueue(user: { id: string; role: string }): Promis
   const [liquidations, replenishments, workbooks, myFunds] = await Promise.all([
     liquidationIds.length ? db.from("liquidations").select("id, pcv_number, total_spent, fund_id, employee_name").in("id", liquidationIds) : Promise.resolve({ data: [], error: null }),
     replenishmentIds.length ? db.from("replenishments").select("id, request_no, total, fund_id").in("id", replenishmentIds) : Promise.resolve({ data: [], error: null }),
-    db.from("sheet_workbooks").select("id, name, spreadsheet_id"),
+    db.from("sheet_workbooks").select("id, name, spreadsheet_id, last_synced_at, sync_error"),
     user.role === "admin" ? Promise.resolve({ data: null, error: null }) : db.from("fund_custodians").select("fund_id").eq("custodian_id", user.id),
   ]);
   if (liquidations.error || replenishments.error || workbooks.error || myFunds.error) throw new Error("Could not read the sheet queue.");
@@ -55,6 +56,7 @@ export async function loadSheetQueue(user: { id: string; role: string }): Promis
   const allowed = myFunds.data ? new Set(myFunds.data.map((row) => row.fund_id)) : null;
   const fundName = new Map((funds.data ?? []).map((f) => [f.id, f.name]));
   const bookOf = new Map((workbooks.data ?? []).map((w) => [w.spreadsheet_id, w.name]));
+  const bookState = new Map((workbooks.data ?? []).map((w) => [w.spreadsheet_id, w]));
   const liq = new Map((liquidations.data ?? []).map((l) => [l.id, l]));
   const rep = new Map((replenishments.data ?? []).map((r) => [r.id, r]));
   // place in line counts the whole queue, so everyone sees the same number
@@ -78,6 +80,7 @@ export async function loadSheetQueue(user: { id: string; role: string }): Promis
       state: state.key,
       label: state.label,
       detail: state.detail,
+      report: reportStatus(op, bookState.get(op.spreadsheet_id)),
       position: positions.get(op.id) ?? null,
       notBefore: op.not_before,
       attempts: op.attempts,

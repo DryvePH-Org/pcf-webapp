@@ -147,7 +147,7 @@ describe.skipIf(!enabled)('Voucher workflow contract', () => {
 
   it('requires a receipt or a no-receipt reason before release', async () => {
     const id = await makeVoucher('custodian', 25, false);
-    expect((await getVoucher(id)).pcv_number).toMatch(/^PCV-\d{4}-\d{4}$/);
+    expect((await getVoucher(id)).pcv_number).toMatch(/^[A-Z][A-Z0-9]{0,3}-\d{4,}$/);
 
     const { error: releaseWithout } = await clients.custodian.rpc('release_voucher', { p_id: id });
     expect(releaseWithout?.message).toMatch(/receipt|reason/i);

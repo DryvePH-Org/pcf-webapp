@@ -44,3 +44,37 @@ export function positionsInLine<T extends { id: string; status: string; created_
   const waiting = ops.filter((op) => op.status === "queued").sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   return new Map(waiting.map((op, index) => [op.id, index + 1]));
 }
+
+// Whether the bot has told the app about the write. Until it does, the app cannot show the entry, even when the
+// sheet already has it. After it does, the app reads the sheet back before its balance is up to date.
+export type ReportKey = "not_reported" | "reading" | "synced" | "read_failed";
+
+export type ReportOp = { status: string; runner_id: string | null; started_at: string | null; updated_at: string };
+export type ReportBook = { last_synced_at: string | null; sync_error: string | null } | undefined;
+
+export const REPORT_LABELS: Record<ReportKey, string> = {
+  not_reported: "Not reported back yet",
+  reading: "Reported back, reading the sheet",
+  synced: "Reported back, app updated",
+  read_failed: "Reported back, sheet not read",
+};
+
+export function reportStatus(op: ReportOp, book: ReportBook, now = Date.now()): { key: ReportKey; label: string; detail: string } | null {
+  if (op.status === "running") {
+    const minutes = op.started_at ? Math.floor((now - Date.parse(op.started_at)) / 60000) : 0;
+    return {
+      key: "not_reported",
+      label: REPORT_LABELS.not_reported,
+      detail:
+        minutes >= 3
+          ? `Started ${minutes} minutes ago. The sheet may already show it, but the app waits for the bot to report back. If it does not, it is sent again by itself.`
+          : "The app shows it as soon as the bot reports back.",
+    };
+  }
+  if (op.status !== "completed") return null;
+  if (book?.sync_error && book.last_synced_at && Date.parse(book.last_synced_at) < Date.parse(op.updated_at))
+    return { key: "read_failed", label: REPORT_LABELS.read_failed, detail: "The bot reported back, but the app could not read the sheet yet. Ask Accounting to refresh the sheet." };
+  if (book?.last_synced_at && Date.parse(book.last_synced_at) >= Date.parse(op.updated_at))
+    return { key: "synced", label: REPORT_LABELS.synced, detail: "The app has read the sheet after this entry." };
+  return { key: "reading", label: REPORT_LABELS.reading, detail: "The bot reported back. The app is reading the sheet, so the balance updates shortly." };
+}

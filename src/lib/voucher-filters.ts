@@ -14,7 +14,7 @@ export function applyVoucherFilters<T extends Filterable<T>>(
   if (filters.status) next = next.eq("status", filters.status);
   if (filters.q) {
     const safe = filters.q.replace(/[,%()"\\]/g, " ").trim();
-    if (safe) next = next.or(`pcv_number.ilike.%${safe}%,payee.ilike.%${safe}%`);
+    if (safe) next = next.or(`pcv_number.ilike.%${safe}%,previous_number.ilike.%${safe}%,payee.ilike.%${safe}%`);
   }
   if (filters.from) next = next.gte("voucher_date", filters.from);
   if (filters.to) next = next.lte("voucher_date", filters.to);

@@ -24,11 +24,11 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  perform review_budget_request(req,true,null);
  update sheet_expenses set voucher='0049' where book_id='buying' and sheet_id=1 and source_row=1;
- assert suggest_voucher_number('91000000-0000-4000-8000-000000000010')='0050','first voucher can continue the assigned workbook sequence';
+ assert suggest_voucher_number('91000000-0000-4000-8000-000000000010')=(select code from funds where id='91000000-0000-4000-8000-000000000010')||'-0001','the first voucher of a fund is 0001 with the fund letters, whatever the sheet holds';
  update sheet_expenses set voucher='TEST' where book_id='buying' and sheet_id=1 and source_row=1;
  assert 'NCE - OTHERS'=any(list_custodian_tags('91000000-0000-4000-8000-000000000010')),'unused CE/NCE tags are available from template summaries';
  voucher:=save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',req,'Editable request name',current_date,'[{"particulars":"Fuel","amount":500}]','auto',null);
- assert (select paper_pcv_number='0001' and receipt_path is null from vouchers where id=voucher),'automatic number and no voucher attachment';
+ assert (select paper_pcv_number=pcv_number and pcv_number=(select code from funds where id='91000000-0000-4000-8000-000000000010')||'-0001' and receipt_path is null from vouchers where id=voucher),'automatic number and no voucher attachment';
  perform release_voucher(voucher);
  assert (select expected_cash=9500 from fund_balance_v where fund_id='91000000-0000-4000-8000-000000000010'),'cash deducted only at release';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
@@ -43,7 +43,8 @@ do $$ declare req uuid; voucher uuid; liquidation uuid; replenishment uuid; prev
  assert (select due_at=released_at+interval '48 hours' from my_outstanding_liquidations() where voucher_id=voucher),'deadline is 48 hours after cash release';
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000002',true);
  perform save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',null,'Manual',current_date,'[{"particulars":"Draft","amount":1}]','manual','0050');
- number:=suggest_voucher_number('91000000-0000-4000-8000-000000000010');assert number='0051','manual number advances the suggested sequence';
+ number:=suggest_voucher_number('91000000-0000-4000-8000-000000000010');assert number=(select code from funds where id='91000000-0000-4000-8000-000000000010')||'-0003','a typed number is ignored: the next number simply follows';
+ assert (select paper_pcv_number=pcv_number from vouchers where payee='Manual'),'the voucher keeps its own number, not the typed one';
  perform save_workflow_voucher(null,'91000000-0000-4000-8000-000000000010',null,'No number',current_date,'[{"particulars":"Draft","amount":1}]','none',null);
  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
  liquidation:=create_liquidation(voucher);

@@ -349,7 +349,11 @@ and when). Vouchers and replenishment forms can be printed.
 
 - **Waiting** has a number: your place in line. The bots take **one job at a time, oldest first**, across every fund, so a busy day never overloads them.
 - **Sending** means a bot has the job. It usually takes a few minutes.
-- **Written** means it is in the sheet.
+- **Written** means the bot wrote it and reported back to the app. A second label under it says whether the app has read the sheet yet.
+- **Not reported back yet** (under Sending) means the bot has the job, and the sheet may already show the entry, but the app cannot show it until the bot tells the app. If this takes more than about 10 minutes the job is sent again by itself.
+- **Reported back, reading the sheet** means the bot has told the app. The app is reading the sheet, and the balance updates shortly.
+- **Reported back, app updated** means the app has read the sheet after this entry, so the balance matches.
+- **Reported back, sheet not read** means the app could not read the sheet. Ask Accounting to refresh it.
 - **Waiting to retry** means the bot did not start the job. It is put back in the queue and tried again after a wait that grows each time. After three tries it needs a person.
 - **Needs attention** shows the reason in plain words. Nothing was written. Press **Retry** to send it again.
 
@@ -469,11 +473,13 @@ Use **Retry pending file cleanup** if a prior removal was interrupted.
    a voucher. The existing fund limit determines whether an Approver must approve
    before cash release.
 2. Voucher creation contains the date, payee, and particulars with amounts.
-   Choose automatic numbering, enter a manual receipt/voucher number, or select
-   no document number. Automatic numbering follows the last saved numbered
-   voucher in that fund. When no numbered app voucher exists, it uses the latest
-   usable number in the assigned workbook mirror, then the fund counter. The app
-   keeps its internal reference for audit and links.
+   The voucher number is made by the app: the fund's letters and a number
+   counted for that fund, such as `B-0039` (Buying), `D-0020` (DRYVE) or
+   `OPR-0002` (Operations Parts & Repairs). It is never typed, never reused,
+   and it is the same number written on the paper voucher and in the Google
+   Sheet, so Accounting sees one number everywhere. A voucher made before this
+   change keeps its old number in the search (type the old `PCV-2026-0019` and
+   it is found).
 3. After spending, the requester files liquidation with their locked account name
    and filing date, department, particulars, amounts, and optional plate numbers.
    Every expense needs a receipt picture. Received cash comes from the voucher.
