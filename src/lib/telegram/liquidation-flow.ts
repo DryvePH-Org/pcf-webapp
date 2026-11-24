@@ -77,7 +77,7 @@ export const liqWords = {
   none: "Wala kang advance na kailangang i-liquidate ngayon. 👍",
   elsewhere: "May advance kang nasimulan na sa website o ibinalik ng custodian. Doon mo ito tapusin: pcf.dryveph.io",
   pick: "🧾 <b>Alin ang ili-liquidate mo?</b>",
-  first: "📸 Mag-send ng <b>larawan ng unang resibo</b>.\nPwede mong lagyan ng caption na ganito: <i>gasolina 450</i> (paliwanag, tapos halaga).",
+  first: "📸 Mag-send ng <b>larawan ng unang resibo</b> (bilang larawan, hindi file).\nIsulat sa ilalim ang paliwanag at halaga, hal. <i>gasolina 450</i>.\nWalang isinulat? Itatanong ko kung para saan ito.",
   working: "⏳ Sine-save ang resibo...",
   reading: "⏳ Binabasa ang resibo...",
   needParticulars: "📌 <b>Para saan</b> ang resibong ito? I-type o i-voice. Hal. <i>gasolina ng service</i>",

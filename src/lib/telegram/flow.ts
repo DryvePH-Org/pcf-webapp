@@ -104,9 +104,9 @@ const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;"
 export const words = {
   notLinked: "Hindi pa naka-link ang Telegram mo. 🙏\nHingin sa admin ang link mo, tapos pindutin iyon.",
   linked: (name: string) =>
-    `✅ Naka-link ka na, ${name.split(/\s+/)[0] || "kaibigan"}!\n\n🎤 Para humingi ng budget, mag-send ng <b>voice message</b>. Sabihin ang halaga at para saan.\n\nHalimbawa: "Kailangan ko ng dalawang libo para sa gasolina ng service."`,
+    `✅ Naka-link ka na, ${name.split(/\s+/)[0] || "kaibigan"}!\n\nDalawa ang pwede mong gawin dito:\n\n1️⃣ 🎤 <b>Humingi ng budget</b>\nMag-send ng voice message. Sabihin ang halaga at para saan.\n<i>Halimbawa: "Kailangan ko ng dalawang libo para sa gasolina."</i>\n\n2️⃣ 📸 <b>Mag-liquidate ng resibo</b>\nMag-send ng larawan ng resibo (bilang larawan, hindi file). Isulat sa ilalim ang paliwanag at halaga.\n<i>Halimbawa: gasolina 450</i>\n\nKailangan ng tulong? Pindutin ang <b>Menu</b> sa ibaba, o i-type ang /help`,
   badLink: "Hindi gumana ang link na ito. Baka luma na o nagamit na. Hingi ng bago sa admin.",
-  help: "🎤 Mag-send ng <b>voice message</b> para humingi ng budget.\nSabihin ang <b>halaga</b> at <b>para saan</b>.\n\nI-check ang buod na ibabalik ko, pagkatapos pindutin ang ✅ Submit.\n\nPara mag-liquidate ng advance: mag-send ng 📸 larawan ng resibo, o /liquidate\n\nPara mag-cancel: /cancel",
+  help: "Dalawa ang pwede mong gawin dito:\n\n1️⃣ 🎤 <b>Humingi ng budget</b>\nMag-send ng voice message. Sabihin ang <b>halaga</b> at <b>para saan</b>. I-check ang buod, tapos pindutin ang ✅ Submit.\n\n2️⃣ 📸 <b>Mag-liquidate ng resibo</b>\nMag-send ng larawan ng resibo (bilang larawan, hindi file). Isulat sa ilalim ang paliwanag at halaga, hal. <i>gasolina 450</i>. Isang larawan bawat resibo. I-check ang listahan, tapos pindutin ang ✅ Submit.\n\nPara mag-cancel: /cancel",
   working: "⏳ Pinakikinggan ko ang voice message mo...",
   tooLong: "Masyadong mahaba ang voice message. Gawing mas maikli (hanggang 1 minuto) at ulitin.",
   tooBig: "Masyadong malaki ang file. Mag-send ng mas maikling voice message.",

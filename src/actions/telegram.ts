@@ -8,7 +8,7 @@ import { actionError, type ActionResult } from "@/lib/action-result";
 import { getAdminUser } from "@/lib/auth";
 import { safeDbMessage } from "@/lib/db-error";
 import { createClient } from "@/lib/supabase/server";
-import { resolveBotUsername, setWebhook, telegramConfigured } from "@/lib/telegram/api";
+import { resolveBotUsername, setMenuCommands, setWebhook, telegramConfigured } from "@/lib/telegram/api";
 import type { WorkflowDatabase } from "@/lib/workflow";
 
 const person = z.object({ userId: z.uuid() });
@@ -53,6 +53,8 @@ export async function connectTelegramBot(): Promise<ActionResult> {
   } catch (error) {
     return actionError(error instanceof Error ? error.message : "Telegram did not accept the address.");
   }
+  // the chat menu (Liquidate, Help, Cancel); the bot works without it, so a failure here is not an error
+  await setMenuCommands().catch(() => undefined);
   revalidatePath("/admin/telegram");
   return { ok: true };
 }

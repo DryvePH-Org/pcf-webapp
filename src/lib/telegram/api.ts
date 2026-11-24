@@ -78,6 +78,18 @@ export async function setWebhook(url: string, secret: string): Promise<void> {
   await call("setWebhook", { url, secret_token: secret, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
 }
 
+// The Menu button in the chat lists these, so nobody has to remember a command.
+export async function setMenuCommands(): Promise<void> {
+  await call("setMyCommands", {
+    commands: [
+      { command: "liquidate", description: "Mag-liquidate: i-send ang larawan ng resibo" },
+      { command: "help", description: "Tulong: paano gamitin" },
+      { command: "cancel", description: "Kanselahin ang ginagawa" },
+    ],
+  });
+  await call("setChatMenuButton", { menu_button: { type: "commands" } });
+}
+
 export async function webhookInfo(): Promise<{ url: string; pending_update_count: number; last_error_message?: string }> {
   return call("getWebhookInfo", {});
 }

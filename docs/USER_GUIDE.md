@@ -250,6 +250,8 @@ The same bot files a liquidation for an advance you received.
 5. Check the card. **Ayusin ang linya** changes, splits or removes a receipt; **Palitan ang department** changes the department (asked once, then remembered).
 6. Tap **Submit**. It becomes your ordinary liquidation and the custodian reviews it as usual, so the custodian still enters the supplier, TIN, tag and plate.
 
+A one-page guide in Filipino for staff is in `docs/TELEGRAM_GUIDE_FIL.md` (print it or send it in chat). After this update an administrator presses **Connect the bot to this site** once more on the Telegram page, so the chat shows a Menu button with Liquidate, Help and Cancel.
+
 If the bot says the advance was started on the website or sent back by the custodian, finish it on the website. An unfinished Telegram liquidation is dropped after two days.
 
 ## Filing a liquidation for someone who cannot use the website
