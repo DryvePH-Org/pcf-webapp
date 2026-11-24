@@ -54,7 +54,10 @@ it("sends a compact notification independent of financial payload size", async (
   const request = vi.mocked(fetch).mock.calls[0][1]!;
   const body = String(request.body);
   const notice = JSON.parse(body);
-  expect(Buffer.byteLength(body)).toBeLessThan(1000);
+  expect(Buffer.byteLength(body)).toBeLessThan(1400);
+  // the run-isolation rule travels with every job, whatever routine the bot has saved
+  expect(notice.message).toContain("new folder named after this operation_id");
+  expect(notice.message).toContain("report blocked and change nothing");
   expect(notice.operation_id).toBe(state.operation.id);
   expect(notice.callback.url).toContain(
     "/api/grokbot/operations/" + state.operation.id,

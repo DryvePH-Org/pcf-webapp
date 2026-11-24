@@ -177,7 +177,7 @@ async function deliverOperation(
           token: grokbotCallbackToken(operation.id, book),
         },
         message:
-          "GET callback.url with Authorization: Bearer callback.token. running alone means dispatched. When runner_claimed=false, claim a runner. Fetch payload_url and routine_url with the same header. Download both completely. Persist a fresh runner UUID in a private per-run file before POST status running with that runner_id. Continue only after HTTP 200, stop on 409. Reuse the saved UUID in every callback. Follow the downloaded routine and payload.",
+          "GET callback.url with Authorization: Bearer callback.token. running alone means dispatched. When runner_claimed=false, claim a runner. Fetch payload_url and routine_url with the same header. Download both completely. Persist a fresh runner UUID in a private per-run file before POST status running with that runner_id. Continue only after HTTP 200, stop on 409. Reuse the saved UUID in every callback. Keep every file of this run in a new folder named after this operation_id and never use a shared file name. The downloaded job's operation_id must equal this operation_id and its target must match your destination; otherwise report blocked and change nothing. Follow the downloaded routine and payload.",
       }),
       redirect: "error",
       signal: AbortSignal.timeout(30000),
