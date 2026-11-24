@@ -486,6 +486,9 @@ export type Database = {
           replenishment_id: string | null
           report: Json | null
           runner_id: string | null
+          attempts: number
+          started_at: string | null
+          not_before: string | null
           sheet_id: number
           spreadsheet_id: string
           status: string
@@ -503,6 +506,9 @@ export type Database = {
           replenishment_id?: string | null
           report?: Json | null
           runner_id?: string | null
+          attempts?: number
+          started_at?: string | null
+          not_before?: string | null
           sheet_id: number
           spreadsheet_id: string
           status?: string
@@ -520,6 +526,9 @@ export type Database = {
           replenishment_id?: string | null
           report?: Json | null
           runner_id?: string | null
+          attempts?: number
+          started_at?: string | null
+          not_before?: string | null
           sheet_id?: number
           spreadsheet_id?: string
           status?: string
@@ -1952,6 +1961,7 @@ export type Database = {
       claim_grokbot_dispatch: {
         Args: never
         Returns: {
+          attempts: number
           callback_hash: string
           created_at: string
           error: string | null
@@ -1959,12 +1969,14 @@ export type Database = {
           id: string
           kind: string
           liquidation_id: string | null
+          not_before: string | null
           payload: Json
           replenishment_id: string | null
           report: Json | null
           runner_id: string | null
           sheet_id: number
           spreadsheet_id: string
+          started_at: string | null
           status: string
           updated_at: string
         }[]

@@ -1,0 +1,37 @@
+import { expect, it } from "vitest";
+
+import { friendlyError, positionsInLine, queueState } from "@/lib/grokbot/queue-view";
+
+const NOW = Date.parse("2026-11-24T10:00:00Z");
+const op = (patch: Partial<Parameters<typeof queueState>[0]>) => ({ status: "queued", runner_id: null, not_before: null, error: null, ...patch });
+
+it("says in plain words where a job is", () => {
+  expect(queueState(op({}), NOW)).toMatchObject({ key: "waiting", label: "Waiting" });
+  expect(queueState(op({ status: "running" }), NOW)).toMatchObject({ key: "sending", detail: "Sent to the bot, waiting for it to start." });
+  expect(queueState(op({ status: "running", runner_id: "r" }), NOW)).toMatchObject({ key: "sending", detail: "The bot is writing it now." });
+  expect(queueState(op({ status: "completed" }), NOW)).toMatchObject({ key: "written" });
+});
+
+it("a job put back in the queue shows its wait until the time comes", () => {
+  const later = new Date(NOW + 600000).toISOString();
+  expect(queueState(op({ not_before: later, error: "will be tried again" }), NOW)).toMatchObject({ key: "retry_wait", detail: "will be tried again" });
+  expect(queueState(op({ not_before: new Date(NOW - 1000).toISOString() }), NOW).key).toBe("waiting");
+});
+
+it("a stopped job needs attention, with the reason made readable", () => {
+  expect(queueState(op({ status: "failed", error: "The Grokbot did not start this job after three tries." }), NOW)).toMatchObject({ key: "attention" });
+  expect(friendlyError("Payload invalid for this routine: payload.operation_id (40a6) does not match")).toContain("different job's files");
+  expect(friendlyError(null)).toContain("Nothing was written");
+  expect(friendlyError("x".repeat(400)).length).toBeLessThanOrEqual(220);
+});
+
+it("numbers only the jobs still waiting, oldest first", () => {
+  const ops = [
+    { id: "c", status: "queued", created_at: "2026-11-24T03:00:00Z" },
+    { id: "a", status: "queued", created_at: "2026-11-24T01:00:00Z" },
+    { id: "r", status: "running", created_at: "2026-11-24T00:00:00Z" },
+    { id: "b", status: "queued", created_at: "2026-11-24T02:00:00Z" },
+  ];
+  const place = positionsInLine(ops);
+  expect([place.get("a"), place.get("b"), place.get("c"), place.has("r")]).toEqual([1, 2, 3, false]);
+});

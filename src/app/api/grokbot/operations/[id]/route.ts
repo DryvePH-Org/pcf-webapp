@@ -296,7 +296,7 @@ export async function POST(
         try {
           if (financial && parsed.data.status === "completed") {
             const { refreshWorkbook } = await import("@/lib/sheets/refresh");
-            await refreshWorkbook(targetOf(auth.operation).book);
+            await refreshWorkbook(targetOf(auth.operation).book, { onlyWhenIdle: true });
           }
           await dispatchGrokbot();
         } catch {

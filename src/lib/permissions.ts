@@ -21,6 +21,7 @@ const ROUTE_RULES: readonly { prefix: string; roles: readonly Role[] }[] = [
   { prefix: "/funds", roles: ["admin", "accounting"] },
   { prefix: "/requests", roles: ALL_ROLES },
   { prefix: "/liquidations", roles: ALL_ROLES },
+  { prefix: "/sheet-queue", roles: ["admin", "custodian"] },
   { prefix: "/settlements", roles: ["admin", "custodian", "approver"] },
   { prefix: "/admin", roles: ["admin"] },
   { prefix: "/vouchers/new", roles: ["admin", "custodian", "approver"] },

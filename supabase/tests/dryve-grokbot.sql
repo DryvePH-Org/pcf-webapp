@@ -40,14 +40,16 @@ begin
  exception when others then refused:=true; end;
  assert refused,'an unknown sheet is refused';
 
- -- 3. Dispatch: each sheet runs one at a time, different sheets side by side.
+ -- 3. Dispatch: one job at a time across every sheet, oldest first.
  select id into claimed from claim_grokbot_dispatch();
  assert claimed=op1,'the oldest queued operation runs first';
+ assert not exists(select 1 from claim_grokbot_dispatch()),'one job at a time across every sheet';
+ update grokbot_operations set status='completed' where id=op1;
  select id into claimed from claim_grokbot_dispatch();
- assert claimed=op2,'the other sheet runs alongside it';
+ assert claimed=op2,'the next sheet runs once the first is done';
  insert into grokbot_operations(id,kind,spreadsheet_id,sheet_id,callback_hash,payload,expires_at,created_at)
    values(op3,'integration_test','1N705j5lSHGXgjqgdj8vPSe3HbgNA1QXRd9RWzTPcCBQ',1251133408,repeat('d',64),'{}',now()+interval '2 hours',now()-interval '1 minute');
- assert not exists(select 1 from claim_grokbot_dispatch()),'a sheet that is already running waits';
+ assert not exists(select 1 from claim_grokbot_dispatch()),'a job waits while another runs';
  update grokbot_operations set status='completed' where id=op2;
  select id into claimed from claim_grokbot_dispatch();
  assert claimed=op3,'it runs once the sheet is free';

@@ -136,6 +136,9 @@ async function recoverStalled() {
       const { data } = await db.from("grokbot_operations").update({ updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "running").is("runner_id", null).eq("updated_at", job.updated_at).select("id");
       return (data ?? []).length === 1;
     },
+    requeue: async (job, notBefore, note) => {
+      await db.from("grokbot_operations").update({ status: "queued", runner_id: null, not_before: notBefore, error: note, updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "running").is("runner_id", null);
+    },
     fail: async (job, error) => {
       await db.from("grokbot_operations").update({ status: "failed", error, updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "running").is("runner_id", null);
     },
@@ -218,6 +221,9 @@ export async function retryGrokbotOperation(id: string) {
     .update({
       status: "queued",
       runner_id: null,
+      attempts: 0,
+      started_at: null,
+      not_before: null,
       error: null,
       expires_at: new Date(Date.now() + 2 * 3600000).toISOString(),
       updated_at: new Date().toISOString(),

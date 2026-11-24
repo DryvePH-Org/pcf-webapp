@@ -1,39 +1,50 @@
-// A job the bot was told about but never started (no runner claimed it) holds its sheet's queue: a sheet runs one
-// job at a time, so everything behind it waits. This sends such a job again every few minutes (the bot's claim is
-// atomic, so a second notice for the same job does no harm) and, if the bot still has not started it after an
-// hour, marks it failed so the next job can run. A failed job can be sent again with the retry button.
+// A job the bot was told about but never started (no runner claimed it) holds the queue: the app feeds the bots one
+// job at a time. This sends such a job again every few minutes (the bot's claim is atomic, so a second notice for the
+// same job does no harm). If the bot still has not started it after 20 minutes, the job goes back in the queue with a
+// wait that grows each time. After three starts it is left for a person ("needs attention") and can be retried.
 
-export const STALLED_AFTER_MS = 15 * 60 * 1000;
-export const GIVE_UP_AFTER_MS = 60 * 60 * 1000;
-export const STALLED_ERROR = "The Grokbot did not start this job within an hour. Use the retry button to send it again.";
+export const STALLED_AFTER_MS = 10 * 60 * 1000;
+export const GIVE_UP_AFTER_MS = 20 * 60 * 1000;
+export const MAX_ATTEMPTS = 3;
+export const RETRY_WAIT_MS = 10 * 60 * 1000;
+export const STALLED_ERROR = "The Grokbot did not start this job after three tries. Use the retry button to send it again.";
+export const requeueNote = (waitMinutes: number) => `The Grokbot did not start this job. It will be tried again in about ${waitMinutes} minutes.`;
 
-export type StalledJob = { id: string; created_at: string; updated_at: string };
+export type StalledJob = { id: string; created_at: string; started_at: string | null; updated_at: string; attempts: number };
 
 export type RecoveryDeps<T extends StalledJob> = {
   // jobs that are running, unclaimed, and quiet since before the cutoff
   listStalled(cutoffIso: string): Promise<T[]>;
   // true only for the caller that wins the right to act on this job now
   touch(job: T): Promise<boolean>;
+  requeue(job: T, notBeforeIso: string, note: string): Promise<void>;
   fail(job: T, error: string): Promise<void>;
   deliver(job: T): Promise<void>;
   now?: number;
 };
 
-export async function recoverStalledJobs<T extends StalledJob>(deps: RecoveryDeps<T>): Promise<{ resent: string[]; failed: string[] }> {
+export async function recoverStalledJobs<T extends StalledJob>(
+  deps: RecoveryDeps<T>,
+): Promise<{ resent: string[]; requeued: string[]; failed: string[] }> {
   const now = deps.now ?? Date.now();
-  const result = { resent: [] as string[], failed: [] as string[] };
+  const result = { resent: [] as string[], requeued: [] as string[], failed: [] as string[] };
   for (const job of await deps.listStalled(new Date(now - STALLED_AFTER_MS).toISOString())) {
     if (!(await deps.touch(job))) continue;
-    if (now - Date.parse(job.created_at) >= GIVE_UP_AFTER_MS) {
-      await deps.fail(job, STALLED_ERROR);
-      result.failed.push(job.id);
-    } else {
+    const startedAt = Date.parse(job.started_at ?? job.created_at);
+    if (now - startedAt < GIVE_UP_AFTER_MS) {
       try {
         await deps.deliver(job);
         result.resent.push(job.id);
       } catch {
         // one job that cannot be sent (for example its bot is not configured) must not stop the others
       }
+    } else if (job.attempts < MAX_ATTEMPTS) {
+      const wait = Math.max(job.attempts, 1) * RETRY_WAIT_MS;
+      await deps.requeue(job, new Date(now + wait).toISOString(), requeueNote(wait / 60000));
+      result.requeued.push(job.id);
+    } else {
+      await deps.fail(job, STALLED_ERROR);
+      result.failed.push(job.id);
     }
   }
   return result;

@@ -341,6 +341,18 @@ and voucher preparation belong to custodians/admins.
 Also yours: voucher CSV export and the **Audit Trail** (every change, with who
 and when). Vouchers and replenishment forms can be printed.
 
+## The sheet queue (custodians and administrators)
+
+**Sheet queue** (in the menu) shows every approved liquidation and replenishment on its way to the Google Sheet, for your funds. An administrator sees all funds.
+
+- **Waiting** has a number: your place in line. The bots take **one job at a time, oldest first**, across every fund, so a busy day never overloads them.
+- **Sending** means a bot has the job. It usually takes a few minutes.
+- **Written** means it is in the sheet.
+- **Waiting to retry** means the bot did not start the job. It is put back in the queue and tried again after a wait that grows each time. After three tries it needs a person.
+- **Needs attention** shows the reason in plain words. Nothing was written. Press **Retry** to send it again.
+
+The page refreshes by itself while something is moving. After a job is written, the app reads the sheet back, but only once the last waiting job for that sheet is done, so the bot is not asked to read a sheet that is about to change again.
+
 ## When accounting changes something in the Google Sheet
 
 Grokbot reads the sheet back after every approved liquidation, and an
