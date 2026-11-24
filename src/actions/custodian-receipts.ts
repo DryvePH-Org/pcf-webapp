@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { safeDbMessage } from "@/lib/db-error";
 import { withinLimit } from "@/lib/rate-limit";
 import { toMoneyNumber } from "@/lib/money";
+import { receiptDateProblem } from "@/lib/receipt-date";
 import { custodianReviewSchema } from "@/lib/validators/custodian-receipts";
 import type { WorkflowDatabase } from "@/lib/workflow";
 
@@ -22,6 +23,14 @@ export async function saveCustodianReceipts(input: unknown) {
     return { ok: false as const, error: parsed.error.issues[0].message };
   const db =
     (await createClient()) as unknown as SupabaseClient<WorkflowDatabase>;
+  // a receipt date that is after the filing date, or months before it, is most likely a typo
+  const filed = await db.from("liquidations").select("filing_date").eq("id", parsed.data.id).maybeSingle();
+  if (filed.data) {
+    for (const [index, line] of parsed.data.lines.entries()) {
+      const problem = receiptDateProblem(line.expense_date, filed.data.filing_date);
+      if (problem) return { ok: false as const, error: `Entry ${index + 1}: ${problem}` };
+    }
+  }
   const { error } = await db.rpc("save_custodian_receipts", {
     p_id: parsed.data.id,
     p_revision: parsed.data.revision,

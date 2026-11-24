@@ -3,6 +3,7 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
 import { grokbotFinancialEvent } from "./contract";
+import { recoverStalledJobs } from "./recovery";
 import { targetForBook, targetForSpreadsheet, type GrokbotBook } from "./targets";
 
 export const GROKBOT_EDITOR = "admin.manilaautodisplay@gmail.com";
@@ -109,6 +110,8 @@ export async function queueGrokbotOperation(input: {
 // sheets (each with its own bot) can run side by side.
 export async function dispatchGrokbot() {
   const db = createAdminClient();
+  // first free a sheet whose job the bot never started, so it does not hold the queue
+  await recoverStalled().catch(() => undefined);
   const seen = new Set<string>();
   for (let round = 0; round < 4; round++) {
     const claim = await db.rpc("claim_grokbot_dispatch");
@@ -118,6 +121,26 @@ export async function dispatchGrokbot() {
     seen.add(operation.id);
     await deliverOperation(operation);
   }
+}
+
+async function recoverStalled() {
+  const db = createAdminClient();
+  type Row = Database["public"]["Tables"]["grokbot_operations"]["Row"];
+  await recoverStalledJobs<Row>({
+    listStalled: async (cutoff) => {
+      const { data } = await db.from("grokbot_operations").select("*").eq("status", "running").is("runner_id", null).lt("updated_at", cutoff).limit(10);
+      return data ?? [];
+    },
+    // the update only matches while the job is still unclaimed and untouched, so two callers never act on one job
+    touch: async (job) => {
+      const { data } = await db.from("grokbot_operations").update({ updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "running").is("runner_id", null).eq("updated_at", job.updated_at).select("id");
+      return (data ?? []).length === 1;
+    },
+    fail: async (job, error) => {
+      await db.from("grokbot_operations").update({ status: "failed", error, updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "running").is("runner_id", null);
+    },
+    deliver: (job) => deliverOperation(job),
+  });
 }
 
 async function deliverOperation(
