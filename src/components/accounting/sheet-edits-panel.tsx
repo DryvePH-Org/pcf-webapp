@@ -29,7 +29,7 @@ export function SheetEditsPanel({ edits }: { edits: SheetEdit[] }) {
         <CardHeader>
           <CardTitle>Changes from the Google Sheet</CardTitle>
           <CardDescription>
-            When accounting changes a tag in the sheet, the app follows it the next time the sheet is read, and it is listed here. Amounts are never changed from the sheet: a row that does not match is listed to check.
+            When accounting changes a tag in the sheet, the app follows it the next time the sheet is read, and it is listed here. Amounts are never changed from the sheet: a row that does not match is listed to check. A voucher number in the sheet that the app does not know, or a voucher that went missing from the sheet, is listed here too.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

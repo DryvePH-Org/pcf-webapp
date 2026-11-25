@@ -136,7 +136,7 @@ export type WorkflowDatabase = Omit<Database, "public"> & {
       telegram_drafts: Table<{ id: string; chat_id: number; profile_id: string; fund_id: string | null; amount: number | null; purpose: string | null; transcript: string | null; status: string; request_id: string | null; message_id: number | null; created_at: string; updated_at: string }>;
       telegram_updates: Table<{ update_id: number; received_at: string }>;
       request_approval_emails: Table<{ request_id: string; created_at: string; emailed_at: string | null }>;
-      sheet_edit_log: Table<{ id: string; book_id: string; fund_id: string | null; liquidation_id: string | null; line_id: string | null; voucher: string; kind: "tag_changed" | "tag_unknown" | "amount_differs"; summary: string; app_value: string; sheet_value: string; sheet_row: number | null; applied: boolean; detected_at: string; resolved_at: string | null }>;
+      sheet_edit_log: Table<{ id: string; book_id: string; fund_id: string | null; liquidation_id: string | null; line_id: string | null; voucher: string; kind: "tag_changed" | "tag_unknown" | "amount_differs" | "number_unknown" | "missing_in_sheet"; summary: string; app_value: string; sheet_value: string; sheet_row: number | null; applied: boolean; detected_at: string; resolved_at: string | null }>;
       liquidation_item_photos: Table<{ liquidation_id: string; item_id: string; position: number; path: string; created_at: string }>;
       fund_export_templates: Table<{ fund_id: string; file_name: string; storage_path: string; uploaded_by: string | null; uploaded_at: string }>;
     };

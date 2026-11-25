@@ -87,6 +87,19 @@ test.describe("the sheet queue page (desktop)", () => {
     await expect.poll(async () => (await adminClient().from("grokbot_operations").select("status").eq("id", operationId).single()).data?.status, { timeout: 20000 }).not.toBe("failed");
   });
 
+  test("the custodian is shown a sheet number the app does not know, in plain words", async ({ browser, baseURL }) => {
+    const note = `Row 31 of the sheet has the voucher number "16", and the app has no voucher with that number in this fund. Did you mean X-0016? (${Date.now()})`;
+    const saved = await adminClient().from("sheet_edit_log").insert({ book_id: "dryve", fund_id: fundId, voucher: "16", kind: "number_unknown", summary: note, sheet_value: "16", sheet_row: 31, applied: false });
+    expect(saved.error).toBeNull();
+    const custodian = await pageAs(browser, "custodian", baseURL!);
+    await custodian.goto("/sheet-queue");
+    await expect(custodian.getByText("The sheet and the app do not agree")).toBeVisible();
+    await expect(custodian.getByText(note)).toBeVisible();
+    await adminClient().from("sheet_edit_log").delete().eq("book_id", "dryve");
+    await custodian.reload();
+    await expect(custodian.getByText("The sheet and the app do not agree")).toHaveCount(0);
+  });
+
   test.afterAll(async () => {
     // the retry put it back in the queue (and the dispatcher may have started it); stop it before removing it
     await adminClient().from("grokbot_operations").update({ status: "failed" }).eq("id", operationId);

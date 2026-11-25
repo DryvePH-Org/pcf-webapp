@@ -90,11 +90,39 @@ begin
    jsonb_build_object('source_row',80,'voucher',voucher_no,'category','CE - FUEL','particulars','Gas','amount',800)));
  assert not exists(select 1 from sheet_edit_log where resolved_at is null and not applied),'flags clear when the sheet is corrected';
 
- -- rows with no voucher number, or for a voucher the app does not have, are left alone
+ -- a row with no voucher number is left alone; a number the app never gave is listed (and nothing is changed)
  res:=apply_sheet_edits('buying',jsonb_build_array(
    jsonb_build_object('source_row',9,'voucher','','category','NCE - MEALS','particulars','typed by hand','amount',597),
-   jsonb_build_object('source_row',10,'voucher','0099','category','NCE - MEALS','particulars','older entry','amount',100)));
- assert (res->>'applied')::int=0 and (res->>'flagged')::int=0,'unrelated rows are ignored: '||res::text;
+   jsonb_build_object('source_row',10,'voucher','0099','category','NCE - MEALS','particulars','older entry','amount',100),
+   jsonb_build_object('source_row',79,'voucher',voucher_no,'category','NCE - REPRESENTATION','particulars','Lunch at Jollibee','amount',1200),
+   jsonb_build_object('source_row',80,'voucher',voucher_no,'category','CE - FUEL','particulars','Gas','amount',800)));
+ assert (res->>'applied')::int=0 and (res->>'flagged')::int=1,'an unknown number is listed, nothing is changed: '||res::text;
+ select summary into msg from sheet_edit_log where book_id='buying' and kind='number_unknown' and resolved_at is null;
+ assert msg like '%"0099"%' and msg like '%no voucher with that number%','the list says which number: '||coalesce(msg,'none');
+
+ -- the same digits without the letters: the list says what it probably should be
+ res:=apply_sheet_edits('buying',jsonb_build_array(
+   jsonb_build_object('source_row',79,'voucher',regexp_replace(voucher_no,'^[A-Z0-9]+-0*',''),'category','NCE - MEALS','particulars','Lunch','amount',1200)));
+ select summary into msg from sheet_edit_log where book_id='buying' and kind='number_unknown' and resolved_at is null;
+ assert msg like '%Did you mean '||voucher_no||'?%','a number without its letters points to the right one: '||coalesce(msg,'none');
+
+ -- the old printed number points to the new one
+ update vouchers set previous_number='PCV-2026-0777' where id=v;
+ res:=apply_sheet_edits('buying',jsonb_build_array(
+   jsonb_build_object('source_row',79,'voucher','PCV-2026-0777','category','NCE - MEALS','particulars','Lunch','amount',1200)));
+ select summary into msg from sheet_edit_log where book_id='buying' and kind='number_unknown' and resolved_at is null;
+ assert msg like '%old number of '||voucher_no||'%','the old number points to the new one: '||coalesce(msg,'none');
+
+ -- a voucher Grokbot wrote whose number is no longer anywhere in the sheet is listed, and clears when it is back
+ insert into grokbot_operations(id,kind,spreadsheet_id,sheet_id,callback_hash,payload,expires_at,status,liquidation_id)
+   select gen_random_uuid(),'liquidation_approved',spreadsheet_id,active_sheet_id,repeat('c',64),'{}',now()+interval '2 hours','completed',liq from sheet_workbooks where id='buying';
+ res:=apply_sheet_edits('buying',jsonb_build_array(
+   jsonb_build_object('source_row',20,'voucher','OTHER-0001','category','NCE - MEALS','particulars','x','amount',5)));
+ assert exists(select 1 from sheet_edit_log where book_id='buying' and kind='missing_in_sheet' and voucher=voucher_no and resolved_at is null),'a written voucher that left the sheet is listed';
+ res:=apply_sheet_edits('buying',jsonb_build_array(
+   jsonb_build_object('source_row',79,'voucher',voucher_no,'category','NCE - REPRESENTATION','particulars','Lunch at Jollibee','amount',1200),
+   jsonb_build_object('source_row',80,'voucher',voucher_no,'category','CE - FUEL','particulars','Gas','amount',800)));
+ assert (res->>'flagged')::int=0 and not exists(select 1 from sheet_edit_log where book_id='buying' and kind='missing_in_sheet' and resolved_at is null),'it clears when the number is back: '||res::text;
 
  -- only administrators and accounting can read the list; others never
  perform set_config('request.jwt.claim.sub',acc::text,true);

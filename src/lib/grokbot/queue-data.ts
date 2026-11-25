@@ -1,6 +1,9 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { WorkflowDatabase } from "@/lib/workflow";
 
 import { positionsInLine, queueState, reportStatus, type QueueStateKey, type ReportKey } from "./queue-view";
 
@@ -24,12 +27,14 @@ export type QueueRow = {
   canRetry: boolean;
 };
 
+export type SheetCheck = { id: string; kind: string; summary: string; workbook: string };
+
 export type QueueHealth = { workbook: string; waiting: number; sending: number; attention: number; lastWritten: string | null };
 
 const FINANCIAL = ["liquidation_approved", "replenishment_approved"];
 
 // Every job that moves money to a sheet, for the funds this person may see (an administrator sees them all).
-export async function loadSheetQueue(user: { id: string; role: string }): Promise<{ rows: QueueRow[]; health: QueueHealth[] }> {
+export async function loadSheetQueue(user: { id: string; role: string }): Promise<{ rows: QueueRow[]; health: QueueHealth[]; checks: SheetCheck[] }> {
   const db = createAdminClient();
   const columns = "id, kind, status, runner_id, started_at, not_before, error, attempts, created_at, updated_at, spreadsheet_id, liquidation_id, replenishment_id";
   const [recent, open] = await Promise.all([
@@ -99,5 +104,20 @@ export async function loadSheetQueue(user: { id: string; role: string }): Promis
     if (row.state === "written" && (!h.lastWritten || row.updatedAt > h.lastWritten)) h.lastWritten = row.updatedAt;
     health.set(row.workbook, h);
   }
-  return { rows, health: [...health.values()].sort((a, b) => a.workbook.localeCompare(b.workbook)) };
+
+  // numbers and amounts in the sheet that do not agree with the app, found when the sheet was last read
+  const flags = await (db as unknown as SupabaseClient<WorkflowDatabase>)
+    .from("sheet_edit_log")
+    .select("id, kind, summary, fund_id, book_id")
+    .in("kind", ["number_unknown", "missing_in_sheet", "amount_differs"])
+    .eq("applied", false)
+    .is("resolved_at", null)
+    .order("detected_at", { ascending: false })
+    .limit(30);
+  if (flags.error) throw new Error("Could not read the sheet queue.");
+  const bookName = new Map((workbooks.data ?? []).map((w) => [w.id, w.name]));
+  const checks: SheetCheck[] = (flags.data ?? [])
+    .filter((flag) => !allowed || (flag.fund_id && allowed.has(flag.fund_id)))
+    .map((flag) => ({ id: flag.id, kind: flag.kind, summary: flag.summary, workbook: bookName.get(flag.book_id) ?? "" }));
+  return { rows, health: [...health.values()].sort((a, b) => a.workbook.localeCompare(b.workbook)), checks };
 }

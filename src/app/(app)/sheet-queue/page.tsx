@@ -1,4 +1,4 @@
-import { ListOrdered } from "lucide-react";
+import { ListOrdered, TriangleAlert } from "lucide-react";
 
 import { AutoRefresh } from "@/components/sheet-queue/auto-refresh";
 import { RetryButton } from "@/components/sheet-queue/retry-button";
@@ -51,7 +51,7 @@ function StateCell({ row }: { row: QueueRow }) {
 
 export default async function SheetQueuePage() {
   const user = await requireUser("/sheet-queue");
-  const { rows, health } = await loadSheetQueue(user);
+  const { rows, health, checks } = await loadSheetQueue(user);
   const active = rows.some((row) => row.state === "waiting" || row.state === "retry_wait" || row.state === "sending");
 
   const columns: ResponsiveListColumn<QueueRow>[] = [
@@ -104,6 +104,26 @@ export default async function SheetQueuePage() {
             </Card>
           ))}
         </div>
+      ) : null}
+
+      {checks.length > 0 ? (
+        <Card className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <CardContent className="space-y-2">
+            <p className="flex items-center gap-2 font-medium text-amber-950 dark:text-amber-100">
+              <TriangleAlert aria-hidden className="size-4" />
+              The sheet and the app do not agree ({checks.length})
+            </p>
+            <p className="text-xs text-amber-900 dark:text-amber-200">Found when the sheet was last read. Each line clears by itself once the sheet or the app is corrected.</p>
+            <ul className="space-y-1.5 text-sm text-amber-950 dark:text-amber-100">
+              {checks.map((check) => (
+                <li key={check.id}>
+                  {check.workbook ? <span className="font-medium">{check.workbook}: </span> : null}
+                  {check.summary}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
 
       <ResponsiveList
