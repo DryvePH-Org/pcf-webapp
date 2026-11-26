@@ -361,6 +361,19 @@ At the top, a yellow box **The sheet and the app do not agree** lists what the l
 
 The page refreshes by itself while something is moving. After a job is written, the app reads the sheet back, but only once the last waiting job for that sheet is done, so the bot is not asked to read a sheet that is about to change again.
 
+## Correcting a liquidation filed wrongly (administrators)
+
+Open the liquidation. An administrator sees **Administrator correction** with **Send back or delete…**.
+
+1. The window first checks the liquidation and says what stops it, if anything: a recorded cash return or
+   reimbursement, a replenishment that includes it, or Grokbot writing it right now. Fix that first.
+2. Choose **Send back as a draft** (the owner keeps her lines and pictures, fixes them and submits again) or
+   **Delete it** (everything is removed and she starts a new liquidation of the same advance).
+3. Write the reason and type **your own password**. Nothing happens without both. The correction is logged with your
+   name, the time and the reason.
+4. If it had been written to the Google Sheet, the app says so. Grokbot clears those rows with a one-off message
+   (see `docs/ops/phase68-admin-correction-rollout.md`), then press **Read the sheet now** on the workbook card.
+
 ## When accounting changes something in the Google Sheet
 
 Grokbot reads the sheet back after every approved liquidation, and an

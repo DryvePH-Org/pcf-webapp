@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PrintButton } from "@/components/layout/print-button";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
 import { LiquidationForm } from "@/components/liquidations/liquidation-form";
+import { LiquidationCorrection } from "@/components/admin/liquidation-correction";
 import { LiquidationPrintSheet } from "@/components/liquidations/liquidation-print-sheet";
 import { LiquidationActions } from "@/components/liquidations/liquidation-actions";
 import { isGrokbotBook, targetForBook } from "@/lib/grokbot/targets";
@@ -154,6 +155,7 @@ export default async function LiquidationDetailPage({ params, searchParams }: { 
     {nextStep()}
     <LiquidationActions canPrepareApproval={flow.flow_version!==2} id={id} canReview={canReview} canSettle={canSettle} canApproveReimbursement={canApproveReimbursement} amount={difference.amount} kind={difference.kind} />
     <FlowSteps label="Liquidation progress" steps={steps} />
+    {user.role === "admin" && l.status !== "draft" ? <LiquidationCorrection id={id} pcv={l.pcv_number} status={LIQUIDATION_LABELS[l.status]} /> : null}
     {/* While the form below is open for filling in, this read-only report would repeat it (and show the advance as
         "spent"), so it waits until the liquidation is submitted. */}
     <section className={`space-y-5 rounded-xl border bg-card p-4 sm:p-6 print:border-black print:bg-white print:text-black${editAccess.data ? " hidden" : ""}`}>

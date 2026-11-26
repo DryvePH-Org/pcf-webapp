@@ -32,7 +32,7 @@ export function testEmail(role: Role) {
 }
 
 // Development seed password only; never use these accounts in production.
-const DEV_PASSWORD = "Phase1-Dev-Passw0rd";
+export const DEV_PASSWORD = "Phase1-Dev-Passw0rd";
 
 // A signed-in client for calling RPCs directly (test setup and assertions).
 export async function clientFor(role: Role): Promise<SupabaseClient> {

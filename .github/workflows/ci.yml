@@ -81,6 +81,7 @@ jobs:
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/file-liquidation-for.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/remove-user.sql
           psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/fund-voucher-numbers.sql
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/tests/admin-reopen-liquidation.sql
 
   deploy:
     needs: [check, deletion-database]

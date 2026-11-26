@@ -49,6 +49,8 @@ type WorkflowFunctions = {
       telegram_create_budget_request: { Args: { p_user: string; p_fund: string; p_amount: number; p_purpose: string }; Returns: string };
       accounting_latest_date: { Args: { p_source: string; p_book: string | null; p_tab: number | null; p_custodian: string | null }; Returns: string | null };
       close_replenishment_with_handover: { Args: { p_id: string; p_on: string; p_amount: number; p_note: string | null }; Returns: undefined };
+      admin_preview_liquidation_reopen: { Args: { p_actor: string; p_id: string }; Returns: { pcv: string; owner: string; status: string; spent: number; blockers: string[]; in_sheet: boolean } };
+      admin_reopen_liquidation: { Args: { p_actor: string; p_id: string; p_mode: string; p_reason: string }; Returns: { pcv: string; in_sheet: boolean; mode: string } };
       apply_sheet_edits: { Args: { p_book: string; p_rows: Json }; Returns: { applied: number; flagged: number } };
       set_liquidation_photos: { Args: { p_id: string; p_photos: { item_id: string; path: string }[] }; Returns: undefined };
       set_fund_expense_tags: { Args: { p_fund: string; p_tags: string[] }; Returns: undefined };
