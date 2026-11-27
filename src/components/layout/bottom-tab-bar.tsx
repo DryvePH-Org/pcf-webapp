@@ -13,8 +13,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { NavPills, NavDot } from "@/components/layout/nav-pills";
+import type { NavIndicators } from "@/lib/nav-indicators";
 import { isNavActive, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+
+// One dot for everything under "More": amber if any of it is work, blue if it is only news.
+function moreIndicator(items: NavItem[], badges: NavIndicators) {
+  const action = items.reduce((sum, item) => sum + (badges[item.href]?.action ?? 0), 0);
+  const seen = items.reduce((sum, item) => sum + (badges[item.href]?.seen ?? 0), 0);
+  return action || seen ? { action, seen } : undefined;
+}
 
 export function BottomTabBar({
   primary,
@@ -23,7 +32,7 @@ export function BottomTabBar({
 }: {
   primary: NavItem[];
   overflow: NavItem[];
-  badges?: Record<string, number>;
+  badges?: NavIndicators;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -60,7 +69,7 @@ export function BottomTabBar({
                 />
                 <span className="relative max-w-full truncate px-1">
                   {item.shortLabel ?? item.label}
-                  {badges[item.href] ? <span className="absolute -top-5 -right-1 size-2.5 rounded-full bg-amber-500" aria-label="waiting" /> : null}
+                  <NavDot indicator={badges[item.href]} className="absolute -top-5 -right-1" />
                 </span>
               </Link>
             </li>
@@ -80,7 +89,7 @@ export function BottomTabBar({
               >
                 <span className="relative">
                   <MoreHorizontal className="size-5" />
-                  {overflow.some((item) => badges[item.href]) ? <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-500" aria-label="something is waiting" /> : null}
+                  <NavDot indicator={moreIndicator(overflow, badges)} className="absolute -top-1 -right-1" />
                 </span>
                 More
               </SheetTrigger>
@@ -109,7 +118,7 @@ export function BottomTabBar({
                     >
                       <item.icon className="size-4 text-muted-foreground" />
                       {item.label}
-                      {badges[item.href] ? <span className="ml-auto rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-amber-950">{badges[item.href]}</span> : null}
+                      <NavPills indicator={badges[item.href]} />
                     </Link>
                   ))}
                 </div>

@@ -4,12 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wallet } from "lucide-react";
 
+import { NavPills } from "@/components/layout/nav-pills";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
 import {
   isNavActive,
   type NavGroup,
 } from "@/lib/navigation";
+import type { NavIndicators } from "@/lib/nav-indicators";
 import type { Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +22,7 @@ export function SidebarNav({
 }: {
   groups: NavGroup[];
   user: { full_name: string; role: Role };
-  badges?: Record<string, number>;
+  badges?: NavIndicators;
 }) {
   const pathname = usePathname();
 
@@ -66,11 +68,7 @@ export function SidebarNav({
                     >
                       <item.icon className="size-4" />
                       {item.label}
-                      {badges[item.href] ? (
-                        <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-amber-950" aria-label={`${badges[item.href]} waiting`}>
-                          {badges[item.href]}
-                        </span>
-                      ) : null}
+                      <NavPills indicator={badges[item.href]} />
                     </Link>
                   </li>
                 );

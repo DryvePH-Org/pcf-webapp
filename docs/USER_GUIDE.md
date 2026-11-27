@@ -89,6 +89,15 @@ assigned to. A fund with no assigned approver can be handled by any approver, so
 nothing gets stuck. Administrators can act in every fund. Custodians keep their
 own duties.
 
+## The numbers beside the menu (everyone)
+
+A number beside a page in the side menu (or a dot on the phone's bottom bar) tells you where to look.
+
+- **Amber number: work for you.** Something is waiting for you to do, such as a request to review, a voucher to approve, a liquidation to finish or a cash settlement. It stays until the work is done, even if you open the page.
+- **Blue number: news.** Something changed that you only need to see, such as a decision on your request. It goes away as soon as you open that page. Opening one record clears only the news about that record.
+
+The numbers refresh when you move to another page, when you come back to the app, and every minute.
+
 ## Notifications: the bell and email (everyone)
 
 The **bell** at the top of every page shows what needs you or changed on your

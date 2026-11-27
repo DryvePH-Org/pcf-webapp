@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Wallet } from "lucide-react";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { UserMenu } from "@/components/layout/user-menu";
+import { markNavSeen, refreshNavIndicators } from "@/actions/nav-indicators";
 import { mobileNavFor, navGroupsFor } from "@/lib/navigation";
+import type { NavIndicators } from "@/lib/nav-indicators";
 import type { Role } from "@/lib/permissions";
 
 export function AppShell({
@@ -18,10 +21,11 @@ export function AppShell({
 }: {
   user: { full_name: string; role: Role };
   // arrives after the page has started to show; empty until then
-  badges?: Promise<Record<string, number>>;
+  badges?: Promise<NavIndicators>;
   children: React.ReactNode;
 }) {
-  const [badges, setBadges] = useState<Record<string, number>>({});
+  const pathname = usePathname();
+  const [badges, setBadges] = useState<NavIndicators>({});
   useEffect(() => {
     let live = true;
     pendingBadges?.then((value) => {
@@ -31,6 +35,34 @@ export function AppShell({
       live = false;
     };
   }, [pendingBadges]);
+
+  const refresh = useCallback(async () => {
+    try {
+      setBadges(await refreshNavIndicators());
+    } catch {
+      // A dropped connection keeps what is shown.
+    }
+  }, []);
+
+  // Opening a page marks the news about it as seen, then the menu counts again. Work still to be done stays.
+  useEffect(() => {
+    let live = true;
+    markNavSeen(pathname)
+      .catch(() => undefined)
+      .then(() => (live ? refresh() : undefined));
+    return () => {
+      live = false;
+    };
+  }, [pathname, refresh]);
+
+  useEffect(() => {
+    const timer = setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [refresh]);
   const groups = navGroupsFor(user.role);
   const { primary, overflow } = mobileNavFor(user.role);
 
