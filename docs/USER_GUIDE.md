@@ -89,6 +89,16 @@ assigned to. A fund with no assigned approver can be handled by any approver, so
 nothing gets stuck. Administrators can act in every fund. Custodians keep their
 own duties.
 
+## Your charts on the dashboard (requester, custodian, approver)
+
+Under your cards the dashboard shows **Your activity**: a few numbers and charts of the last six months, for you only.
+
+- **Requester:** the budget you asked for each month, how your requests ended (approved, waiting, rejected, cancelled), how long an answer takes, the cash you received against what you spent, and where your spending went by category.
+- **Custodian:** the cash released each month in your funds, the liquidations you reviewed, where the money was spent by category, and your vouchers by stage.
+- **Approver:** the vouchers and amounts you approved each month, how fast you approve, what is waiting for you by age, where the approved money went, and the budget requests you decided.
+
+Point at a bar to see its exact amount. Each chart also has a plain table for screen readers. A chart with nothing to show says so instead of drawing an empty picture.
+
 ## The numbers beside the menu (everyone)
 
 A number beside a page in the side menu (or a dot on the phone's bottom bar) tells you where to look.

@@ -1,11 +1,13 @@
 import { OutstandingLiquidationNotice } from "@/components/liquidations/outstanding-notice";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Wallet } from "lucide-react";
 
 import {
   BalanceCard,
   type BalanceFund,
 } from "@/components/dashboard/balance-card";
+import { MyCharts, MyChartsSkeleton } from "@/components/dashboard/my-charts";
 import { MyWork } from "@/components/dashboard/my-work";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -553,6 +555,10 @@ export default async function DashboardPage() {
           </Card>
         ) : null}
       </div>
+
+      <Suspense fallback={<MyChartsSkeleton />}>
+        <MyCharts />
+      </Suspense>
     </div>
   );
 }
