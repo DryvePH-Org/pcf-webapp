@@ -5,6 +5,9 @@
 
 export const STALLED_AFTER_MS = 10 * 60 * 1000;
 export const GIVE_UP_AFTER_MS = 20 * 60 * 1000;
+// A bot that claimed a job and then went silent (for example its Google connection expired mid-run) leaves it "running"
+// for good. A real write takes a few minutes, so a claimed job with no news for this long is treated as stuck.
+export const STUCK_AFTER_MS = 15 * 60 * 1000;
 export const MAX_ATTEMPTS = 3;
 export const RETRY_WAIT_MS = 10 * 60 * 1000;
 export const STALLED_ERROR = "The Grokbot did not start this job after three tries. Use the retry button to send it again.";
@@ -48,4 +51,12 @@ export async function recoverStalledJobs<T extends StalledJob>(
     }
   }
   return result;
+}
+
+// True for a job a bot claimed but has not reported on for too long. Never for one nobody claimed (that is the stalled
+// case above) and never for a finished one.
+export function isStuck(op: { status: string; runner_id: string | null; updated_at?: string | null }, now = Date.now()): boolean {
+  if (op.status !== "running" || !op.runner_id || !op.updated_at) return false;
+  const quiet = now - Date.parse(op.updated_at);
+  return Number.isFinite(quiet) && quiet > STUCK_AFTER_MS;
 }

@@ -3,7 +3,7 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
 import { grokbotFinancialEvent } from "./contract";
-import { recoverStalledJobs } from "./recovery";
+import { isStuck, recoverStalledJobs } from "./recovery";
 import { targetForBook, targetForSpreadsheet, type GrokbotBook } from "./targets";
 
 
@@ -214,6 +214,8 @@ export async function retryGrokbotOperation(id: string) {
     await deliverOperation(existing.data);
     return;
   }
+  // A job the bot claimed and then went silent on is put back like a failed one; the bot reconciles by operation id.
+  const stuck = isStuck(existing.data);
   const saved = await db
     .from("grokbot_operations")
     .update({
@@ -227,7 +229,7 @@ export async function retryGrokbotOperation(id: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .in("status", ["blocked", "failed"]);
+    .in("status", stuck ? ["running"] : ["blocked", "failed"]);
   if (saved.error)
     throw new Error("Could not queue the saved operation for reconciliation.");
 }

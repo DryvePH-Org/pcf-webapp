@@ -1,6 +1,6 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { GIVE_UP_AFTER_MS, MAX_ATTEMPTS, RETRY_WAIT_MS, STALLED_AFTER_MS, STALLED_ERROR, recoverStalledJobs, type StalledJob } from "@/lib/grokbot/recovery";
+import { GIVE_UP_AFTER_MS, MAX_ATTEMPTS, RETRY_WAIT_MS, STALLED_AFTER_MS, STALLED_ERROR, isStuck, recoverStalledJobs, type StalledJob } from "@/lib/grokbot/recovery";
 import { receiptDateProblem } from "@/lib/receipt-date";
 
 const NOW = Date.parse("2026-11-24T10:00:00Z");
@@ -64,4 +64,26 @@ it("questions a receipt date after the filing date or months before it, and acce
   expect(receiptDateProblem("2026-09-01", "2026-11-23")).toBeNull();
   expect(receiptDateProblem("2024-01-18", "2026-11-23")).toContain("more than 90 days before");
   expect(receiptDateProblem("2026-11-25", "2026-11-23")).toContain("after the filing date");
+});
+
+describe("isStuck", () => {
+  const now = Date.parse("2026-11-28T10:00:00Z");
+  const op = (over: Partial<{ status: string; runner_id: string | null; updated_at: string | null }>) => ({
+    status: "running",
+    runner_id: "11111111-1111-4111-8111-111111111111",
+    updated_at: "2026-11-28T09:30:00Z",
+    ...over,
+  });
+  it("is stuck when a bot claimed the job and has been quiet longer than the limit", () => {
+    expect(isStuck(op({}), now)).toBe(true);
+  });
+  it("is not stuck while the bot is still within the limit", () => {
+    expect(isStuck(op({ updated_at: "2026-11-28T09:50:00Z" }), now)).toBe(false);
+  });
+  it("is never stuck when nobody claimed it, or when it is not running", () => {
+    expect(isStuck(op({ runner_id: null }), now)).toBe(false);
+    expect(isStuck(op({ status: "completed" }), now)).toBe(false);
+    expect(isStuck(op({ status: "failed" }), now)).toBe(false);
+    expect(isStuck(op({ updated_at: null }), now)).toBe(false);
+  });
 });

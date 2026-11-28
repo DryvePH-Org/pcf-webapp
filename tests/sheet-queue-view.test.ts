@@ -54,3 +54,12 @@ it("after the report, shows whether the app has read the sheet", () => {
   expect(reportStatus(completed, { last_synced_at: "2026-11-24T09:55:00Z", sync_error: null }, NOW)?.key).toBe("synced");
   expect(reportStatus(completed, { last_synced_at: "2026-11-24T09:40:00Z", sync_error: "Refresh failed." }, NOW)?.key).toBe("read_failed");
 });
+
+it("a job the bot claimed and then went quiet on needs attention, with the way out spelled out", () => {
+  const running = { status: "running", runner_id: "11111111-1111-4111-8111-111111111111" };
+  expect(queueState(op({ ...running, updated_at: new Date(NOW - 5 * 60000).toISOString() }), NOW)).toMatchObject({ key: "sending" });
+  const stuck = queueState(op({ ...running, updated_at: new Date(NOW - 40 * 60000).toISOString() }), NOW);
+  expect(stuck.key).toBe("attention");
+  expect(stuck.detail).toMatch(/40 minutes/);
+  expect(stuck.detail).toMatch(/Retry/);
+});

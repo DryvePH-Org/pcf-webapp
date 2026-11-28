@@ -375,6 +375,7 @@ and when). Vouchers and replenishment forms can be printed.
 - **Reported back, sheet not read** means the app could not read the sheet. Ask Accounting to refresh it.
 - **Waiting to retry** means the bot did not start the job. It is put back in the queue and tried again after a wait that grows each time. After three tries it needs a person.
 - **Needs attention** shows the reason in plain words. Nothing was written. Press **Retry** to send it again.
+- **Needs attention, "started but has not finished for N minutes"** means a bot took the job and then went quiet for 15 minutes, usually because its Google connection expired. Reconnect Google in the bot first, then press **Retry**. The bot checks the sheet before it writes, so nothing is written twice.
 
 At the top, a yellow box **The sheet and the app do not agree** lists what the last read of the sheet found: a voucher number in the sheet that the app does not know (a typo, an old number, or a row typed by hand, with the number it probably should be), a voucher that Grokbot wrote but whose number is no longer in the sheet, or an amount that matches nothing. Fix the sheet (or tell Accounting); each line clears by itself at the next read once the sheet and the app agree. Accounting sees the same lines on the Accounting page.
 

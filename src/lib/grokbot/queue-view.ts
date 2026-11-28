@@ -1,5 +1,7 @@
 // What a custodian sees for each job in the sheet queue, in plain words.
 
+import { isStuck } from "./recovery";
+
 export type QueueStateKey = "waiting" | "retry_wait" | "sending" | "written" | "attention";
 
 export type QueueOp = {
@@ -7,6 +9,7 @@ export type QueueOp = {
   runner_id: string | null;
   not_before: string | null;
   error: string | null;
+  updated_at?: string | null;
 };
 
 export const STATE_LABELS: Record<QueueStateKey, string> = {
@@ -28,6 +31,14 @@ export function friendlyError(error: string | null): string {
 export function queueState(op: QueueOp, now = Date.now()): { key: QueueStateKey; label: string; detail: string } {
   if (op.status === "completed") return { key: "written", label: STATE_LABELS.written, detail: "In the sheet." };
   if (op.status === "blocked" || op.status === "failed") return { key: "attention", label: STATE_LABELS.attention, detail: friendlyError(op.error) };
+  if (isStuck(op, now)) {
+    const minutes = Math.floor((now - Date.parse(op.updated_at as string)) / 60000);
+    return {
+      key: "attention",
+      label: STATE_LABELS.attention,
+      detail: `The bot started this job but has not finished it for ${minutes} minutes. It may have lost its Google connection. Reconnect Google in the bot, then use Retry. The bot checks the sheet first, so nothing is written twice.`,
+    };
+  }
   if (op.status === "running")
     return {
       key: "sending",

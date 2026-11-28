@@ -6,6 +6,7 @@ import { z } from "zod";
 import { actionError, type ActionResult } from "@/lib/action-result";
 import { getCurrentUser } from "@/lib/auth";
 import { dispatchGrokbot, retryGrokbotOperation } from "@/lib/grokbot/delivery";
+import { isStuck } from "@/lib/grokbot/recovery";
 import { withinLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -16,9 +17,9 @@ export async function retrySheetJob(operationId: string): Promise<ActionResult> 
   if (!z.uuid().safeParse(operationId).success) return actionError("That job was not found.");
   if (!(await withinLimit(`sheet-queue:retry:${user.id}`, 10, 60))) return actionError("Wait a minute before trying again.");
   const db = createAdminClient();
-  const op = await db.from("grokbot_operations").select("id, kind, status, liquidation_id, replenishment_id").eq("id", operationId).maybeSingle();
+  const op = await db.from("grokbot_operations").select("id, kind, status, runner_id, updated_at, liquidation_id, replenishment_id").eq("id", operationId).maybeSingle();
   if (op.error || !op.data || !["liquidation_approved", "replenishment_approved"].includes(op.data.kind)) return actionError("That job was not found.");
-  if (!["failed", "blocked"].includes(op.data.status)) return actionError("Only a job that needs attention can be retried.");
+  if (!["failed", "blocked"].includes(op.data.status) && !isStuck(op.data)) return actionError("Only a job that needs attention can be retried.");
   let fundId: string | undefined;
   if (op.data.liquidation_id) fundId = (await db.from("liquidations").select("fund_id").eq("id", op.data.liquidation_id).maybeSingle()).data?.fund_id;
   else if (op.data.replenishment_id) fundId = (await db.from("replenishments").select("fund_id").eq("id", op.data.replenishment_id).maybeSingle()).data?.fund_id;
